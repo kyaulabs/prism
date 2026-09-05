@@ -217,6 +217,24 @@ test('rejects established metadata inspection when .pi is not a directory', (t) 
     );
 });
 
+test('reports a closed metadata failure when .pi is absent during planning', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const metadataPath = path.join(projectRoot, '.pi', 'setup-metadata.json');
+
+    const result = captureWrites(() => main([
+        'automation', 'plan', `--metadata=${metadataPath}`, '--json',
+    ], {projectRoot, coreRoot: CORE_ROOT}));
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stderr, '');
+    assert.deepEqual(JSON.parse(result.stdout).checks, [{
+        id: 'automation-project-metadata',
+        status: 'FAIL',
+        message: 'established project metadata is invalid',
+    }]);
+});
+
 test('reports established active-adapter metadata requirements', (t) => {
     const fixture = makeGitFixture(t);
 

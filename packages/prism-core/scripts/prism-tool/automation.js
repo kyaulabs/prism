@@ -272,10 +272,17 @@ function metadataFromManifest(value) {
 
 function readMetadataInput(projectRoot, metadataPath, capabilities) {
     const piPath = path.join(projectRoot, '.pi');
-    const piStat = fs.lstatSync(piPath);
-    const canonicalPi = fs.realpathSync(piPath);
-    if (piStat.isSymbolicLink() || !piStat.isDirectory() ||
-        path.dirname(canonicalPi) !== projectRoot) {
+    const piStat = fs.lstatSync(piPath, {throwIfNoEntry: false});
+    if (piStat === undefined || piStat.isSymbolicLink() || !piStat.isDirectory()) {
+        throw new AutomationFailure('automation-project-metadata-invalid');
+    }
+    let canonicalPi;
+    try {
+        canonicalPi = fs.realpathSync(piPath);
+    } catch {
+        throw new AutomationFailure('automation-project-metadata-invalid');
+    }
+    if (path.dirname(canonicalPi) !== projectRoot) {
         throw new AutomationFailure('automation-project-metadata-invalid');
     }
     const lexical = path.resolve(metadataPath);
