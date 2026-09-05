@@ -1,4 +1,4 @@
-// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: discovery.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -260,8 +260,7 @@ function loadQualityProviderHandler(registration) {
     return handler;
 }
 
-function discoverAutomationAdapter(options) {
-    const registration = discoverAdapter(options);
+function automationAdapter(registration) {
     const handler = loadAdapterHandler(registration);
     if (
         typeof handler.describeAutomation !== 'function' ||
@@ -273,12 +272,30 @@ function discoverAutomationAdapter(options) {
     return Object.freeze({registration, handler});
 }
 
+function discoverAutomationAdapter(options) {
+    return automationAdapter(discoverAdapter(options));
+}
+
+function discoverOptionalAutomationAdapter(options) {
+    const registration = discoverOptionalAdapter(options);
+    return registration === null ? null : automationAdapter(registration);
+}
+
 function optionalRegistrations(projectRoot, piDir) {
     const canonicalProject = fs.realpathSync(projectRoot);
     const canonicalPi = fs.realpathSync(piDir);
     if (!isInside(canonicalProject, canonicalPi)) throw new Error('Pi directory escapes project root');
     const registrations = [...managedCandidates(canonicalPi), ...localCandidates(canonicalPi)];
     return new Map(registrations.map((registration) => [registration.packageRoot, registration]));
+}
+
+function validateCoreComponentCollisions(registration) {
+    const coreContract = loadContract(path.resolve(__dirname, '../../toolchain.json'));
+    const coreIds = new Set(coreContract.components.map(({id}) => id));
+    for (const {id} of registration.contract.components) {
+        if (coreIds.has(id)) throw new Error(`adapter component collides with core component ${id}`);
+    }
+    return registration;
 }
 
 function discoverOptionalAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
@@ -291,25 +308,20 @@ function discoverOptionalAdapter({projectRoot, piDir = path.join(projectRoot, '.
     const byRoot = optionalRegistrations(projectRoot, piDir);
     if (byRoot.size === 0) return null;
     if (byRoot.size > 1) throw new Error('more than one active adapter is not permitted');
-    return [...byRoot.values()][0];
+    return validateCoreComponentCollisions([...byRoot.values()][0]);
 }
 
 function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
     const byRoot = optionalRegistrations(projectRoot, piDir);
     if (byRoot.size !== 1) throw new Error('exactly one active adapter is required');
-    const registration = [...byRoot.values()][0];
-    const coreContract = loadContract(path.resolve(__dirname, '../../toolchain.json'));
-    const coreIds = new Set(coreContract.components.map(({id}) => id));
-    for (const {id} of registration.contract.components) {
-        if (coreIds.has(id)) throw new Error(`adapter component collides with core component ${id}`);
-    }
-    return registration;
+    return validateCoreComponentCollisions([...byRoot.values()][0]);
 }
 
 module.exports = {
     discoverAdapter,
     discoverAutomationAdapter,
     discoverOptionalAdapter,
+    discoverOptionalAutomationAdapter,
     loadAdapterHandler,
     loadQualityProviderHandler,
     registrationFor,

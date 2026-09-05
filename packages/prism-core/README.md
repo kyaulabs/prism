@@ -164,7 +164,17 @@ configuration is a private closed record containing only browser `auto` or
 
 Established projects keep the existing evidence-driven setup path. They do not
 enter strict-empty source selection, adapter acquisition, or bootstrap
-transactions.
+transactions. Established repositories use a schema two project manifest with
+exact `ESTABLISHED` source evidence. Core creates or migrates the manifest in
+the same journaled transaction as repository automation, verifies all providers,
+and only then offers separate canonical-hook activation.
+
+A Core-only (`CORE_ONLY`) established composition records a null adapter and
+runs hooks without loading adapter code. An `ADAPTER` composition must match one exact
+project-local registration; malformed or ambiguous adapter evidence is not
+absence. Valid schema-one Blank and Template manifests remain supported and are
+not rewritten only because the repository is established. See
+[Project manifest](docs/project-manifest.md).
 
 Strict-empty setup offers Template, Blank, or Cancel. Template is recommended.
 Blank performs no Template lookup. Cancel exits without creating bootstrap

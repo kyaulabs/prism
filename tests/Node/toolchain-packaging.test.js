@@ -195,6 +195,11 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.has('NOTICE'), true, 'core NOTICE packaged');
     assert.equal(packed.files.has('docs/review-runtime.md'), true, 'review runtime documentation packaged');
     assert.equal(
+        packed.files.has('docs/project-manifest.md'),
+        true,
+        'project manifest documentation packaged'
+    );
+    assert.equal(
         packed.files.has('docs/adapter-catalogue.md'),
         true,
         'adapter catalogue publisher contract packaged'
@@ -226,7 +231,8 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
         'adapter-catalogue-cache', 'adapter-catalogue-http', 'adapter-catalogue-validation',
-        'automation', 'automation-providers', 'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
+        'automation', 'automation-providers', 'established-project-provider', 'project-manifest',
+        'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
         'bootstrap-journal', 'bootstrap-metadata', 'bootstrap-plan',
         'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
         'bootstrap-source',
@@ -349,6 +355,21 @@ test('documents human-only bot-owned catalogue publication provisioning', () => 
         runbook,
         /github_pat_[A-Za-z0-9_]+|gh secret set|echo .*TOKEN|BEGIN (?:RSA |ENCRYPTED )?PRIVATE KEY|[.]env/,
     );
+});
+
+test('documents established Core-only project identity and hook behavior', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const manifestDocs = fs.readFileSync(
+        path.join(CORE_PKG, 'docs', 'project-manifest.md'), 'utf8'
+    );
+
+    assert.match(coreReadme, /established.*schema two.*project manifest/is);
+    assert.match(coreReadme, /Core-only.*null adapter.*without.*adapter/is);
+    assert.match(manifestDocs, /schema two.*ESTABLISHED/is);
+    assert.match(manifestDocs, /schema one.*Blank.*Template/is);
+    assert.match(manifestDocs, /Core-only.*adapter.*null/is);
+    assert.match(manifestDocs, /hook.*no adapter.*load/is);
+    assert.match(manifestDocs, /invalid.*adapter.*not.*absence/is);
 });
 
 test('documents Blank Core-only application and recovery boundaries', () => {

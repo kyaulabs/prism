@@ -1,18 +1,19 @@
-// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {verifyAutomation} = require('./automation');
 const {validateActiveBootstrapSeed} = require('./bootstrap-seed');
 const {
     holdBootstrapAttemptDirectory,
     readBootstrapJournal,
 } = require('./bootstrap-journal');
-const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
-const {validateBootstrapSource} = require('./bootstrap-source');
 const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
+const {discoverOptionalAdapter, loadAdapterHandler} = require('./discovery');
+const {readProjectManifest} = require('./project-manifest');
 const {runBounded} = require('./process');
 const {applyManagedHooks} = require('./managed-hooks');
 
@@ -33,13 +34,6 @@ function requireSuccess(result, message) {
     return output(result).trim();
 }
 
-function exactKeys(value, expected) {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-    const actual = Object.keys(value).sort();
-    const wanted = [...expected].sort();
-    return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
-}
-
 function readBounded(descriptor, maximum, message) {
     const buffer = Buffer.alloc(maximum + 1);
     let offset = 0;
@@ -52,92 +46,40 @@ function readBounded(descriptor, maximum, message) {
     return buffer.subarray(0, offset);
 }
 
-function validAdapterIdentity(value) {
-    return exactKeys(value, ['id', 'packageName', 'packageVersion', 'bootstrapProtocol']) &&
-        typeof value.id === 'string' &&
-        value.id.length > 0 &&
-        typeof value.packageName === 'string' &&
-        value.packageName.length > 0 &&
-        typeof value.packageVersion === 'string' &&
-        value.packageVersion.length > 0 &&
-        Number.isSafeInteger(value.bootstrapProtocol) &&
-        value.bootstrapProtocol > 0;
+function validateProjectComposition({projectRoot, project}) {
+    const registration = discoverOptionalAdapter({projectRoot});
+    if (project.value.adapter === null) {
+        if (registration !== null) throw new Error('project adapter identity is invalid');
+        return null;
+    }
+    if (
+        registration === null ||
+        (project.value.source.mode === 'ESTABLISHED' &&
+            project.value.adapter.id !== registration.packageName) ||
+        registration.packageName !== project.value.adapter.packageName ||
+        registration.packageVersion !== project.value.adapter.packageVersion ||
+        registration.bootstrapProtocol !== project.value.adapter.bootstrapProtocol
+    ) throw new Error('project adapter identity is invalid');
+    return registration;
+}
+
+function validateProjectAutomation({projectRoot, coreRoot, project}) {
+    const release = project.value.capabilities.includes('release-management')
+        ? project.value.capabilityMetadata['release-management'].repository
+        : null;
+    const verified = verifyAutomation({projectRoot, coreRoot, releaseRepository: release});
+    if (verified.status !== 'GO') throw new Error('project automation is invalid');
 }
 
 function readCoreProject(projectRoot, coreRoot) {
-    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
-    const initial = fs.lstatSync(manifestPath);
-    if (
-        initial.isSymbolicLink() ||
-        !initial.isFile() ||
-        initial.size > MAX_MANIFEST_BYTES ||
-        fs.realpathSync(manifestPath) !== manifestPath
-    ) {
-        throw new Error('project manifest is invalid');
-    }
-    const descriptor = fs.openSync(manifestPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    let contents;
-    try {
-        const held = fs.fstatSync(descriptor);
-        if (held.size > MAX_MANIFEST_BYTES) throw new Error('project manifest is invalid');
-        contents = readBounded(descriptor, MAX_MANIFEST_BYTES, 'project manifest is invalid');
-        const final = fs.fstatSync(descriptor);
-        if (
-            contents.length !== held.size ||
-            held.dev !== initial.dev ||
-            held.ino !== initial.ino ||
-            final.dev !== held.dev ||
-            final.ino !== held.ino ||
-            final.size !== held.size
-        ) {
-            throw new Error('project manifest changed');
-        }
-    } finally {
-        fs.closeSync(descriptor);
-    }
-    const value = JSON.parse(contents.toString('utf8'));
-    const capabilities = Array.isArray(value?.capabilities) ? value.capabilities : [];
-    const corePackage = JSON.parse(fs.readFileSync(path.join(coreRoot, 'package.json'), 'utf8'));
-    let metadataValid;
-    let sourceValid = false;
-    try {
-        validateBootstrapSource(value.source);
-        sourceValid = true;
-        validateNormalizedProjectMetadata({
-            capabilities,
-            metadata: {
-                schemaVersion: value.schemaVersion,
-                ...value.project,
-                ...(capabilities.length === 0 ? {} : {
-                    capabilityMetadata: value.capabilityMetadata,
-                }),
-            },
-        });
-        metadataValid = true;
-    } catch {
-        metadataValid = false;
-    }
-    if (
-        !exactKeys(value, [
-            'schemaVersion', 'source', 'capabilities', 'project',
-            ...(capabilities.length === 0 ? [] : ['capabilityMetadata']),
-            'adapter', 'compatibility',
-        ]) ||
-        value.schemaVersion !== 1 ||
-        !Array.isArray(value.capabilities) ||
-        !sourceValid ||
-        !metadataValid ||
-        (value.adapter !== null && !validAdapterIdentity(value.adapter)) ||
-        !exactKeys(value.compatibility, ['corePackage', 'coreVersion', 'providerProtocol']) ||
-        value.compatibility.corePackage !== '@kyaulabs/prism-core' ||
-        value.compatibility.coreVersion !== corePackage.version ||
-        value.compatibility.providerProtocol !== 1
-    ) {
-        throw new Error('project manifest is invalid');
-    }
+    const project = readProjectManifest({projectRoot, coreRoot});
+    const registration = validateProjectComposition({projectRoot, project});
+    validateProjectAutomation({projectRoot, coreRoot, project});
     return Object.freeze({
-        adapter: value.adapter,
-        manifestDigest: crypto.createHash('sha256').update(contents).digest('hex'),
+        adapter: project.value.adapter,
+        source: project.value.source,
+        registration,
+        manifestDigest: project.digest,
     });
 }
 
@@ -169,12 +111,13 @@ function lintMarkdown(projectRoot, coreRoot, run, env) {
     );
 }
 
-function defaultHookAdapter(identity, projectRoot, coreRoot) {
-    const active = loadActiveBootstrapAdapter({
-        projectRoot,
-        coreRoot,
-        identity,
-    });
+function defaultHookAdapter(identity, projectRoot, coreRoot, registration, source) {
+    const active = source.mode === 'ESTABLISHED'
+        ? Object.freeze({
+            registration,
+            handler: loadAdapterHandler(registration, identity.bootstrapProtocol),
+        })
+        : loadActiveBootstrapAdapter({projectRoot, coreRoot, identity});
     return Object.freeze({
         runBootstrapQuality(options) {
             return active.handler.runBootstrapQuality({
@@ -185,9 +128,15 @@ function defaultHookAdapter(identity, projectRoot, coreRoot) {
     });
 }
 
-function adapterQuality(projectRoot, coreRoot, adapter, run, loadHookAdapter) {
-    if (adapter === null) return;
-    const active = loadHookAdapter(adapter, projectRoot, coreRoot);
+function adapterQuality(projectRoot, coreRoot, project, run, loadHookAdapter) {
+    if (project.adapter === null) return;
+    const active = loadHookAdapter(
+        project.adapter,
+        projectRoot,
+        coreRoot,
+        project.registration,
+        project.source
+    );
     if (typeof active?.runBootstrapQuality !== 'function') {
         throw new Error('adapter quality interface is invalid');
     }
@@ -275,7 +224,7 @@ function preCommit(projectRoot, coreRoot, project, run, env, loadHookAdapter) {
         'staged diff validation failed'
     );
     validateBootstrapHookState(projectRoot, coreRoot, project, run, env);
-    adapterQuality(projectRoot, coreRoot, project.adapter, run, loadHookAdapter);
+    adapterQuality(projectRoot, coreRoot, project, run, loadHookAdapter);
 }
 
 function gitDirectory(projectRoot, run, env) {
@@ -421,7 +370,7 @@ function initialProtectedPush(projectRoot, run, env, localRef, localOid, remoteR
     return count === '1' && parents.length === 1 && parents[0] === localOid;
 }
 
-function prePush(projectRoot, coreRoot, adapter, context, run, env, loadHookAdapter) {
+function prePush(projectRoot, coreRoot, project, context, run, env, loadHookAdapter) {
     const input = readPushInput(context);
     const lines = input.split('\n').filter((line) => line !== '');
     if (lines.length === 0 || lines.length > 1024) throw new Error('push input is invalid');
@@ -469,7 +418,7 @@ function prePush(projectRoot, coreRoot, adapter, context, run, env, loadHookAdap
         }
     }
     localReadiness(projectRoot, coreRoot, run, env);
-    adapterQuality(projectRoot, coreRoot, adapter, run, loadHookAdapter);
+    adapterQuality(projectRoot, coreRoot, project, run, loadHookAdapter);
 }
 
 function validGrammar(event, args) {
@@ -481,6 +430,16 @@ function validGrammar(event, args) {
     if (!['message', 'template', 'merge', 'squash', 'commit'].includes(args[1])) return false;
     if (args[1] === 'commit') return args.length === 3 && args[2] !== '';
     return args.length === 2;
+}
+
+function hookGateFailure(id, message) {
+    return {
+        status: 'NO-GO',
+        disposition: 'CONFLICT',
+        hooks: [],
+        remove: [],
+        checks: [{id, status: 'FAIL', message}],
+    };
 }
 
 function reconcileHooksCommand(args, context) {
@@ -498,26 +457,38 @@ function reconcileHooksCommand(args, context) {
         return 2;
     }
     let result;
+    const projectRoot = context.projectRoot ?? context.cwd ?? process.cwd();
+    const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
+    let project;
     try {
-        result = applyManagedHooks({
-            projectRoot: context.projectRoot ?? context.cwd ?? process.cwd(),
-            coreRoot: context.coreRoot ?? path.resolve(__dirname, '../..'),
+        project = readProjectManifest({projectRoot, coreRoot});
+    } catch {
+        result = hookGateFailure('project-manifest', 'project manifest evidence is invalid');
+    }
+    if (result === undefined) {
+        try {
+            validateProjectComposition({projectRoot, project});
+        } catch {
+            result = hookGateFailure('project-adapter', 'project adapter evidence is invalid');
+        }
+    }
+    if (result === undefined) {
+        try {
+            validateProjectAutomation({projectRoot, coreRoot, project});
+        } catch {
+            result = hookGateFailure('project-automation', 'project automation evidence is invalid');
+        }
+    }
+    try {
+        if (result === undefined) result = applyManagedHooks({
+            projectRoot,
+            coreRoot,
             approval: 'yes',
             run: context.hookRun ?? runBounded,
             env: context.env ?? process.env,
         });
     } catch {
-        result = {
-            status: 'NO-GO',
-            disposition: 'CONFLICT',
-            hooks: [],
-            remove: [],
-            checks: [{
-                id: 'managed-hooks',
-                status: 'FAIL',
-                message: 'managed hook reconciliation failed',
-            }],
-        };
+        result = hookGateFailure('managed-hooks', 'managed hook reconciliation failed');
     }
     const report = {schemaVersion: 1, command: 'hook reconcile', ...result};
     if (jsonControls.length === 1) process.stdout.write(`${JSON.stringify(report)}\n`);
@@ -554,7 +525,7 @@ function hookCommand(args, context = {}) {
             prePush(
                 projectRoot,
                 coreRoot,
-                project.adapter,
+                project,
                 context,
                 run,
                 env,
@@ -568,6 +539,6 @@ function hookCommand(args, context = {}) {
     }
 }
 
-module.exports = {hookCommand};
+module.exports = {hookCommand, validateProjectComposition};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

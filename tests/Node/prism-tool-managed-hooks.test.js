@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-managed-hooks.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-managed-hooks.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -7,7 +7,14 @@ const {execFileSync} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const {renderCoreAutomationProvider} = require(
+    '../../packages/prism-core/scripts/prism-tool/automation-providers'
+);
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
+const {hookCommand} = require('../../packages/prism-core/scripts/prism-tool/hook');
+const {renderProjectManifest} = require(
+    '../../packages/prism-core/scripts/prism-tool/project-manifest'
+);
 const {
     applyManagedHooks,
     inspectManagedHooks,
@@ -18,6 +25,7 @@ const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/proce
 const {makeTempDir} = require('./helpers');
 
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
+const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const REPOSITORY_ROOT = path.resolve(__dirname, '../..');
 const CANONICAL_HOOKS = [
     'commit-msg',
@@ -34,8 +42,48 @@ function makeFixture(t) {
     });
     execFileSync('git', ['config', 'user.name', 'Test User'], {cwd: projectRoot});
     execFileSync('git', ['config', 'user.email', 'test@example.com'], {cwd: projectRoot});
+    fs.mkdirSync(path.join(projectRoot, '.prism'));
+    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
+    fs.writeFileSync(manifestPath, renderProjectManifest({
+        schemaVersion: 2,
+        source: {mode: 'ESTABLISHED', evidence: null},
+        capabilities: [],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Hook Fixture',
+            summary: 'An established Core-only hook fixture.',
+        },
+        coreVersion: require('../../packages/prism-core/package.json').version,
+        adapter: null,
+    }), {mode: 0o644});
+    fs.chmodSync(manifestPath, 0o644);
+    renderCoreAutomationProvider({coreRoot: CORE_ROOT, candidateRoot: projectRoot});
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     return {projectRoot, coreRoot: CORE_ROOT};
+}
+
+function writeAdapterSettings(projectRoot) {
+    fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
+    fs.writeFileSync(path.join(projectRoot, '.pi', 'settings.json'), `${JSON.stringify({
+        skills: [path.join(ADAPTER_ROOT, 'skills')],
+    })}\n`);
+}
+
+function replaceManifest(projectRoot, {adapter = null, coreVersion = null} = {}) {
+    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
+    fs.writeFileSync(manifestPath, renderProjectManifest({
+        schemaVersion: 2,
+        source: {mode: 'ESTABLISHED', evidence: null},
+        capabilities: [],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Hook Fixture',
+            summary: 'An established Core-only hook fixture.',
+        },
+        coreVersion: coreVersion ?? require('../../packages/prism-core/package.json').version,
+        adapter,
+    }), {mode: 0o644});
+    fs.chmodSync(manifestPath, 0o644);
 }
 
 function canonical(name) {
@@ -53,6 +101,24 @@ function writeHook(projectRoot, name, contents, mode = 0o755) {
     fs.chmodSync(destination, mode);
 }
 
+function readHooksPath(projectRoot) {
+    try {
+        return execFileSync('git', [
+            'config', '--local', '--get', 'core.hooksPath',
+        ], {cwd: projectRoot, encoding: 'utf8'}).trim();
+    } catch (error) {
+        if (error.status === 1) return null;
+        throw error;
+    }
+}
+
+function passingHookRun(command, args, options = {}) {
+    if (command === 'git' && args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
+        return {status: 0, stdout: `${options.cwd}\n`, stderr: ''};
+    }
+    return {status: 0, stdout: '', stderr: ''};
+}
+
 function captureWrites(action) {
     let stdout = '';
     let stderr = '';
@@ -67,6 +133,112 @@ function captureWrites(action) {
         process.stderr.write = stderrWrite;
     }
 }
+
+test('does not activate canonical hooks before the project manifest exists', (t) => {
+    const fixture = makeFixture(t);
+    fs.unlinkSync(path.join(fixture.projectRoot, '.prism', 'project.json'));
+
+    const result = captureWrites(() => main([
+        'hook', 'reconcile', '--approval=yes', '--json',
+    ], fixture));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).checks[0].id, 'project-manifest');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'hooks')), false);
+    assert.equal(readHooksPath(fixture.projectRoot), null);
+});
+
+test('does not activate hooks before Core automation verifies', (t) => {
+    const fixture = makeFixture(t);
+    fs.rmSync(path.join(fixture.projectRoot, '.github', 'workflows', 'back-merge.yml'));
+
+    const result = captureWrites(() => main([
+        'hook', 'reconcile', '--approval=yes', '--json',
+    ], fixture));
+
+    assert.equal(result.status, 5);
+    assert.equal(JSON.parse(result.stdout).checks[0].id, 'project-automation');
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'hooks')), false);
+    assert.equal(readHooksPath(fixture.projectRoot), null);
+});
+
+test('runs canonical pre-commit for a verified Core-only manifest without adapter loading', (t) => {
+    const fixture = makeFixture(t);
+    let adapterLoads = 0;
+    const status = hookCommand(['pre-commit'], {
+        ...fixture,
+        hookRun: passingHookRun,
+        loadHookAdapter() {
+            adapterLoads += 1;
+            throw new Error('unexpected adapter load');
+        },
+    });
+    assert.equal(status, 0);
+    assert.equal(adapterLoads, 0);
+});
+
+test('rejects incoherent manifest and adapter evidence before hook mutation', (t) => {
+    const adapterIdentity = {
+        id: '@kyaulabs/prism-php-web',
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: require('../../packages/prism-php-web/package.json').version,
+        bootstrapProtocol: 1,
+    };
+    const cases = [
+        {
+            name: 'unexpected adapter',
+            arrange(fixture) { writeAdapterSettings(fixture.projectRoot); },
+            check: 'project-adapter',
+        },
+        {
+            name: 'missing adapter',
+            arrange(fixture) { replaceManifest(fixture.projectRoot, {adapter: adapterIdentity}); },
+            check: 'project-adapter',
+        },
+        {
+            name: 'different adapter',
+            arrange(fixture) {
+                writeAdapterSettings(fixture.projectRoot);
+                replaceManifest(fixture.projectRoot, {adapter: {
+                    ...adapterIdentity,
+                    id: '@example/different-adapter',
+                }});
+            },
+            check: 'project-adapter',
+        },
+        {
+            name: 'stale Core',
+            arrange(fixture) { replaceManifest(fixture.projectRoot, {coreVersion: '0.4.0'}); },
+            check: 'project-manifest',
+        },
+    ];
+    for (const item of cases) {
+        const fixture = makeFixture(t);
+        item.arrange(fixture);
+        const result = captureWrites(() => main([
+            'hook', 'reconcile', '--approval=yes', '--json',
+        ], fixture));
+        assert.equal(result.status, 5, item.name);
+        assert.equal(JSON.parse(result.stdout).checks[0].id, item.check, item.name);
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'hooks')), false);
+        assert.equal(readHooksPath(fixture.projectRoot), null);
+    }
+});
+
+test('rejects incoherent composition before adapter hook execution', (t) => {
+    const fixture = makeFixture(t);
+    writeAdapterSettings(fixture.projectRoot);
+    let adapterLoads = 0;
+
+    const status = hookCommand(['pre-commit'], {
+        ...fixture,
+        hookRun: passingHookRun,
+        loadHookAdapter() { adapterLoads += 1; },
+    });
+
+    assert.equal(status, 1);
+    assert.equal(adapterLoads, 0);
+});
 
 test('plans create, preserve, migrate, and obsolete managed removal', (t) => {
     const fixture = makeFixture(t);
@@ -312,7 +484,7 @@ test('requires literal approval through the reconcile command', (t) => {
     const fixture = makeFixture(t);
     const rejected = captureWrites(() => main(['hook', 'reconcile'], fixture));
     assert.equal(rejected.status, 2);
-    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'hooks')), false);
 
     const applied = captureWrites(() => main([
         'hook',
