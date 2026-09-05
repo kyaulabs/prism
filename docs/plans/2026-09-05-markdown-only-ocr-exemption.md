@@ -71,7 +71,7 @@ accept ADR-0106 and update ADR-0080 metadata plus `CONTEXT.md`.
   subprocess boundary `context.run`; no classifier injection or configuration.
 - Preserves `recordReviewSegment(input, context)` and its stored shape.
 
-- [ ] **Step 1: Ratify the architecture before implementation.** Set ADR-0106's
+- [x] **Step 1: Ratify the architecture before implementation.** Set ADR-0106's
   status to `Accepted`. Add only this paragraph under ADR-0080's Status:
 
   > Selectively superseded by ADR-0106 for the external OCR requirement on
@@ -93,7 +93,7 @@ accept ADR-0106 and update ADR-0080 metadata plus `CONTEXT.md`.
   > `adr/0106-verified-markdown-only-ocr-exemption.md` — verify Markdown-only OCR
   > non-applicability in version-one chains without changing other review gates.
 
-- [ ] **Step 2: Write and run the first failing public regression.** Extend the
+- [x] **Step 2: Write and run the first failing public regression.** Extend the
   existing test `fixture(t)` to `fixture(t, filename = 'file.txt')`, replacing
   only its three literal `file.txt` path operands with `filename`. Existing
   default callers remain unchanged. Add `.pi/` to the fixture's Git-local exclude
@@ -136,7 +136,7 @@ accept ADR-0106 and update ADR-0080 metadata plus `CONTEXT.md`.
   Expected RED: the new test fails with `review axis is incomplete`; existing
   tests pass. A fixture failure or unavailable command is not the intended RED.
 
-- [ ] **Step 3: Add the bounded proof and recorder integration.** The following
+- [x] **Step 3: Add the bounded proof and recorder integration.** The following
   is the complete target body for `ocr-applicability.js`, with its required RCS
   header/modeline added during execution. Apply it incrementally with Step 4:
   introduce each denial branch only after its public regression is present
@@ -268,7 +268,7 @@ accept ADR-0106 and update ADR-0080 metadata plus `CONTEXT.md`.
   }
   ```
 
-- [ ] **Step 4: Extend through one RED→GREEN case at a time.** Import the public
+- [x] **Step 4: Extend through one RED→GREEN case at a time.** Import the public
   classifier and `runBounded` into the chain test file. Add these complete
   real-Git and process-boundary cases. Do not implement speculative hardening
   before its case fails for the intended reason; keep already-green cases as
@@ -411,13 +411,23 @@ accept ADR-0106 and update ADR-0080 metadata plus `CONTEXT.md`.
   negative case yields its intended fixed failure or `REQUIRED`, never a waiver.
   Refactor only after green; do not change ordinary completion semantics.
 
-- [ ] **Step 5: Verify and commit this logical change.** Run the focused suite,
+- [x] **Step 5: Verify and commit this logical change.** Run the focused suite,
   `git diff --check`, and staged Markdown lint. Stage only the six Task 1 files.
   In a later exclusive tool call:
 
   ```bash
   prism-tool commit create --type fix --scope review --subject "prove markdown-only ocr exemptions before recording"
   ```
+
+Task 1 evidence: first public regression failed with `review axis is incomplete`
+then passed. Immutable-commit, malformed-metadata, valid-output timeout/overflow,
+and missing-blob regressions demonstrated RED before their corresponding
+checks were added. Boundary assertions run outside production catch blocks;
+malformed-result tests also exercise the public classifier directly. Final
+focused suite: 19 passing tests, including data-driven file-kind cases. Full
+Node suite: 1,363 passed. Pest: 85 tests / 128 assertions, 100% PHP coverage;
+changed-PHP gate: zero files, zero failures. Scoped ESLint, Markdown, pre-commit,
+and whitespace checks passed. No dependency or version-two changes.
 
 ## Task 2: Reprove every stored exemption and preserve repair gates
 

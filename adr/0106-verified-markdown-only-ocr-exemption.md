@@ -4,7 +4,7 @@ Date: 2026-09-05
 
 ## Status
 
-Proposed
+Accepted
 
 Selectively supersedes ADR-0080's unconditional external OCR requirement for
 version-one review segments whose exact non-empty Git range is provably
