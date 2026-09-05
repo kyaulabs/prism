@@ -191,7 +191,7 @@ register_temp_dir "$ESTABLISHED_AUTOMATION_SECTION"
 awk '/^## Established repository automation$/ { active=1 } /^## 1[.] Pre-flight$/ { active=0 } active' \
     "$CORE_PROMPTS/setup.md" > "$ESTABLISHED_AUTOMATION_SECTION"
 setup_route_line=$({ grep -niF 'prism-tool setup route --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-established_doctor_global_line=$({ grep -niF 'prism-tool doctor --local-only' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+established_section_line=$({ grep -niF '## Established repository automation' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 established_doctor_line=$({ grep -niF 'prism-tool doctor --local-only' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_metadata_line=$({ grep -niF 'prism-tool setup project metadata --source=established --adapter=core-only' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_inspect_line=$({ grep -niF 'prism-tool automation inspect --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
@@ -200,12 +200,12 @@ established_plan_line=$({ grep -niF 'prism-tool automation plan --metadata=' "$E
 established_apply_line=$({ grep -niF 'prism-tool automation apply --plan=' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_verify_line=$({ grep -niF 'prism-tool automation verify --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_hook_line=$({ grep -niF 'prism-tool hook reconcile --approval=yes --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
-if [ -n "$setup_route_line" ] && [ -n "$established_doctor_global_line" ] \
+if [ -n "$setup_route_line" ] && [ -n "$established_section_line" ] \
     && [ -n "$established_doctor_line" ] && [ -n "$established_metadata_line" ] && [ -n "$established_inspect_line" ] \
     && [ -n "$established_release_line" ] && [ -n "$established_plan_line" ] \
     && [ -n "$established_apply_line" ] && [ -n "$established_verify_line" ] \
     && [ -n "$established_hook_line" ] \
-    && [ "$setup_route_line" -lt "$established_doctor_global_line" ] \
+    && [ "$setup_route_line" -lt "$established_section_line" ] \
     && [ "$established_doctor_line" -lt "$established_metadata_line" ] \
     && [ "$established_metadata_line" -lt "$established_inspect_line" ] \
     && [ "$established_inspect_line" -lt "$established_release_line" ] \

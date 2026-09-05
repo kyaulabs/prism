@@ -117,6 +117,14 @@ test('rejects open, malformed, and stale manifest authority', () => {
     const mutations = [
         (value) => { value.extra = true; },
         (value) => { value.adapter = {}; },
+        (value) => {
+            value.adapter = {
+                id: '@kyaulabs/prism-php-web',
+                packageName: '@kyaulabs/prism-php-web',
+                packageVersion: 'latest',
+                bootstrapProtocol: 1,
+            };
+        },
         (value) => { value.compatibility.providerProtocol = 2; },
         (value) => { value.source.evidence = {}; },
     ];

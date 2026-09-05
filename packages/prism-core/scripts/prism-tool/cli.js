@@ -1071,8 +1071,11 @@ function setup(args, context) {
         if (established) {
             try {
                 projectRoot = fs.realpathSync(requestedRoot);
-                const piRoot = fs.realpathSync(path.join(projectRoot, '.pi'));
-                if (path.dirname(piRoot) !== projectRoot) {
+                const piPath = path.join(projectRoot, '.pi');
+                const piStat = fs.lstatSync(piPath);
+                const piRoot = fs.realpathSync(piPath);
+                if (piStat.isSymbolicLink() || !piStat.isDirectory() ||
+                    path.dirname(piRoot) !== projectRoot) {
                     throw new Error('established project state is invalid');
                 }
                 const selected = discoverOptionalAutomationAdapter({projectRoot});

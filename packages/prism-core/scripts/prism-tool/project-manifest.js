@@ -27,9 +27,10 @@ function exactKeys(value, expected) {
 function validAdapter(value) {
     return value === null || (
         exactKeys(value, ['id', 'packageName', 'packageVersion', 'bootstrapProtocol']) &&
-        ['id', 'packageName', 'packageVersion'].every((key) =>
+        ['id', 'packageName'].every((key) =>
             typeof value[key] === 'string' && value[key].length > 0
         ) &&
+        semver.valid(value.packageVersion) !== null &&
         Number.isSafeInteger(value.bootstrapProtocol) &&
         value.bootstrapProtocol > 0
     );

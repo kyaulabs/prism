@@ -199,6 +199,24 @@ test('reports established Core-only metadata requirements', (t) => {
     assert.equal(report.disposition, 'METADATA_REQUIRED');
 });
 
+test('rejects established metadata inspection when .pi is not a directory', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    fs.rmSync(path.join(fixture.projectRoot, '.pi'), {recursive: true});
+    fs.writeFileSync(path.join(fixture.projectRoot, '.pi'), 'not a directory\n');
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=established',
+        '--adapter=core-only', '--json',
+    ], fixture));
+
+    assert.equal(result.status, 5);
+    assert.equal(result.stdout, '');
+    assert.equal(
+        result.stderr,
+        'prism-tool: project metadata requires valid established adapter state\n'
+    );
+});
+
 test('reports established active-adapter metadata requirements', (t) => {
     const fixture = makeGitFixture(t);
 
