@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
     applyAutomation,
+    automationFailure,
     inspectAutomation,
     planAutomation,
     verifyAutomation,
@@ -1848,17 +1849,8 @@ function automationCommand(args, context) {
             if (operation === 'inspect') result = inspectAutomation(options);
             else if (operation === 'plan') result = planAutomation(options);
             else result = verifyAutomation(options);
-        } catch {
-            result = {
-                status: 'NO-GO',
-                disposition: 'CONFLICT',
-                providers: [],
-                checks: [{
-                    id: `automation-${operation}`,
-                    status: 'FAIL',
-                    message: `automation ${operation} failed`,
-                }],
-            };
+        } catch (error) {
+            result = automationFailure(operation, error);
         }
     } else if (operation === 'apply') {
         const approvals = controls.filter((argument) => argument.startsWith('--approval='));
@@ -1883,23 +1875,14 @@ function automationCommand(args, context) {
         }
         try {
             result = applyAutomation({...roots, planPath: plans[0].slice('--plan='.length)});
-        } catch {
-            result = {
-                status: 'NO-GO',
-                disposition: 'CONFLICT',
-                providers: [],
-                checks: [{
-                    id: 'automation-apply',
-                    status: 'FAIL',
-                    message: 'automation apply failed',
-                }],
-            };
+        } catch (error) {
+            result = automationFailure(operation, error);
         }
     } else {
         process.stderr.write('usage: prism-tool automation inspect|plan|apply|verify [controls]\n');
         return EXIT.USAGE;
     }
-    const report = {schemaVersion: 1, command: `automation ${operation}`, ...result};
+    const report = {schemaVersion: 2, command: `automation ${operation}`, ...result};
     if (json) process.stdout.write(`${JSON.stringify(report)}\n`);
     else process.stdout.write(`${report.status}\n`);
     return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;

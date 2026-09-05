@@ -257,7 +257,7 @@ prism-tool commit create --type feat --scope setup --subject "define established
 - Consumes: `discoverOptionalAdapter({projectRoot, piDir})` and existing Core/adapter automation providers.
 - Produces: `discoverOptionalAutomationAdapter(options) -> null | {registration, handler}`, automation report schema two with `composition: CORE_ONLY | ADAPTER | null`, and stable `automationFailure(operation, stage)` reports.
 
-- [ ] **Step 1: Replace the inverted no-adapter test and add strict failure cases**
+- [x] **Step 1: Replace the inverted no-adapter test and add strict failure cases**
 
 Change the existing `fails closed when no trusted automation adapter is active` test into a positive CLI test using an empty `.pi` directory:
 
@@ -284,13 +284,13 @@ test('inspects established Core-only automation without adapter execution', (t) 
 
 Add tests proving an incomplete adapter handler, multiple adapter registrations, and malformed `.pi/settings.json` return schema-two `NO-GO`, `composition: null`, and a stable check such as `{id: 'automation-adapter-discovery', status: 'FAIL', message: 'automation adapter evidence is invalid'}`. Keep the existing unowned-file conflict test and assert its exact output path remains visible in the provider report.
 
-- [ ] **Step 2: Run focused tests and verify Red**
+- [x] **Step 2: Run focused tests and verify Red**
 
 Run: `node --test --test-name-pattern='Core-only|adapter evidence|unowned automation' tests/Node/prism-tool-automation.test.js tests/Node/prism-tool-discovery.test.js`
 
 Expected: FAIL because automation still requires one adapter and emits schema one without composition.
 
-- [ ] **Step 3: Implement optional automation discovery and closed diagnostics**
+- [x] **Step 3: Implement optional automation discovery and closed diagnostics**
 
 Refactor adapter interface checking into one helper and add:
 
@@ -331,13 +331,13 @@ return Object.freeze({
 
 Update inspect, plan, revalidation, and verify callers together so discovery occurs once per render and no phase assumes two reports. Add a closed `AutomationFailure` stage allowlist and `automationFailure(operation, error)` mapping. The CLI catch must call that mapping and must not interpolate `error.message`. Emit report schema version two and include `composition` on success and failure.
 
-- [ ] **Step 4: Run the automation and discovery suites**
+- [x] **Step 4: Run the automation and discovery suites**
 
 Run: `node --test tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-automation.test.js`
 
 Expected: PASS; Core-only inspection reports one Core provider, adapter-backed fixtures retain both providers, and malformed evidence stays `NO-GO`.
 
-- [ ] **Step 5: Create the commit**
+- [x] **Step 5: Create the commit**
 
 ```bash
 git add packages/prism-core/scripts/prism-tool/discovery.js packages/prism-core/scripts/prism-tool/automation.js packages/prism-core/scripts/prism-tool/cli.js tests/Node/prism-tool-discovery.test.js tests/Node/prism-tool-automation.test.js

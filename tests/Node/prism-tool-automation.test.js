@@ -665,10 +665,12 @@ test('inspects absent Core and adapter automation as createable', (t) => {
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(result.stdout);
     assert.deepEqual(Object.keys(report), [
-        'schemaVersion', 'command', 'status', 'disposition', 'providers', 'checks',
+        'schemaVersion', 'command', 'status', 'disposition', 'composition',
+        'providers', 'checks',
     ]);
-    assert.equal(report.schemaVersion, 1);
+    assert.equal(report.schemaVersion, 2);
     assert.equal(report.command, 'automation inspect');
+    assert.equal(report.composition, 'ADAPTER');
     assert.equal(report.status, 'GO');
     assert.equal(report.disposition, 'CREATE');
     assert.deepEqual(report.providers.map(({id}) => id), [
@@ -746,9 +748,30 @@ test('rejects an unowned automation collision', (t) => {
     });
 });
 
-test('fails closed when no trusted automation adapter is active', (t) => {
+test('inspects established Core-only automation without adapter execution', (t) => {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    fs.mkdirSync(path.join(projectRoot, '.pi'));
+
+    const result = captureWrites(() => main(['automation', 'inspect', '--json'], {
+        projectRoot,
+        coreRoot: CORE_ROOT,
+    }));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.schemaVersion, 2);
+    assert.equal(report.status, 'GO');
+    assert.equal(report.composition, 'CORE_ONLY');
+    assert.deepEqual(report.providers.map(({id}) => id), ['core-repository-automation']);
+    assert.equal(report.providers[0].outputs[0].path, '.github/workflows/back-merge.yml');
+});
+
+test('reports invalid adapter evidence with a bounded diagnostic', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    fs.mkdirSync(path.join(projectRoot, '.pi'));
+    fs.writeFileSync(path.join(projectRoot, '.pi', 'settings.json'), '{');
 
     const result = captureWrites(() => main(['automation', 'inspect', '--json'], {
         projectRoot,
@@ -756,18 +779,14 @@ test('fails closed when no trusted automation adapter is active', (t) => {
     }));
 
     assert.equal(result.status, 5);
-    assert.deepEqual(JSON.parse(result.stdout), {
-        schemaVersion: 1,
-        command: 'automation inspect',
-        status: 'NO-GO',
-        disposition: 'CONFLICT',
-        providers: [],
-        checks: [{
-            id: 'automation-inspect',
-            status: 'FAIL',
-            message: 'automation inspect failed',
-        }],
-    });
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.schemaVersion, 2);
+    assert.equal(report.composition, null);
+    assert.deepEqual(report.checks, [{
+        id: 'automation-adapter-discovery',
+        status: 'FAIL',
+        message: 'automation adapter evidence is invalid',
+    }]);
 });
 
 test('inspects canonical automation as current', (t) => {

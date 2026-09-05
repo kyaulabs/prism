@@ -1,4 +1,4 @@
-// $KYAULabs: automation.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: automation.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -10,10 +10,35 @@ const {
     renderCoreAutomationProvider,
     renderCoreReleaseProvider,
 } = require('./automation-providers');
-const {discoverAutomationAdapter} = require('./discovery');
+const {discoverOptionalAutomationAdapter} = require('./discovery');
 const {runBounded} = require('./process');
 
 const MAX_OUTPUT_BYTES = 1048576;
+
+class AutomationFailure extends Error {
+    constructor(stage) {
+        super(stage);
+        this.stage = stage;
+    }
+}
+
+function automationFailure(operation, error) {
+    const adapterDiscovery = error instanceof AutomationFailure &&
+        error.stage === 'automation-adapter-discovery';
+    return Object.freeze({
+        status: 'NO-GO',
+        disposition: 'CONFLICT',
+        composition: null,
+        providers: Object.freeze([]),
+        checks: Object.freeze([Object.freeze({
+            id: adapterDiscovery ? 'automation-adapter-discovery' : `automation-${operation}`,
+            status: 'FAIL',
+            message: adapterDiscovery
+                ? 'automation adapter evidence is invalid'
+                : `automation ${operation} failed`,
+        })]),
+    });
+}
 const OPERATION_MARKER = '.prism-automation.json';
 const OPERATION_MARKER_CONTENT = `${JSON.stringify({
     schemaVersion: 1,
@@ -179,14 +204,21 @@ function overallDisposition(providers) {
 }
 
 function renderCanonicalProviders({projectRoot, coreRoot, candidateRoot, releaseRepository = null}) {
-    const core = renderCoreAutomationProvider({coreRoot, candidateRoot});
-    const adapter = discoverAutomationAdapter({projectRoot});
-    const quality = adapter.handler.prepareAutomation({
-        candidateRoot,
-        contract: adapter.registration.contract,
-    });
-    if (quality?.status !== 'GO') throw new Error('adapter automation provider failed');
-    const reports = [core, quality];
+    const reports = [renderCoreAutomationProvider({coreRoot, candidateRoot})];
+    let adapter;
+    try {
+        adapter = discoverOptionalAutomationAdapter({projectRoot});
+    } catch {
+        throw new AutomationFailure('automation-adapter-discovery');
+    }
+    if (adapter !== null) {
+        const quality = adapter.handler.prepareAutomation({
+            candidateRoot,
+            contract: adapter.registration.contract,
+        });
+        if (quality?.status !== 'GO') throw new Error('adapter automation provider failed');
+        reports.push(quality);
+    }
     if (releaseRepository !== null) {
         reports.push(renderCoreReleaseProvider({
             coreRoot,
@@ -194,19 +226,28 @@ function renderCanonicalProviders({projectRoot, coreRoot, candidateRoot, release
             repository: releaseRepository,
         }));
     }
-    return Object.freeze(reports);
+    return Object.freeze({
+        composition: adapter === null ? 'CORE_ONLY' : 'ADAPTER',
+        reports: Object.freeze(reports),
+    });
 }
 
 function renderProviders({projectRoot, coreRoot, releaseRepository = null}) {
     const candidateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-automation-inspect-'));
     fs.chmodSync(candidateRoot, 0o700);
     try {
-        return Object.freeze(renderCanonicalProviders({
+        const rendered = renderCanonicalProviders({
             projectRoot,
             coreRoot,
             candidateRoot,
             releaseRepository,
-        }).map((report) => providerReport(report, projectRoot)));
+        });
+        return Object.freeze({
+            composition: rendered.composition,
+            providers: Object.freeze(rendered.reports.map((report) =>
+                providerReport(report, projectRoot)
+            )),
+        });
     } finally {
         fs.rmSync(candidateRoot, {recursive: true, force: true});
     }
@@ -214,17 +255,19 @@ function renderProviders({projectRoot, coreRoot, releaseRepository = null}) {
 
 function inspectAutomation({projectRoot: requestedRoot, coreRoot, releaseRepository = null}) {
     const projectRoot = fs.realpathSync(requestedRoot);
-    const providers = renderProviders({
+    const rendered = renderProviders({
         projectRoot,
         coreRoot: fs.realpathSync(coreRoot),
         releaseRepository,
     });
+    const providers = rendered.providers;
     const overlap = hasOverlap(providers);
     const disposition = overlap ? OWNERSHIP.CONFLICT : overallDisposition(providers);
     const status = disposition === OWNERSHIP.CONFLICT ? 'NO-GO' : 'GO';
     return Object.freeze({
         status,
         disposition,
+        composition: rendered.composition,
         providers,
         checks: Object.freeze([Object.freeze({
             id: 'automation-ownership',
@@ -372,12 +415,13 @@ function planAutomation({
     const paths = operationPaths(projectRoot);
     resetOperation(paths);
     try {
-        const reports = renderCanonicalProviders({
+        const rendered = renderCanonicalProviders({
             projectRoot,
             coreRoot: canonicalCore,
             candidateRoot: paths.candidateRoot,
             releaseRepository,
         });
+        const reports = rendered.reports;
         const classified = reports.map((report) => providerReport(report, projectRoot));
         if (hasOverlap(classified) || overallDisposition(classified) === OWNERSHIP.CONFLICT) {
             throw new Error('automation ownership conflicts');
@@ -417,6 +461,7 @@ function planAutomation({
         return Object.freeze({
             status: 'GO',
             disposition: 'PLAN_READY',
+            composition: rendered.composition,
             planPath,
             planDigest,
             providers: classified,
@@ -601,7 +646,7 @@ function revalidateProviderEvidence(projectRoot, coreRoot, expected, configurati
             coreRoot,
             candidateRoot,
             releaseRepository: configuration.releaseRepository,
-        }));
+        }).reports);
         if (JSON.stringify(current) !== JSON.stringify(expected)) {
             throw new Error('automation provider identity changed');
         }
@@ -785,6 +830,7 @@ function verifyAutomation({projectRoot, coreRoot, releaseRepository = null}) {
     return Object.freeze({
         status: current ? 'GO' : 'NO-GO',
         disposition: current ? 'CURRENT' : inspected.disposition,
+        composition: inspected.composition,
         providers: inspected.providers,
         checks: Object.freeze([Object.freeze({
             id: 'automation-verification',
@@ -799,6 +845,7 @@ function verifyAutomation({projectRoot, coreRoot, releaseRepository = null}) {
 module.exports = {
     OWNERSHIP,
     applyAutomation,
+    automationFailure,
     inspectAutomation,
     planAutomation,
     verifyAutomation,
