@@ -6,14 +6,20 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const {TextDecoder} = require('node:util');
 const {
     renderCoreAutomationProvider,
     renderCoreReleaseProvider,
 } = require('./automation-providers');
 const {discoverOptionalAutomationAdapter} = require('./discovery');
+const {renderEstablishedProjectProvider} = require('./established-project-provider');
+const {normalizeProjectMetadata, validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
+const {validateBootstrapSource} = require('./bootstrap-source');
+const {readProjectManifest} = require('./project-manifest');
 const {runBounded} = require('./process');
 
 const MAX_OUTPUT_BYTES = 1048576;
+const MAX_PLAN_BYTES = 1048576;
 
 class AutomationFailure extends Error {
     constructor(stage) {
@@ -23,19 +29,34 @@ class AutomationFailure extends Error {
 }
 
 function automationFailure(operation, error) {
-    const adapterDiscovery = error instanceof AutomationFailure &&
-        error.stage === 'automation-adapter-discovery';
+    const stage = error instanceof AutomationFailure ? error.stage : null;
+    const diagnostics = {
+        'automation-adapter-discovery': [
+            'automation-adapter-discovery',
+            'automation adapter evidence is invalid',
+        ],
+        'automation-project-metadata': [
+            'automation-project-metadata',
+            'established project metadata is required',
+        ],
+        'automation-project-metadata-invalid': [
+            'automation-project-metadata',
+            'established project metadata is invalid',
+        ],
+    };
+    const diagnostic = diagnostics[stage] ?? [
+        `automation-${operation}`,
+        `automation ${operation} failed`,
+    ];
     return Object.freeze({
         status: 'NO-GO',
         disposition: 'CONFLICT',
         composition: null,
         providers: Object.freeze([]),
         checks: Object.freeze([Object.freeze({
-            id: adapterDiscovery ? 'automation-adapter-discovery' : `automation-${operation}`,
+            id: diagnostic[0],
             status: 'FAIL',
-            message: adapterDiscovery
-                ? 'automation adapter evidence is invalid'
-                : `automation ${operation} failed`,
+            message: diagnostic[1],
         })]),
     });
 }
@@ -50,6 +71,7 @@ const KNOWN_CANDIDATE_OUTPUTS = new Set([
     '.github/workflows/back-merge.yml',
     '.github/workflows/ci.yml',
     '.github/workflows/release.yml',
+    '.prism/project.json',
     'CHANGELOG.md',
     'cliff.toml',
 ]);
@@ -124,7 +146,7 @@ function managedBy(contents, owner) {
     );
 }
 
-function classifyOutput({projectRoot, output, owner}) {
+function classifyOutput({projectRoot, coreRoot, output, owner}) {
     let existing;
     try {
         existing = readExistingOutput(projectRoot, output.path);
@@ -150,6 +172,22 @@ function classifyOutput({projectRoot, output, owner}) {
             owner,
         });
     }
+    if (output.path === '.prism/project.json' && owner === '@kyaulabs/prism-core') {
+        try {
+            readProjectManifest({projectRoot, coreRoot, allowVersionMigration: true});
+            return Object.freeze({
+                path: output.path,
+                disposition: OWNERSHIP.MIGRATE,
+                owner,
+            });
+        } catch {
+            return Object.freeze({
+                path: output.path,
+                disposition: OWNERSHIP.CONFLICT,
+                owner: null,
+            });
+        }
+    }
     if (managedBy(existing.contents, owner)) {
         return Object.freeze({
             path: output.path,
@@ -164,7 +202,7 @@ function classifyOutput({projectRoot, output, owner}) {
     });
 }
 
-function providerReport(report, projectRoot) {
+function providerReport(report, projectRoot, coreRoot) {
     const owner = report.provider.packageName;
     return Object.freeze({
         id: report.provider.id,
@@ -172,7 +210,7 @@ function providerReport(report, projectRoot) {
         packageVersion: report.provider.packageVersion,
         protocolVersion: report.provider.protocolVersion,
         outputs: Object.freeze(report.outputs.map((output) =>
-            classifyOutput({projectRoot, output, owner})
+            classifyOutput({projectRoot, coreRoot, output, owner})
         )),
     });
 }
@@ -203,11 +241,129 @@ function overallDisposition(providers) {
     return OWNERSHIP.CONFLICT;
 }
 
-function renderCanonicalProviders({projectRoot, coreRoot, candidateRoot, releaseRepository = null}) {
-    const reports = [renderCoreAutomationProvider({coreRoot, candidateRoot})];
-    let adapter;
+function adapterIdentity(adapter) {
+    return adapter === null ? null : Object.freeze({
+        id: adapter.registration.packageName,
+        packageName: adapter.registration.packageName,
+        packageVersion: adapter.registration.packageVersion,
+        bootstrapProtocol: adapter.registration.bootstrapProtocol,
+    });
+}
+
+function metadataFromManifest(value) {
+    return Object.freeze({
+        schemaVersion: 1,
+        displayName: value.project.displayName,
+        summary: value.project.summary,
+        ...(value.capabilities.length === 0 ? {} : {
+            capabilityMetadata: value.capabilityMetadata,
+        }),
+    });
+}
+
+function readMetadataInput(projectRoot, metadataPath, capabilities) {
+    const piPath = path.join(projectRoot, '.pi');
+    const piStat = fs.lstatSync(piPath);
+    const canonicalPi = fs.realpathSync(piPath);
+    if (piStat.isSymbolicLink() || !piStat.isDirectory() ||
+        path.dirname(canonicalPi) !== projectRoot) {
+        throw new AutomationFailure('automation-project-metadata-invalid');
+    }
+    const lexical = path.resolve(metadataPath);
+    const relation = path.relative(canonicalPi, lexical);
+    const initial = fs.lstatSync(lexical);
+    if (
+        relation === '' || relation.startsWith('..') || path.isAbsolute(relation) ||
+        initial.isSymbolicLink() || !initial.isFile() ||
+        (initial.mode & 0o777) !== 0o600 || initial.size > 16384 ||
+        fs.realpathSync(lexical) !== lexical || typeof fs.constants.O_NOFOLLOW !== 'number'
+    ) throw new AutomationFailure('automation-project-metadata-invalid');
+    const descriptor = fs.openSync(lexical, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
-        adapter = discoverOptionalAutomationAdapter({projectRoot});
+        const held = fs.fstatSync(descriptor);
+        if (!sameFile(initial, held) || held.size > 16384 || (held.mode & 0o777) !== 0o600) {
+            throw new AutomationFailure('automation-project-metadata-invalid');
+        }
+        const contents = readBounded(descriptor, 16384, 'established project metadata is invalid');
+        const final = fs.fstatSync(descriptor);
+        const current = fs.lstatSync(lexical);
+        if (contents.length !== held.size || !sameFile(held, final) ||
+            !sameFile(held, current) || final.size !== held.size || final.mode !== held.mode) {
+            throw new AutomationFailure('automation-project-metadata-invalid');
+        }
+        const input = contents.at(-1) === 0x0a ? contents.subarray(0, -1) : contents;
+        try {
+            return normalizeProjectMetadata({projectRoot, input, capabilities});
+        } catch {
+            throw new AutomationFailure('automation-project-metadata-invalid');
+        }
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
+function establishedConfiguration({
+    projectRoot,
+    coreRoot,
+    metadataPath,
+    releaseRepository,
+    adapter,
+}) {
+    const capabilities = releaseRepository === null ? [] : ['release-management'];
+    let current = null;
+    try {
+        current = readProjectManifest({
+            projectRoot,
+            coreRoot,
+            allowVersionMigration: true,
+        });
+    } catch (error) {
+        if (error?.code !== 'ENOENT') {
+            throw new AutomationFailure('automation-project-metadata-invalid');
+        }
+    }
+    if (current === null && metadataPath === null) {
+        throw new AutomationFailure('automation-project-metadata');
+    }
+    const metadata = metadataPath === null
+        ? metadataFromManifest(current.value)
+        : readMetadataInput(projectRoot, metadataPath, capabilities);
+    const selectedCapabilities = metadataPath === null
+        ? current.value.capabilities
+        : capabilities;
+    const selectedAdapter = adapterIdentity(adapter);
+    if (metadataPath === null && (
+        JSON.stringify(current.value.adapter) !== JSON.stringify(selectedAdapter) ||
+        (releaseRepository === null) !== !selectedCapabilities.includes('release-management') ||
+        (releaseRepository !== null &&
+            current.value.capabilityMetadata['release-management'].repository !== releaseRepository)
+    )) throw new AutomationFailure('automation-project-metadata-invalid');
+    if (metadataPath !== null && releaseRepository !== null &&
+        metadata.capabilityMetadata['release-management'].repository !== releaseRepository) {
+        throw new AutomationFailure('automation-project-metadata-invalid');
+    }
+    validateNormalizedProjectMetadata({metadata, capabilities: selectedCapabilities});
+    return Object.freeze({
+        schemaVersion: current?.value.schemaVersion ?? 2,
+        source: current?.value.source ?? Object.freeze({mode: 'ESTABLISHED', evidence: null}),
+        metadata,
+        capabilities: Object.freeze(selectedCapabilities),
+        adapter: selectedAdapter,
+    });
+}
+
+function renderCanonicalProviders({
+    projectRoot,
+    coreRoot,
+    candidateRoot,
+    releaseRepository = null,
+    established = null,
+    selectedAdapter,
+}) {
+    const reports = [renderCoreAutomationProvider({coreRoot, candidateRoot})];
+    let adapter = selectedAdapter;
+    try {
+        if (adapter === undefined) adapter = discoverOptionalAutomationAdapter({projectRoot});
     } catch {
         throw new AutomationFailure('automation-adapter-discovery');
     }
@@ -218,6 +374,20 @@ function renderCanonicalProviders({projectRoot, coreRoot, candidateRoot, release
         });
         if (quality?.status !== 'GO') throw new Error('adapter automation provider failed');
         reports.push(quality);
+    }
+    if (established !== null) {
+        if (JSON.stringify(established.adapter) !== JSON.stringify(adapterIdentity(adapter))) {
+            throw new AutomationFailure('automation-project-metadata-invalid');
+        }
+        reports.push(renderEstablishedProjectProvider({
+            coreRoot,
+            candidateRoot,
+            schemaVersion: established.schemaVersion,
+            source: established.source,
+            metadata: established.metadata,
+            capabilities: established.capabilities,
+            adapter: established.adapter,
+        }));
     }
     if (releaseRepository !== null) {
         reports.push(renderCoreReleaseProvider({
@@ -245,7 +415,7 @@ function renderProviders({projectRoot, coreRoot, releaseRepository = null}) {
         return Object.freeze({
             composition: rendered.composition,
             providers: Object.freeze(rendered.reports.map((report) =>
-                providerReport(report, projectRoot)
+                providerReport(report, projectRoot, coreRoot)
             )),
         });
     } finally {
@@ -408,10 +578,24 @@ function planAutomation({
     projectRoot: requestedRoot,
     coreRoot,
     releaseRepository = null,
+    metadataPath = null,
     run = runBounded,
 }) {
     const projectRoot = fs.realpathSync(requestedRoot);
     const canonicalCore = fs.realpathSync(coreRoot);
+    let selectedAdapter;
+    try {
+        selectedAdapter = discoverOptionalAutomationAdapter({projectRoot});
+    } catch {
+        throw new AutomationFailure('automation-adapter-discovery');
+    }
+    const established = establishedConfiguration({
+        projectRoot,
+        coreRoot: canonicalCore,
+        metadataPath,
+        releaseRepository,
+        adapter: selectedAdapter,
+    });
     const paths = operationPaths(projectRoot);
     resetOperation(paths);
     try {
@@ -420,9 +604,13 @@ function planAutomation({
             coreRoot: canonicalCore,
             candidateRoot: paths.candidateRoot,
             releaseRepository,
+            established,
+            selectedAdapter,
         });
         const reports = rendered.reports;
-        const classified = reports.map((report) => providerReport(report, projectRoot));
+        const classified = reports.map((report) =>
+            providerReport(report, projectRoot, canonicalCore)
+        );
         if (hasOverlap(classified) || overallDisposition(classified) === OWNERSHIP.CONFLICT) {
             throw new Error('automation ownership conflicts');
         }
@@ -445,7 +633,7 @@ function planAutomation({
         const plan = Object.freeze({
             schemaVersion: 1,
             projectRoot,
-            configuration: Object.freeze({releaseRepository}),
+            configuration: Object.freeze({releaseRepository, established}),
             providers,
             outputs: Object.freeze(outputs),
             preconditions: gitSnapshot(projectRoot, run),
@@ -497,6 +685,35 @@ function validOutputPath(value) {
         !value.startsWith('.pi/');
 }
 
+function validEstablishedConfiguration(value) {
+    if (value === null || !hasExactKeys(value, [
+        'schemaVersion', 'source', 'metadata', 'capabilities', 'adapter',
+    ]) || ![1, 2].includes(value.schemaVersion) || !Array.isArray(value.capabilities)) return false;
+    if (value.schemaVersion === 2 && (
+        !hasExactKeys(value.source, ['mode', 'evidence']) ||
+        value.source.mode !== 'ESTABLISHED' || value.source.evidence !== null
+    )) return false;
+    if (value.adapter !== null && (
+        !hasExactKeys(value.adapter, [
+            'id', 'packageName', 'packageVersion', 'bootstrapProtocol',
+        ]) ||
+        !['id', 'packageName', 'packageVersion'].every((key) =>
+            typeof value.adapter[key] === 'string' && value.adapter[key].length > 0
+        ) || !Number.isSafeInteger(value.adapter.bootstrapProtocol) ||
+        value.adapter.bootstrapProtocol < 1
+    )) return false;
+    try {
+        validateNormalizedProjectMetadata({
+            metadata: value.metadata,
+            capabilities: value.capabilities,
+        });
+        if (value.schemaVersion === 1) validateBootstrapSource(value.source);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function validateRetainedPlan(plan) {
     if (
         !hasExactKeys(plan, [
@@ -504,7 +721,8 @@ function validateRetainedPlan(plan) {
             'preconditions',
         ]) ||
         plan.schemaVersion !== 1 ||
-        !hasExactKeys(plan.configuration, ['releaseRepository']) ||
+        !hasExactKeys(plan.configuration, ['releaseRepository', 'established']) ||
+        !validEstablishedConfiguration(plan.configuration.established) ||
         (plan.configuration.releaseRepository !== null &&
             (typeof plan.configuration.releaseRepository !== 'string' ||
              !/^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?\/[a-z0-9](?:[a-z0-9._-]{0,98}[a-z0-9])?$/.test(
@@ -550,6 +768,16 @@ function validateRetainedPlan(plan) {
     ) {
         throw new Error('automation plan is invalid');
     }
+    const releaseEnabled = plan.configuration.established.capabilities
+        .includes('release-management');
+    if (
+        (plan.configuration.releaseRepository === null) !== !releaseEnabled ||
+        (releaseEnabled && plan.configuration.established.metadata
+            .capabilityMetadata['release-management'].repository !==
+                plan.configuration.releaseRepository)
+    ) {
+        throw new Error('automation plan is invalid');
+    }
     const providers = new Map(plan.providers.map((provider) => [provider.id, provider]));
     if (
         providers.size !== plan.providers.length ||
@@ -566,7 +794,10 @@ function readPlan(projectRoot, planPath) {
     validateOwnedOperation(paths);
     const lexicalPlan = path.resolve(planPath);
     const stat = fs.lstatSync(lexicalPlan);
-    if (stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== 0o600) {
+    if (
+        stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== 0o600 ||
+        stat.size > MAX_PLAN_BYTES || typeof fs.constants.O_NOFOLLOW !== 'number'
+    ) {
         throw new Error('automation plan is invalid');
     }
     const canonicalPlan = fs.realpathSync(lexicalPlan);
@@ -577,7 +808,32 @@ function readPlan(projectRoot, planPath) {
     ) {
         throw new Error('automation plan path is invalid');
     }
-    const envelope = JSON.parse(fs.readFileSync(canonicalPlan, 'utf8'));
+    const descriptor = fs.openSync(
+        canonicalPlan,
+        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW
+    );
+    let contents;
+    try {
+        const held = fs.fstatSync(descriptor);
+        if (!held.isFile() || !sameFile(stat, held) || held.size > MAX_PLAN_BYTES) {
+            throw new Error('automation plan is invalid');
+        }
+        contents = readBounded(descriptor, MAX_PLAN_BYTES, 'automation plan is invalid');
+        const final = fs.fstatSync(descriptor);
+        const current = fs.lstatSync(canonicalPlan);
+        if (contents.length !== held.size || !sameFile(held, final) ||
+            !sameFile(held, current) || final.size !== held.size || final.mode !== held.mode) {
+            throw new Error('automation plan changed');
+        }
+    } finally {
+        fs.closeSync(descriptor);
+    }
+    let envelope;
+    try {
+        envelope = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(contents));
+    } catch {
+        throw new Error('automation plan is invalid');
+    }
     const digest = sha256(Buffer.from(JSON.stringify(envelope.plan)));
     if (
         !hasExactKeys(envelope, ['schemaVersion', 'planDigest', 'plan']) ||
@@ -646,6 +902,7 @@ function revalidateProviderEvidence(projectRoot, coreRoot, expected, configurati
             coreRoot,
             candidateRoot,
             releaseRepository: configuration.releaseRepository,
+            established: configuration.established,
         }).reports);
         if (JSON.stringify(current) !== JSON.stringify(expected)) {
             throw new Error('automation provider identity changed');
@@ -668,7 +925,7 @@ function revalidatePlan(projectRoot, coreRoot, retained, run) {
     }
     for (const output of retained.envelope.plan.outputs) {
         candidateContents(retained.paths, output);
-        const current = classifyOutput({projectRoot, output: {
+        const current = classifyOutput({projectRoot, coreRoot, output: {
             path: output.path,
             mode: output.mode,
             candidatePath: path.join(
@@ -822,24 +1079,58 @@ function applyAutomation({
     }
 }
 
-function verifyAutomation({projectRoot, coreRoot, releaseRepository = null}) {
-    const inspected = inspectAutomation({projectRoot, coreRoot, releaseRepository});
-    const current = inspected.status === 'GO' && inspected.providers.every(({outputs}) =>
-        outputs.every(({disposition}) => disposition === OWNERSHIP.CURRENT)
-    );
-    return Object.freeze({
-        status: current ? 'GO' : 'NO-GO',
-        disposition: current ? 'CURRENT' : inspected.disposition,
-        composition: inspected.composition,
-        providers: inspected.providers,
-        checks: Object.freeze([Object.freeze({
-            id: 'automation-verification',
-            status: current ? 'PASS' : 'FAIL',
-            message: current
-                ? 'automation outputs are current'
-                : 'automation outputs are not current',
-        })]),
+function verifyAutomation({projectRoot: requestedRoot, coreRoot, releaseRepository = null}) {
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const canonicalCore = fs.realpathSync(coreRoot);
+    let selectedAdapter;
+    try {
+        selectedAdapter = discoverOptionalAutomationAdapter({projectRoot});
+    } catch {
+        throw new AutomationFailure('automation-adapter-discovery');
+    }
+    const established = establishedConfiguration({
+        projectRoot,
+        coreRoot: canonicalCore,
+        metadataPath: null,
+        releaseRepository,
+        adapter: selectedAdapter,
     });
+    const candidateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-automation-verify-'));
+    fs.chmodSync(candidateRoot, 0o700);
+    let rendered;
+    try {
+        rendered = renderCanonicalProviders({
+            projectRoot,
+            coreRoot: canonicalCore,
+            candidateRoot,
+            releaseRepository,
+            established,
+            selectedAdapter,
+        });
+        const providers = rendered.reports.map((report) =>
+            providerReport(report, projectRoot, canonicalCore)
+        );
+        const overlap = hasOverlap(providers);
+        const disposition = overlap ? OWNERSHIP.CONFLICT : overallDisposition(providers);
+        const current = !overlap && providers.every(({outputs}) =>
+            outputs.every(({disposition: value}) => value === OWNERSHIP.CURRENT)
+        );
+        return Object.freeze({
+            status: current ? 'GO' : 'NO-GO',
+            disposition: current ? 'CURRENT' : disposition,
+            composition: rendered.composition,
+            providers: Object.freeze(providers),
+            checks: Object.freeze([Object.freeze({
+                id: 'automation-verification',
+                status: current ? 'PASS' : 'FAIL',
+                message: current
+                    ? 'automation outputs are current'
+                    : 'automation outputs are not current',
+            })]),
+        });
+    } finally {
+        fs.rmSync(candidateRoot, {recursive: true, force: true});
+    }
 }
 
 module.exports = {

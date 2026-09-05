@@ -80,6 +80,31 @@ test('keeps established and bootstrap source schemas distinct', () => {
     }), /project manifest is invalid/);
 });
 
+test('allows only an older semantic Core version to migrate', () => {
+    const original = JSON.parse(renderProjectManifest({
+        schemaVersion: 2,
+        source: {mode: 'ESTABLISHED', evidence: null},
+        capabilities: [],
+        metadata,
+        coreVersion: CORE_VERSION,
+        adapter: null,
+    }));
+    original.compatibility.coreVersion = '0.4.0';
+    assert.equal(validateProjectManifest({
+        value: original,
+        coreVersion: CORE_VERSION,
+        allowVersionMigration: true,
+    }).versionCurrent, false);
+    for (const version of ['not-semver', '999.0.0']) {
+        original.compatibility.coreVersion = version;
+        assert.throws(() => validateProjectManifest({
+            value: original,
+            coreVersion: CORE_VERSION,
+            allowVersionMigration: true,
+        }), /project manifest is invalid/);
+    }
+});
+
 test('rejects open, malformed, and stale manifest authority', () => {
     const original = JSON.parse(renderProjectManifest({
         schemaVersion: 2,
@@ -114,6 +139,27 @@ test('rejects open, malformed, and stale manifest authority', () => {
         coreVersion: CORE_VERSION,
         allowVersionMigration: true,
     }).versionCurrent, false);
+});
+
+test('rejects non-UTF-8 project manifests', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const contents = renderProjectManifest({
+        schemaVersion: 2,
+        source: {mode: 'ESTABLISHED', evidence: null},
+        capabilities: [],
+        metadata,
+        coreVersion: CORE_VERSION,
+        adapter: null,
+    });
+    contents[contents.indexOf(Buffer.from('Core Project'))] = 0xff;
+    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
+    fs.mkdirSync(path.dirname(manifestPath));
+    fs.writeFileSync(manifestPath, contents, {mode: 0o644});
+    fs.chmodSync(manifestPath, 0o644);
+
+    assert.throws(() => readProjectManifest({projectRoot, coreRoot: CORE_ROOT}),
+        /project manifest is invalid/);
 });
 
 test('rejects a symlinked project manifest', (t) => {

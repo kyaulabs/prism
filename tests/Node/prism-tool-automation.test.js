@@ -18,6 +18,9 @@ const {
 const {renderCoreAutomationProvider} = require(
     '../../packages/prism-core/scripts/prism-tool/automation-providers'
 );
+const {renderProjectManifest} = require(
+    '../../packages/prism-core/scripts/prism-tool/project-manifest'
+);
 const adapterHandler = require('../../packages/prism-php-web/scripts/prism-tool-adapter');
 const {makeTempDir, writeJson} = require('./helpers');
 
@@ -47,6 +50,29 @@ function makeFixture(t, adapterRoot = ADAPTER_ROOT) {
     writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
         skills: [path.join(adapterRoot, 'skills')],
     });
+    const adapterManifest = JSON.parse(fs.readFileSync(
+        path.join(adapterRoot, 'package.json'), 'utf8'
+    ));
+    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
+    fs.mkdirSync(path.dirname(manifestPath), {recursive: true});
+    fs.writeFileSync(manifestPath, renderProjectManifest({
+        schemaVersion: 2,
+        source: {mode: 'ESTABLISHED', evidence: null},
+        capabilities: [],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Automation Fixture',
+            summary: 'An established adapter automation fixture.',
+        },
+        coreVersion: require('../../packages/prism-core/package.json').version,
+        adapter: {
+            id: adapterManifest.name,
+            packageName: adapterManifest.name,
+            packageVersion: adapterManifest.version,
+            bootstrapProtocol: adapterManifest.prism.bootstrapProtocol,
+        },
+    }), {mode: 0o644});
+    fs.chmodSync(manifestPath, 0o644);
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     return {projectRoot, coreRoot: CORE_ROOT};
 }
@@ -68,6 +94,42 @@ function makeGitFixture(t, adapterRoot = ADAPTER_ROOT) {
     return fixture;
 }
 
+function makeCoreOnlyGitFixture(t) {
+    const projectRoot = makeTempDir();
+    fs.mkdirSync(path.join(projectRoot, '.pi'));
+    fs.writeFileSync(path.join(projectRoot, '.gitignore'), '.pi/prism-tool/\n');
+    execFileSync('git', ['init', '-b', 'feat/tester-abcd-automation'], {
+        cwd: projectRoot,
+        stdio: 'ignore',
+    });
+    execFileSync('git', ['config', 'user.name', 'Test User'], {cwd: projectRoot});
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], {cwd: projectRoot});
+    execFileSync('git', ['add', '.'], {cwd: projectRoot});
+    execFileSync('git', ['commit', '-m', 'test fixture'], {
+        cwd: projectRoot,
+        stdio: 'ignore',
+    });
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    return {projectRoot, coreRoot: CORE_ROOT};
+}
+
+function writeEstablishedMetadata(fixture, releaseRepository = null) {
+    const metadataPath = path.join(fixture.projectRoot, '.pi', 'setup-metadata.json');
+    const metadata = {
+        schemaVersion: 1,
+        displayName: 'Automation Fixture',
+        summary: 'An established adapter automation fixture.',
+        ...(releaseRepository === null ? {} : {
+            capabilityMetadata: {
+                'release-management': {repository: releaseRepository},
+            },
+        }),
+    };
+    fs.writeFileSync(metadataPath, `${JSON.stringify(metadata)}\n`, {mode: 0o600});
+    fs.chmodSync(metadataPath, 0o600);
+    return metadataPath;
+}
+
 function installCanonicalAutomation(fixture) {
     renderCoreAutomationProvider({
         coreRoot: fixture.coreRoot,
@@ -79,6 +141,289 @@ function installCanonicalAutomation(fixture) {
     });
 }
 
+test('plans an established Core-only manifest with Core automation', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const metadataPath = path.join(fixture.projectRoot, '.pi', 'setup-metadata.json');
+    fs.writeFileSync(metadataPath, JSON.stringify({
+        schemaVersion: 1,
+        displayName: 'Core Project',
+        summary: 'A Core-only established project.',
+    }), {mode: 0o600});
+    fs.chmodSync(metadataPath, 0o600);
+
+    const planned = captureWrites(() => main([
+        'automation', 'plan', `--metadata=${metadataPath}`, '--json',
+    ], fixture));
+
+    assert.equal(planned.status, 0, planned.stderr || planned.stdout);
+    const report = JSON.parse(planned.stdout);
+    assert.equal(report.composition, 'CORE_ONLY');
+    assert.deepEqual(report.providers.map(({id}) => id), [
+        'core-repository-automation',
+        'core-project-manifest',
+    ]);
+
+    const applied = captureWrites(() => main([
+        'automation', 'apply', `--plan=${report.planPath}`, '--approval=yes', '--json',
+    ], fixture));
+    assert.equal(applied.status, 0, applied.stderr || applied.stdout);
+    const manifest = JSON.parse(fs.readFileSync(
+        path.join(fixture.projectRoot, '.prism', 'project.json'), 'utf8'
+    ));
+    assert.equal(manifest.schemaVersion, 2);
+    assert.equal(manifest.source.mode, 'ESTABLISHED');
+    assert.equal(manifest.adapter, null);
+
+    fs.rmSync(path.join(fixture.projectRoot, '.prism', 'project.json'));
+    const verified = captureWrites(() => main(['automation', 'verify', '--json'], fixture));
+    assert.equal(verified.status, 5);
+    assert.deepEqual(JSON.parse(verified.stdout).checks, [{
+        id: 'automation-project-metadata',
+        status: 'FAIL',
+        message: 'established project metadata is required',
+    }]);
+});
+
+test('reports established Core-only metadata requirements', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=established',
+        '--adapter=core-only', '--json',
+    ], fixture));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.source, 'ESTABLISHED');
+    assert.equal(report.adapter, null);
+    assert.equal(report.disposition, 'METADATA_REQUIRED');
+});
+
+test('reports established active-adapter metadata requirements', (t) => {
+    const fixture = makeGitFixture(t);
+
+    const result = captureWrites(() => main([
+        'setup', 'project', 'metadata', '--source=established',
+        '--adapter=active', '--json',
+    ], fixture));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.source, 'ESTABLISHED');
+    assert.equal(report.adapter.packageName, '@kyaulabs/prism-php-web');
+    assert.equal(report.adapter.bootstrapProtocol, 1);
+});
+
+test('creates an established manifest for an active adapter', (t) => {
+    const fixture = makeGitFixture(t);
+    fs.rmSync(path.join(fixture.projectRoot, '.prism', 'project.json'));
+    const planned = planAutomation({
+        ...fixture,
+        metadataPath: writeEstablishedMetadata(fixture),
+    });
+
+    assert.equal(planned.composition, 'ADAPTER');
+    assert.equal(applyAutomation({...fixture, planPath: planned.planPath}).status, 'GO');
+    const manifest = JSON.parse(fs.readFileSync(
+        path.join(fixture.projectRoot, '.prism', 'project.json'), 'utf8'
+    ));
+    assert.equal(manifest.source.mode, 'ESTABLISHED');
+    assert.equal(manifest.adapter.packageName, '@kyaulabs/prism-php-web');
+    assert.equal(manifest.adapter.id, '@kyaulabs/prism-php-web');
+});
+
+test('preserves a valid schema-one Blank manifest', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const manifestPath = path.join(fixture.projectRoot, '.prism', 'project.json');
+    fs.mkdirSync(path.dirname(manifestPath), {recursive: true});
+    fs.writeFileSync(manifestPath, renderProjectManifest({
+        schemaVersion: 1,
+        source: {mode: 'BLANK', evidence: null},
+        capabilities: [],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Core Project',
+            summary: 'A Core-only established project.',
+        },
+        coreVersion: require('../../packages/prism-core/package.json').version,
+        adapter: null,
+    }), {mode: 0o644});
+    fs.chmodSync(manifestPath, 0o644);
+
+    const planned = planAutomation(fixture);
+    const manifest = planned.providers.find(({id}) => id === 'core-project-manifest');
+    assert.equal(manifest.outputs[0].disposition, 'CURRENT');
+});
+
+test('migrates a stale established Core-only manifest in the transaction', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const manifestPath = path.join(fixture.projectRoot, '.prism', 'project.json');
+    fs.mkdirSync(path.dirname(manifestPath), {recursive: true});
+    fs.writeFileSync(manifestPath, renderProjectManifest({
+        schemaVersion: 2,
+        source: {mode: 'ESTABLISHED', evidence: null},
+        capabilities: [],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Core Project',
+            summary: 'A Core-only established project.',
+        },
+        coreVersion: '0.4.0',
+        adapter: null,
+    }), {mode: 0o644});
+    fs.chmodSync(manifestPath, 0o644);
+
+    const planned = planAutomation(fixture);
+    const manifest = planned.providers.find(({id}) => id === 'core-project-manifest');
+    assert.equal(manifest.outputs[0].disposition, 'MIGRATE');
+    assert.equal(applyAutomation({...fixture, planPath: planned.planPath}).status, 'GO');
+    assert.equal(JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+        .compatibility.coreVersion, require('../../packages/prism-core/package.json').version);
+});
+
+test('requires metadata when an established project manifest is absent', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+
+    const planned = captureWrites(() => main(['automation', 'plan', '--json'], fixture));
+
+    assert.equal(planned.status, 5);
+    assert.deepEqual(JSON.parse(planned.stdout).checks, [{
+        id: 'automation-project-metadata',
+        status: 'FAIL',
+        message: 'established project metadata is required',
+    }]);
+});
+
+test('rejects invalid established metadata with a bounded diagnostic', (t) => {
+    const invalidCases = [
+        {
+            name: 'outside .pi',
+            arrange(fixture) {
+                const metadataPath = path.join(fixture.projectRoot, 'metadata.json');
+                fs.writeFileSync(metadataPath, JSON.stringify({
+                    schemaVersion: 1,
+                    displayName: 'Automation Fixture',
+                    summary: 'An established adapter automation fixture.',
+                }), {mode: 0o600});
+                fs.chmodSync(metadataPath, 0o600);
+                return metadataPath;
+            },
+        },
+        {
+            name: 'symlinked .pi',
+            arrange(fixture) {
+                const target = writeEstablishedMetadata(fixture);
+                const piRoot = path.join(fixture.projectRoot, '.pi');
+                const realPi = path.join(fixture.projectRoot, '.pi-real');
+                fs.renameSync(piRoot, realPi);
+                fs.symlinkSync(realPi, piRoot);
+                return path.join(realPi, path.basename(target));
+            },
+        },
+        {
+            name: 'public mode',
+            arrange(fixture) {
+                const metadataPath = writeEstablishedMetadata(fixture);
+                fs.chmodSync(metadataPath, 0o644);
+                return metadataPath;
+            },
+        },
+        {
+            name: 'symlink',
+            arrange(fixture) {
+                const target = writeEstablishedMetadata(fixture);
+                const metadataPath = path.join(fixture.projectRoot, '.pi', 'metadata-link.json');
+                fs.symlinkSync(target, metadataPath);
+                return metadataPath;
+            },
+        },
+        {
+            name: 'oversized',
+            arrange(fixture) {
+                const metadataPath = writeEstablishedMetadata(fixture);
+                fs.writeFileSync(metadataPath, Buffer.alloc(16385, 0x20));
+                fs.chmodSync(metadataPath, 0o600);
+                return metadataPath;
+            },
+        },
+        {
+            name: 'invalid UTF-8',
+            arrange(fixture) {
+                const metadataPath = writeEstablishedMetadata(fixture);
+                fs.writeFileSync(metadataPath, Buffer.from([0xff]));
+                fs.chmodSync(metadataPath, 0o600);
+                return metadataPath;
+            },
+        },
+    ];
+    for (const invalid of invalidCases) {
+        const fixture = makeCoreOnlyGitFixture(t);
+        const result = captureWrites(() => main([
+            'automation', 'plan', `--metadata=${invalid.arrange(fixture)}`, '--json',
+        ], fixture));
+        assert.equal(result.status, 5, invalid.name);
+        assert.deepEqual(JSON.parse(result.stdout).checks, [{
+            id: 'automation-project-metadata',
+            status: 'FAIL',
+            message: 'established project metadata is invalid',
+        }], invalid.name);
+    }
+});
+
+test('rejects metadata changed through the held descriptor', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const metadataPath = writeEstablishedMetadata(fixture);
+    const originalFstat = fs.fstatSync;
+    let calls = 0;
+    fs.fstatSync = (descriptor) => {
+        const stat = originalFstat(descriptor);
+        if (calls === 0) fs.appendFileSync(metadataPath, ' ');
+        calls += 1;
+        return stat;
+    };
+    try {
+        assert.throws(() => planAutomation({...fixture, metadataPath}), (error) =>
+            error.stage === 'automation-project-metadata-invalid'
+        );
+    } finally {
+        fs.fstatSync = originalFstat;
+    }
+});
+
+test('rejects incoherent existing manifest evidence with a bounded diagnostic', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const manifestPath = path.join(fixture.projectRoot, '.prism', 'project.json');
+    fs.mkdirSync(path.dirname(manifestPath), {recursive: true});
+    const manifest = JSON.parse(renderProjectManifest({
+        schemaVersion: 2,
+        source: {mode: 'ESTABLISHED', evidence: null},
+        capabilities: [],
+        metadata: {
+            schemaVersion: 1,
+            displayName: 'Core Project',
+            summary: 'A Core-only established project.',
+        },
+        coreVersion: require('../../packages/prism-core/package.json').version,
+        adapter: null,
+    }));
+    manifest.adapter = {
+        id: '@example/adapter',
+        packageName: '@example/adapter',
+        packageVersion: '1.0.0',
+        bootstrapProtocol: 1,
+    };
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, {mode: 0o644});
+    fs.chmodSync(manifestPath, 0o644);
+
+    const result = captureWrites(() => main(['automation', 'plan', '--json'], fixture));
+    assert.equal(result.status, 5);
+    assert.deepEqual(JSON.parse(result.stdout).checks, [{
+        id: 'automation-project-metadata',
+        status: 'FAIL',
+        message: 'established project metadata is invalid',
+    }]);
+});
+
 test('adds repository release management only when enabled', (t) => {
     const fixture = makeGitFixture(t);
     const disabled = planAutomation(fixture);
@@ -88,7 +433,11 @@ test('adds repository release management only when enabled', (t) => {
         force: true,
     });
 
-    const enabled = planAutomation({...fixture, releaseRepository: 'example/project'});
+    const enabled = planAutomation({
+        ...fixture,
+        releaseRepository: 'example/project',
+        metadataPath: writeEstablishedMetadata(fixture, 'example/project'),
+    });
     const release = enabled.providers.find(({id}) => id === 'core-repository-release');
     assert.deepEqual(release.outputs.map(({path: outputPath}) => outputPath), [
         'CHANGELOG.md',
@@ -111,6 +460,7 @@ test('exposes repository release selection through automation CLI controls', (t)
         'automation',
         'plan',
         '--release-repository=example/project',
+        `--metadata=${writeEstablishedMetadata(fixture, 'example/project')}`,
         '--json',
     ], fixture));
 
@@ -161,6 +511,7 @@ test('rejects an unowned repository release output', (t) => {
     assert.throws(() => planAutomation({
         ...fixture,
         releaseRepository: 'example/project',
+        metadataPath: writeEstablishedMetadata(fixture, 'example/project'),
     }), /ownership conflicts/);
     assert.equal(fs.readFileSync(path.join(fixture.projectRoot, 'CHANGELOG.md'), 'utf8'),
         '# Human changelog\n');
@@ -596,6 +947,37 @@ test('rejects a changed immutable automation plan', (t) => {
     fs.writeFileSync(planned.planPath, `${JSON.stringify(envelope, null, 2)}\n`);
 
     assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}));
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('rejects an oversized retained plan before parsing', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    fs.writeFileSync(planned.planPath, Buffer.alloc(1048577, 0x20));
+    fs.chmodSync(planned.planPath, 0o600);
+
+    assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}),
+        /automation plan is invalid/);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+});
+
+test('rejects an open retained established configuration', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const envelope = JSON.parse(fs.readFileSync(planned.planPath, 'utf8'));
+    envelope.plan.configuration.established.extra = true;
+    envelope.planDigest = crypto.createHash('sha256')
+        .update(JSON.stringify(envelope.plan))
+        .digest('hex');
+    const changedPlanPath = path.join(
+        path.dirname(planned.planPath),
+        `plan-${envelope.planDigest}.json`
+    );
+    fs.unlinkSync(planned.planPath);
+    fs.writeFileSync(changedPlanPath, `${JSON.stringify(envelope, null, 2)}\n`, {mode: 0o600});
+
+    assert.throws(() => applyAutomation({...fixture, planPath: changedPlanPath}),
+        /automation plan is invalid/);
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
 });
 

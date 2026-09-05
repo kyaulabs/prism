@@ -5,6 +5,8 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const semver = require('semver');
+const {TextDecoder} = require('node:util');
 const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
 
@@ -56,6 +58,8 @@ function validateProjectManifest({value, coreVersion, allowVersionMigration = fa
         ]) ||
         value.compatibility.corePackage !== '@kyaulabs/prism-core' ||
         typeof value.compatibility.coreVersion !== 'string' ||
+        semver.valid(value.compatibility.coreVersion) === null ||
+        semver.valid(coreVersion) === null ||
         value.compatibility.providerProtocol !== 1
     ) {
         throw new Error('project manifest is invalid');
@@ -77,7 +81,9 @@ function validateProjectManifest({value, coreVersion, allowVersionMigration = fa
         throw new Error('project manifest is invalid');
     }
     const versionCurrent = value.compatibility.coreVersion === coreVersion;
-    if (!versionCurrent && !allowVersionMigration) {
+    if (!versionCurrent && (
+        !allowVersionMigration || !semver.lt(value.compatibility.coreVersion, coreVersion)
+    )) {
         throw new Error('project manifest is invalid');
     }
     return Object.freeze({value: Object.freeze(value), versionCurrent});
@@ -164,7 +170,7 @@ function readProjectManifest({projectRoot, coreRoot, allowVersionMigration = fal
         }
         let value;
         try {
-            value = JSON.parse(contents.toString('utf8'));
+            value = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(contents));
         } catch {
             throw new Error('project manifest is invalid');
         }
