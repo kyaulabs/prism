@@ -379,6 +379,37 @@ test('classifies file transitions from immutable Git metadata', (t) => {
     }
 });
 
+test('keeps exact-range proof repository-wide under relative diff configuration', (t) => {
+    for (const mixed of [false, true]) {
+        const target = fixture(t, 'notes.md');
+        const range = advanceRange(target, (root) => {
+            fs.mkdirSync(path.join(root, 'docs'));
+            fs.writeFileSync(path.join(root, 'docs/notes.md'), 'nested notes\n');
+            if (mixed) fs.writeFileSync(path.join(root, 'code.js'), 'export {};\n');
+            git(root, 'add', '--', '.');
+        });
+        target.headSha = range.to;
+        git(target.projectRoot, 'config', 'diff.relative', 'true');
+        const context = {...target, projectRoot: path.join(target.projectRoot, 'docs')};
+        const exact = {from: target.baseSha, to: target.headSha};
+        const expected = mixed ? 'REQUIRED' : 'MARKDOWN_ONLY';
+        assert.equal(classifyOcrRange(exact, target).status, expected);
+        assert.equal(classifyOcrRange(exact, context).status, expected);
+        if (!mixed) {
+            recordReviewSegment(segment(target), context);
+            assert.equal(verifyReviewChain(expectedIdentity(target), context).record.segments[0].axes.tooling, 'COMPLETE_NO_OCR');
+            continue;
+        }
+        assert.throws(() => recordReviewSegment(segment(target), context), /review OCR exemption is unproven/);
+        assert.equal(inspectReviewChain(context).state, 'ABSENT');
+        const ordinary = recordReviewSegment(segment(target, {axes: axes()}), context);
+        const forged = JSON.parse(fs.readFileSync(ordinary.path, 'utf8'));
+        forged.segments[0].axes.tooling = 'COMPLETE_NO_OCR';
+        fs.writeFileSync(ordinary.path, `${JSON.stringify(forged)}\n`, {mode: 0o600});
+        assert.throws(() => verifyReviewChain(expectedIdentity(target), context), /review OCR exemption is unproven/);
+    }
+});
+
 test('classifies case-insensitive Markdown modifications', (t) => {
     for (const name of ['notes.md', 'NOTES.MD', 'review notes.MarkDown']) {
         const target = fixture(t, name);
@@ -418,7 +449,7 @@ function assertUnprovenDiff(t, response) {
     assert.ok(diffCall, 'the intended failing boundary must be reached');
     assert.deepEqual(diffCall.args, [
         '--no-replace-objects', 'diff', '--raw', '--no-abbrev', '--no-renames',
-        '--no-ext-diff', '--no-textconv', '--no-color', '--ignore-submodules=none',
+        '--no-relative', '--no-ext-diff', '--no-textconv', '--no-color', '--ignore-submodules=none',
         '-z', target.baseSha, target.headSha, '--',
     ]);
     for (const {command, args, options} of calls) {

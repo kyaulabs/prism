@@ -63,7 +63,7 @@ function classifyOcrRange({from, to}, context = {}) {
     }
     gitBytes(context, ['merge-base', '--is-ancestor', from, to]);
     const raw = gitBytes(context, [
-        'diff', '--raw', '--no-abbrev', '--no-renames', '--no-ext-diff',
+        'diff', '--raw', '--no-abbrev', '--no-renames', '--no-relative', '--no-ext-diff',
         '--no-textconv', '--no-color', '--ignore-submodules=none', '-z', from, to, '--',
     ]);
     if (!raw || !raw.endsWith('\0')) reject();
