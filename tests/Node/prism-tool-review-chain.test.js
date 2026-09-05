@@ -479,4 +479,97 @@ test('rejects missing blobs even when raw tree metadata is available', (t) => {
     assert.equal(objectChecks, 1);
 });
 
+test('authoritative verification rejects a structurally valid forged exemption', (t) => {
+    const target = fixture(t);
+    const record = recordReviewSegment(segment(target, {axes: axes()}), target);
+    const forged = JSON.parse(fs.readFileSync(record.path, 'utf8'));
+    forged.segments[0].axes.tooling = 'COMPLETE_NO_OCR';
+    fs.writeFileSync(record.path, `${JSON.stringify(forged)}\n`, {mode: 0o600});
+    assert.doesNotThrow(() => validateRecordShape(forged));
+    assert.equal(inspectReviewChain(target).state, 'VALID');
+    assert.throws(() => verifyReviewChain(expectedIdentity(target), target), /review OCR exemption is unproven/);
+});
+
+test('round-trips an exempt initial segment and rejects stale identity', (t) => {
+    const target = fixture(t, 'notes.md');
+    recordReviewSegment(segment(target), target);
+    const verified = verifyReviewChain(expectedIdentity(target), target);
+    assert.equal(verified.record.segments[0].axes.tooling, 'COMPLETE_NO_OCR');
+    for (const replacement of [
+        {branch: 'fix/tester-abcd-different'}, {baseRef: 'origin/main'},
+        {baseSha: '0'.repeat(40)}, {headSha: target.baseSha},
+    ]) assert.throws(() => verifyReviewChain({...expectedIdentity(target), ...replacement}, target), /identity is stale/);
+});
+
+test('exempt repairs preserve prior Blocking closure requirements', (t) => {
+    for (const close of [false, true]) {
+        const target = fixture(t);
+        const initial = recordReviewSegment(segment(target, {
+            axes: axes(), findings: [{
+                axis: 'standards', path: 'file.txt', line: 1,
+                summary: 'changed requirement is undocumented', classification: 'BLOCKING',
+                causality: 'introduced by this change', impact: 'required workflow is unusable',
+                evidence: 'fixture confirms missing instructions',
+            }],
+        }), target);
+        const range = advanceRange(target, (root) => {
+            fs.writeFileSync(path.join(root, 'notes.md'), 'required instructions\n');
+            git(root, 'add', '--', 'notes.md');
+        });
+        const repaired = recordReviewSegment(segment(target, {
+            kind: 'repair', ...range,
+            closures: close ? [{fingerprint: initial.openBlocking[0], evidence: 'instructions now cover the failed workflow'}] : [],
+        }), target);
+        assert.equal(repaired.segments[1].axes.tooling, 'COMPLETE_NO_OCR');
+        assert.equal(repaired.openBlocking.length, close ? 0 : 1);
+        const expected = {...expectedIdentity(target), headSha: range.to};
+        if (close) assert.equal(verifyReviewChain(expected, target).record.segments.length, 2);
+        else assert.throws(() => verifyReviewChain(expected, target), /unresolved Blocking/);
+    }
+});
+
+test('cannot carry a forged initial exemption through a valid Markdown repair', (t) => {
+    const target = fixture(t);
+    const initial = recordReviewSegment(segment(target, {axes: axes()}), target);
+    const forged = JSON.parse(fs.readFileSync(initial.path, 'utf8'));
+    forged.segments[0].axes.tooling = 'COMPLETE_NO_OCR';
+    fs.writeFileSync(initial.path, `${JSON.stringify(forged)}\n`, {mode: 0o600});
+    const before = fs.readFileSync(initial.path);
+    const range = advanceRange(target, (root) => {
+        fs.writeFileSync(path.join(root, 'notes.md'), 'notes\n');
+        git(root, 'add', '--', 'notes.md');
+    });
+    assert.throws(() => recordReviewSegment(segment(target, {kind: 'repair', ...range}), target), /review OCR exemption is unproven/);
+    assert.deepEqual(fs.readFileSync(initial.path), before);
+});
+
+test('rechecks exempt repair ranges rather than only the initial range', (t) => {
+    const target = fixture(t, 'notes.md');
+    recordReviewSegment(segment(target), target);
+    const range = advanceRange(target, (root) => {
+        fs.writeFileSync(path.join(root, 'code.js'), 'export {};\n');
+        git(root, 'add', '--', 'code.js');
+    });
+    const repaired = recordReviewSegment(segment(target, {
+        kind: 'repair', ...range, axes: axes(),
+    }), target);
+    const forged = JSON.parse(fs.readFileSync(repaired.path, 'utf8'));
+    forged.segments[1].axes.tooling = 'COMPLETE_NO_OCR';
+    fs.writeFileSync(repaired.path, `${JSON.stringify(forged)}\n`, {mode: 0o600});
+    assert.doesNotThrow(() => validateRecordShape(forged));
+    assert.throws(() => verifyReviewChain({
+        ...expectedIdentity(target), headSha: range.to,
+    }, target), /review OCR exemption is unproven/);
+});
+
+test('an exemption does not make discontinuous stored history valid', (t) => {
+    const target = fixture(t, 'notes.md');
+    const record = recordReviewSegment(segment(target), target);
+    const forged = JSON.parse(fs.readFileSync(record.path, 'utf8'));
+    forged.segments[0].from = target.headSha;
+    fs.writeFileSync(record.path, `${JSON.stringify(forged)}\n`, {mode: 0o600});
+    assert.equal(inspectReviewChain(target).state, 'UNSAFE');
+    assert.throws(() => verifyReviewChain(expectedIdentity(target), target), /review chain is unavailable/);
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

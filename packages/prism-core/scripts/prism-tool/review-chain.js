@@ -431,6 +431,7 @@ function verifyReviewChain(expected, context = {}) {
     for (const key of ['branch', 'baseRef', 'baseSha', 'headSha']) {
         if (record[key] !== expected[key]) throw new ReviewChainError('review chain identity is stale');
     }
+    assertOcrApplicability(record.segments, context);
     let prior = record.baseSha;
     for (const segment of record.segments) {
         if (segment.from !== prior) throw new ReviewChainError('review history is discontinuous');

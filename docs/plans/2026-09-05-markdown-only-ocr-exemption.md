@@ -438,7 +438,7 @@ keeps `verifyReviewChain(expected, context)`'s return shape and failure contract
 Structural `validateRecordShape` continues to parse version-one records without
 acting as applicability authority.
 
-- [ ] **Step 1: Add the forged-record regression and run RED.** A structurally
+- [x] **Step 1: Add the forged-record regression and run RED.** A structurally
   valid record can contain a false outcome; only authoritative Git proof can
   reject that claim:
 
@@ -458,7 +458,7 @@ acting as applicability authority.
   Run `node --test tests/Node/prism-tool-review-chain.test.js`.
   Expected RED: `Missing expected exception`, not a shape or fixture failure.
 
-- [ ] **Step 2: Add authoritative proof.** In `verifyReviewChain`, after expected
+- [x] **Step 2: Add authoritative proof.** In `verifyReviewChain`, after expected
   branch/base/HEAD comparison and before the existing ancestry loop, insert:
 
   ```javascript
@@ -468,7 +468,7 @@ acting as applicability authority.
   Do not change ancestry, continuity, Blocking checks, state deserialization,
   the version-two reader's `LEGACY` classification, or PR version dispatch.
 
-- [ ] **Step 3: Add round-trip and continuous-repair evidence; run GREEN.** Use
+- [x] **Step 3: Add round-trip and continuous-repair evidence; run GREEN.** Use
   the Task 1 helpers and add:
 
   ```javascript
@@ -563,13 +563,21 @@ acting as applicability authority.
   Expected GREEN includes unchanged ordinary v1 records, missing/wrong-axis
   rejection, closure replay, and coherent v2 dispatch.
 
-- [ ] **Step 4: Verify and commit.** Inspect the exact diff for state-shape or
+- [x] **Step 4: Verify and commit.** Inspect the exact diff for state-shape or
   version-two changes; none are authorized. Stage only the two Task 2 files.
   In a later exclusive tool call:
 
   ```bash
   prism-tool commit create --type fix --scope review --subject "reverify stored markdown-only ocr exemptions"
   ```
+
+Task 2 evidence: a structurally valid forged exemption first failed with
+`Missing expected exception`; authoritative re-verification then rejected it.
+Round-trip, stale identity, exempt repair closure, forged prior/repair outcomes,
+and discontinuity cases pass. The four focused compatibility suites report
+83 passing tests; the full Node suite reports 1,369 passing tests. Scoped
+ESLint and whitespace checks pass. Runtime delta is one verifier call; record
+shape, ancestry, continuity, findings, and version-two code remain unchanged.
 
 ## Task 3: Select and disclose non-applicability without external review
 
