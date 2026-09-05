@@ -562,6 +562,10 @@ Pi-era decisions:
 - `adr/0104-protocol-only-adapter-compatibility.md` — use bootstrap protocol as
   the sole adapter compatibility discriminator and admit only a first or
   semantically newer stable release.
+- `adr/0105-established-project-manifest-and-core-only-composition.md` — treat
+  Core-only as an explicit established provider composition and create the
+  established project manifest inside the verified automation transaction
+  before separate hook activation.
 
 ## When to update this file
 

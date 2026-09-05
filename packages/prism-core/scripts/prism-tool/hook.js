@@ -1,4 +1,4 @@
-// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -10,9 +10,8 @@ const {
     holdBootstrapAttemptDirectory,
     readBootstrapJournal,
 } = require('./bootstrap-journal');
-const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
-const {validateBootstrapSource} = require('./bootstrap-source');
 const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
+const {readProjectManifest} = require('./project-manifest');
 const {runBounded} = require('./process');
 const {applyManagedHooks} = require('./managed-hooks');
 
@@ -33,13 +32,6 @@ function requireSuccess(result, message) {
     return output(result).trim();
 }
 
-function exactKeys(value, expected) {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-    const actual = Object.keys(value).sort();
-    const wanted = [...expected].sort();
-    return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
-}
-
 function readBounded(descriptor, maximum, message) {
     const buffer = Buffer.alloc(maximum + 1);
     let offset = 0;
@@ -52,92 +44,11 @@ function readBounded(descriptor, maximum, message) {
     return buffer.subarray(0, offset);
 }
 
-function validAdapterIdentity(value) {
-    return exactKeys(value, ['id', 'packageName', 'packageVersion', 'bootstrapProtocol']) &&
-        typeof value.id === 'string' &&
-        value.id.length > 0 &&
-        typeof value.packageName === 'string' &&
-        value.packageName.length > 0 &&
-        typeof value.packageVersion === 'string' &&
-        value.packageVersion.length > 0 &&
-        Number.isSafeInteger(value.bootstrapProtocol) &&
-        value.bootstrapProtocol > 0;
-}
-
 function readCoreProject(projectRoot, coreRoot) {
-    const manifestPath = path.join(projectRoot, '.prism', 'project.json');
-    const initial = fs.lstatSync(manifestPath);
-    if (
-        initial.isSymbolicLink() ||
-        !initial.isFile() ||
-        initial.size > MAX_MANIFEST_BYTES ||
-        fs.realpathSync(manifestPath) !== manifestPath
-    ) {
-        throw new Error('project manifest is invalid');
-    }
-    const descriptor = fs.openSync(manifestPath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    let contents;
-    try {
-        const held = fs.fstatSync(descriptor);
-        if (held.size > MAX_MANIFEST_BYTES) throw new Error('project manifest is invalid');
-        contents = readBounded(descriptor, MAX_MANIFEST_BYTES, 'project manifest is invalid');
-        const final = fs.fstatSync(descriptor);
-        if (
-            contents.length !== held.size ||
-            held.dev !== initial.dev ||
-            held.ino !== initial.ino ||
-            final.dev !== held.dev ||
-            final.ino !== held.ino ||
-            final.size !== held.size
-        ) {
-            throw new Error('project manifest changed');
-        }
-    } finally {
-        fs.closeSync(descriptor);
-    }
-    const value = JSON.parse(contents.toString('utf8'));
-    const capabilities = Array.isArray(value?.capabilities) ? value.capabilities : [];
-    const corePackage = JSON.parse(fs.readFileSync(path.join(coreRoot, 'package.json'), 'utf8'));
-    let metadataValid;
-    let sourceValid = false;
-    try {
-        validateBootstrapSource(value.source);
-        sourceValid = true;
-        validateNormalizedProjectMetadata({
-            capabilities,
-            metadata: {
-                schemaVersion: value.schemaVersion,
-                ...value.project,
-                ...(capabilities.length === 0 ? {} : {
-                    capabilityMetadata: value.capabilityMetadata,
-                }),
-            },
-        });
-        metadataValid = true;
-    } catch {
-        metadataValid = false;
-    }
-    if (
-        !exactKeys(value, [
-            'schemaVersion', 'source', 'capabilities', 'project',
-            ...(capabilities.length === 0 ? [] : ['capabilityMetadata']),
-            'adapter', 'compatibility',
-        ]) ||
-        value.schemaVersion !== 1 ||
-        !Array.isArray(value.capabilities) ||
-        !sourceValid ||
-        !metadataValid ||
-        (value.adapter !== null && !validAdapterIdentity(value.adapter)) ||
-        !exactKeys(value.compatibility, ['corePackage', 'coreVersion', 'providerProtocol']) ||
-        value.compatibility.corePackage !== '@kyaulabs/prism-core' ||
-        value.compatibility.coreVersion !== corePackage.version ||
-        value.compatibility.providerProtocol !== 1
-    ) {
-        throw new Error('project manifest is invalid');
-    }
+    const project = readProjectManifest({projectRoot, coreRoot});
     return Object.freeze({
-        adapter: value.adapter,
-        manifestDigest: crypto.createHash('sha256').update(contents).digest('hex'),
+        adapter: project.value.adapter,
+        manifestDigest: project.digest,
     });
 }
 
