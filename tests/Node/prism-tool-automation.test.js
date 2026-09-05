@@ -184,6 +184,24 @@ test('plans an established Core-only manifest with Core automation', (t) => {
     }]);
 });
 
+test('Core-only reconciliation publishes the behavior-tested back-merge candidate', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const metadataPath = writeEstablishedMetadata(fixture);
+    const planned = planAutomation({...fixture, metadataPath});
+    assert.equal(planned.status, 'GO');
+    assert.equal(applyAutomation({...fixture, planPath: planned.planPath}).status, 'GO');
+    const installed = fs.readFileSync(path.join(
+        fixture.projectRoot, '.github/workflows/back-merge.yml'
+    ));
+    assert.deepEqual(installed, fs.readFileSync(path.join(
+        CORE_ROOT, 'config/automation/back-merge.yml'
+    )));
+    const verified = verifyAutomation(fixture);
+    assert.equal(verified.status, 'GO');
+    assert.equal(verified.disposition, 'CURRENT');
+    assert.equal(verified.composition, 'CORE_ONLY');
+});
+
 test('reports established Core-only metadata requirements', (t) => {
     const fixture = makeCoreOnlyGitFixture(t);
 

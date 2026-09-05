@@ -327,7 +327,7 @@ prism-tool commit create --type fix --scope automation --subject "validate exact
 
 **Interfaces:** Only one follow-up inspection is allowed after failed creation. Exactly one valid matching PR is success. Every other response is the specific creation-failed diagnostic and exit 1. The existing public automation transaction remains unchanged.
 
-- [ ] **Step 1: Append the recovery and workflow contract tests below.**
+- [x] **Step 1: Append the recovery and workflow contract tests below.**
 
 ```javascript
 const createFailure = [ahead, {command: 'list', json: []}, {command: 'create', status: 17}];
@@ -403,8 +403,8 @@ test('Core-only reconciliation publishes the behavior-tested back-merge candidat
 });
 ```
 
-- [ ] **Step 2: Run RED.** Run `node --test tests/Node/back-merge-workflow.test.js tests/Node/prism-tool-automation.test.js`. Recovery tests must fail because the final inspection is absent. The new installation-identity test may already pass: it is coverage of an existing seam, not the behavioral RED proof.
-- [ ] **Step 3: Insert this recovery block immediately before the terminal creation-failed diagnostic in both workflows.**
+- [x] **Step 2: Run RED.** Run `node --test tests/Node/back-merge-workflow.test.js tests/Node/prism-tool-automation.test.js`. Recovery tests must fail because the final inspection is absent. The new installation-identity test may already pass: it is coverage of an existing seam, not the behavioral RED proof.
+- [x] **Step 3: Insert this recovery block immediately before the terminal creation-failed diagnostic in both workflows.**
 
 ```bash
 if ! open_count=$(inspect_open_prs); then
@@ -419,8 +419,8 @@ fi
 
 Keep the final diagnostic and `exit 1` after this block. Do not retry creation, merge, or accept ambiguous/malformed recovery output.
 
-- [ ] **Step 4: Run GREEN, compatibility, and refactor checks.** Repeat both Node test files, then run `bash tests/Shell/release_workflow_test.sh` and `npm run test:node`. Require zero failures and byte equality. The consumer back-merge assertions are retained locally without loading its source or changing its checkout; CI assertions in its seven-test file are unaffected by a back-merge-only replacement. Do not claim the consumer's full suite was run unless a separate authorized disposable consumer validation actually runs it.
-- [ ] **Step 5: Commit the terminal implementation.** Stage the four changed paths and use a separate exclusive call:
+- [x] **Step 4: Run GREEN, compatibility, and refactor checks.** Repeat both Node test files, then run `bash tests/Shell/release_workflow_test.sh` and `npm run test:node`. Require zero failures and byte equality. The consumer back-merge assertions are retained locally without loading its source or changing its checkout; CI assertions in its seven-test file are unaffected by a back-merge-only replacement. Do not claim the consumer's full suite was run unless a separate authorized disposable consumer validation actually runs it.
+- [x] **Step 5: Commit the terminal implementation.** Stage the four changed paths and use a separate exclusive call:
 
 ```bash
 prism-tool commit create --type fix --scope automation --subject "recover concurrent back-merge creation fail closed" --fixes 517

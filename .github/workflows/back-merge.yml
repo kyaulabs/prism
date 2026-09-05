@@ -80,5 +80,14 @@ jobs:
             exit 0
           fi
 
+          if ! open_count=$(inspect_open_prs); then
+            echo "::error::back-merge pull-request creation failed" >&2
+            exit 1
+          fi
+          if [ "$open_count" = '1' ]; then
+            echo "back-merge pull request was created concurrently; nothing to do"
+            exit 0
+          fi
+
           echo "::error::back-merge pull-request creation failed" >&2
           exit 1

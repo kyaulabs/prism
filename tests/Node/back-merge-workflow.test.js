@@ -147,8 +147,55 @@ for (const json of [null, {}, {number: 7}, [null], [{}], [{number: '7'}],
         '::error::back-merge pull-request state was malformed\n');
 }
 
-scenario('failed creation reports a specific diagnostic',
-    [ahead, {command: 'list', json: []}, {command: 'create', status: 17}], 1, '',
-    '::error::back-merge pull-request creation failed\n');
+const createFailure = [ahead, {command: 'list', json: []}, {command: 'create', status: 17}];
+scenario('one concurrently created PR resolves failed creation',
+    [...createFailure, {command: 'list', json: [{number: 9}]}], 0,
+    'back-merge pull request was created concurrently; nothing to do\n', '');
+
+for (const response of [{command: 'list', status: 17}, {command: 'list', raw: '{'},
+    ...[[], [{number: 9}, {number: 10}], null, {}, [null], [{}], [{number: '9'}],
+        [{number: 0}], [{number: -1}], [{number: 1.5}]]
+        .map(json => ({command: 'list', json}))]) {
+    scenario('unresolved create fails closed ' + JSON.stringify(response),
+        [...createFailure, response], 1, '',
+        '::error::back-merge pull-request creation failed\n');
+}
+
+test('only the merged-main event receives limited creation authority', () => {
+    assert.deepEqual(workflow.on, {pull_request: {branches: ['main'], types: ['closed']}});
+    assert.deepEqual(workflow.permissions, {contents: 'read', 'pull-requests': 'write'});
+    assert.deepEqual(Object.keys(workflow.jobs), ['back-merge']);
+    assert.equal(job.if,
+        "github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'");
+    assert.equal(job['runs-on'], 'ubuntu-latest');
+    assert.deepEqual(workflow.concurrency,
+        {group: 'back-merge-main-to-develop', 'cancel-in-progress': false});
+    assert.equal(job.steps.length, 1);
+    assert.deepEqual(job.steps[0].env, {GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'});
+    assert.equal(job.steps[0].uses, undefined);
+    assert.doesNotMatch(workflowText,
+        /git push|update-ref|force.push|gh pr merge|gh pr close|gh pr review|auto.merge/);
+    assert.doesNotMatch(workflowText,
+        /actions\/checkout|contents: write|gh release|eval|source |bash -c|sh -c/);
+    assert.equal(fs.readFileSync(path.join(ROOT, '.github/workflows/back-merge.yml'), 'utf8'),
+        workflowText);
+});
+
+test('managed candidate retains the established consumer back-merge contract', () => {
+    assert.match(workflowText, /^on:\n {2}pull_request:\n {4}branches: \[main\]\n {4}types: \[closed\]/m);
+    assert.match(workflowText, /^permissions:\n {2}contents: read\n {2}pull-requests: write/m);
+    assert.match(workflowText, /GH_TOKEN: \$\{\{ secrets[.]GITHUB_TOKEN \}\}/);
+    assert.match(workflowText, /compare\/develop[.][.][.]main/);
+    assert.match(workflowText,
+        /gh pr list --repo "\$GITHUB_REPOSITORY"[\s\\]+--base develop --head main --state open/);
+    assert.match(workflowText,
+        /gh pr create --repo "\$GITHUB_REPOSITORY" --base develop --head main/);
+    assert.match(workflowText, /--title "Back-merge main into develop"/);
+    assert.match(workflowText, /Human review and merge required[.]/);
+    assert.match(workflowText, /case "\$ahead_by" in/);
+    assert.match(workflowText, /case "\$open_count" in/);
+    assert.match(workflowText, /pull-request creation failed/);
+    assert.match(workflowText, /created concurrently; nothing to do/);
+});
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
