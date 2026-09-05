@@ -289,6 +289,15 @@ function optionalRegistrations(projectRoot, piDir) {
     return new Map(registrations.map((registration) => [registration.packageRoot, registration]));
 }
 
+function validateCoreComponentCollisions(registration) {
+    const coreContract = loadContract(path.resolve(__dirname, '../../toolchain.json'));
+    const coreIds = new Set(coreContract.components.map(({id}) => id));
+    for (const {id} of registration.contract.components) {
+        if (coreIds.has(id)) throw new Error(`adapter component collides with core component ${id}`);
+    }
+    return registration;
+}
+
 function discoverOptionalAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
     try {
         fs.lstatSync(piDir);
@@ -299,19 +308,13 @@ function discoverOptionalAdapter({projectRoot, piDir = path.join(projectRoot, '.
     const byRoot = optionalRegistrations(projectRoot, piDir);
     if (byRoot.size === 0) return null;
     if (byRoot.size > 1) throw new Error('more than one active adapter is not permitted');
-    return [...byRoot.values()][0];
+    return validateCoreComponentCollisions([...byRoot.values()][0]);
 }
 
 function discoverAdapter({projectRoot, piDir = path.join(projectRoot, '.pi')}) {
     const byRoot = optionalRegistrations(projectRoot, piDir);
     if (byRoot.size !== 1) throw new Error('exactly one active adapter is required');
-    const registration = [...byRoot.values()][0];
-    const coreContract = loadContract(path.resolve(__dirname, '../../toolchain.json'));
-    const coreIds = new Set(coreContract.components.map(({id}) => id));
-    for (const {id} of registration.contract.components) {
-        if (coreIds.has(id)) throw new Error(`adapter component collides with core component ${id}`);
-    }
-    return registration;
+    return validateCoreComponentCollisions([...byRoot.values()][0]);
 }
 
 module.exports = {

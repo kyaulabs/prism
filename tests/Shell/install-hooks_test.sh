@@ -48,10 +48,14 @@ git_init_test_repo "$T1"
     ln -s "$REPO_ROOT/packages/prism-core/scripts/prism-tool.js" bin/prism-tool
     printf '#!/usr/bin/env bash\nexit 0\n' > .github/hooks/custom-hook
     chmod 0755 .github/hooks/custom-hook
-    if PATH="$T1/bin:$PATH" bash packages/prism-core/scripts/install-hooks.sh >/dev/null 2>&1; then
-        fail "install-hooks.sh activated hooks without project identity"
-    else
+    install_status=0
+    PATH="$T1/bin:$PATH" bash packages/prism-core/scripts/install-hooks.sh \
+        >"$T1/out" 2>"$T1/err" || install_status=$?
+    if [ "$install_status" -eq 5 ] && grep -qxF 'NO-GO' "$T1/out" \
+        && [ ! -s "$T1/err" ]; then
         pass "install-hooks.sh requires verified project identity"
+    else
+        fail "install-hooks.sh did not report the expected identity failure"
     fi
     if [ -f .github/hooks/custom-hook ]; then
         pass "unrelated hooks are preserved"
