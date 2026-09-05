@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -336,6 +336,13 @@ assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" '--ocr-test-approved|--code-egress-approved' 'code-review has no per-run approval flags'
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool run ocr' 'code-review cannot use generic OCR passthrough'
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'optional.*[Oo]cr|OCR.*optional|SKIPPED.*OCR' 'code-review treats OCR as mandatory, not optional'
+
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review applicability --from FROM_SHA --to TO_SHA --json' 'review probes the exact immutable range'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'COMPLETE_NO_OCR' 'tooling exposes a distinct OCR outcome'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'all four axes remain required' 'Markdown exemption retains every review axis'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Mixed ranges retain normal OCR requirements' 'mixed ranges cannot take the Markdown exemption'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'A skipped response is not proof' 'empty selection cannot authorize an exemption'
+assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'human may explicitly waive an' 'prose waivers cannot complete chain evidence'
 
 echo "── adapter checks/build use declared tool IDs ──"
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixer -- fix --dry-run --diff' 'check-php runs php-cs-fixer through the launcher'

@@ -1,4 +1,4 @@
-// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
 
 'use strict';
 
@@ -255,6 +255,7 @@ function preflight(context, options = {}) {
     let reviewChainState;
     let reviewChainVersion;
     let advisoryCount;
+    let ocrExemptSegments;
     let v2Recovery;
 
     try {
@@ -273,6 +274,9 @@ function preflight(context, options = {}) {
             reviewChainState = REVIEW_STATE.VALID;
             reviewChainVersion = 1;
             advisoryCount = String(review.advisoryFindings.length);
+            ocrExemptSegments = review.record?.segments.filter(
+                (segment) => segment.axes.tooling === 'COMPLETE_NO_OCR'
+            ).length ?? 0;
         } else if (inspected.state === REVIEW_STATE.ABSENT && allowAbsentReviewChain) {
             const criteriaState = (context.inspectCriteria ?? inspectCriteria)(
                 {...context, projectRoot: cwd}
@@ -313,6 +317,7 @@ function preflight(context, options = {}) {
     if (reviewChainVersion !== undefined) fields.push(['REVIEW_CHAIN_VERSION', String(reviewChainVersion)]);
     if (v2Recovery !== undefined) fields.push(['V2_RECOVERY', v2Recovery]);
     if (advisoryCount !== undefined) fields.push(['ADVISORY_COUNT', advisoryCount]);
+    if (ocrExemptSegments > 0) fields.push(['OCR_EXEMPT_SEGMENTS', String(ocrExemptSegments)]);
     for (const [key, value] of fields) process.stdout.write(`${key}\t${value}\n`);
     return EXIT.OK;
 }

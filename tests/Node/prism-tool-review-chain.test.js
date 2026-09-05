@@ -523,6 +523,10 @@ test('exempt repairs preserve prior Blocking closure requirements', (t) => {
         assert.equal(repaired.segments[1].axes.tooling, 'COMPLETE_NO_OCR');
         assert.equal(repaired.openBlocking.length, close ? 0 : 1);
         const expected = {...expectedIdentity(target), headSha: range.to};
+        const preflight = capture(() => main(['pr', 'preflight'], prContext(target)));
+        assert.equal(preflight.status, close ? 0 : 4, preflight.stderr);
+        if (close) assert.match(preflight.stdout, /OCR_EXEMPT_SEGMENTS\t1\n/);
+        else assert.equal(preflight.stdout, '');
         if (close) assert.equal(verifyReviewChain(expected, target).record.segments.length, 2);
         else assert.throws(() => verifyReviewChain(expected, target), /unresolved Blocking/);
     }
@@ -570,6 +574,37 @@ test('an exemption does not make discontinuous stored history valid', (t) => {
     fs.writeFileSync(record.path, `${JSON.stringify(forged)}\n`, {mode: 0o600});
     assert.equal(inspectReviewChain(target).state, 'UNSAFE');
     assert.throws(() => verifyReviewChain(expectedIdentity(target), target), /review chain is unavailable/);
+});
+
+function prContext(target) {
+    git(target.projectRoot, 'update-ref', 'refs/remotes/origin/develop', target.baseSha);
+    return {...target, cwd: target.projectRoot, run: (command, args, options) => {
+        if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') {
+            return {status: 0, stdout: '', stderr: ''};
+        }
+        return runBounded(command, args, options);
+    }};
+}
+
+test('PR preflight discloses only authoritatively verified exempt segments', (t) => {
+    const target = fixture(t, 'notes.md');
+    recordReviewSegment(segment(target), target);
+    const result = capture(() => main(['pr', 'preflight'], prContext(target)));
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /REVIEW_CHAIN_VERSION\t1\n/);
+    assert.match(result.stdout, /OCR_EXEMPT_SEGMENTS\t1\n/);
+});
+
+test('PR preflight rejects a forged Markdown exemption', (t) => {
+    const target = fixture(t);
+    const initial = recordReviewSegment(segment(target, {axes: axes()}), target);
+    const forged = JSON.parse(fs.readFileSync(initial.path, 'utf8'));
+    forged.segments[0].axes.tooling = 'COMPLETE_NO_OCR';
+    fs.writeFileSync(initial.path, `${JSON.stringify(forged)}\n`, {mode: 0o600});
+    const result = capture(() => main(['pr', 'preflight'], prContext(target)));
+    assert.equal(result.status, 4);
+    assert.match(result.stderr, /review chain is incomplete, stale, or has unresolved Blocking findings/);
+    assert.equal(result.stdout, '');
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

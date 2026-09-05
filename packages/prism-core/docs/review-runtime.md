@@ -13,6 +13,46 @@ Normal `/check`, `code-review`, finalization, consent, attribution, and release
 workflows do not invoke the bridge. OCR and schema version one remain the normal
 authority for this release.
 
+## Version-one Markdown-only OCR applicability
+
+For an attested version-one segment, run the local probe with its full
+immutable commit IDs:
+
+```text
+prism-tool code-review applicability --from SHA --to SHA --json
+```
+
+The JSON fields are `schemaVersion: 1`, `from`, `to`, and `status`.
+`MARKDOWN_ONLY` proves a non-empty range affecting only `.md` or `.markdown`
+regular Git blobs, matched case-insensitively. Additions, modifications,
+deletions, Markdown-to-Markdown renames, and regular-file mode changes can
+qualify. Both old and new sides count. Mixed paths, code/Markdown renames,
+symlinks, and Gitlinks yield `REQUIRED`; non-Markdown changes retain normal
+OCR requirements.
+
+Exit 0 reports classification, not review completion. Exit 2 rejects the
+grammar, exit 3 rejects local readiness, and exit 4 reports an unproven range.
+Empty diffs, missing objects, malformed or invalid-encoding metadata, output
+over 1 MiB, and Git failure or a 30-second timeout cannot establish an
+exemption. The probe performs no connectivity test, review, or state write.
+
+Tooling may record `COMPLETE_NO_OCR` only after local tooling/style inspection
+completes and exact-range proof succeeds. Recording and authoritative chain
+verification independently repeat that proof. Structural inspection alone
+grants nothing. Other axes, mandatory local Semgrep/OCR readiness, applicable
+external-operation consent, review-attempt approvals, exact identities,
+continuous repairs, and Blocking closure requirements remain unchanged.
+
+PR verification discloses exempt segments as "OCR not applicable: verified
+Markdown-only range" with their exact endpoints. A skipped external response
+remains skipped and is never proof of completion or applicability. Older
+readers fail closed on the new tooling outcome rather than rewriting it as
+ordinary completion.
+
+This policy applies only to the active version-one path. It changes no
+version-two profile, byte-exposure requirement, receipt, authority, or
+publication boundary (ADR-0106).
+
 ## Commands and exits
 
 Run the executable from the repository being reviewed:

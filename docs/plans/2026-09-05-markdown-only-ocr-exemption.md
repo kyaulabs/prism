@@ -597,7 +597,7 @@ files, `code-review/SKILL.md`, `pr.md`, and `review-runtime.md` listed above.
   No extra field for ordinary v1, v2, or absent state; existing outputs remain
   compatible. The count is disclosure, not authority.
 
-- [ ] **Step 1: Write public probe and PR regressions; run RED.** Add this to
+- [x] **Step 1: Write public probe and PR regressions; run RED.** Add this to
   `prism-tool-code-review.test.js`, importing `spawnSync` from `node:child_process`:
 
   ```javascript
@@ -711,7 +711,7 @@ files, `code-review/SKILL.md`, `pr.md`, and `review-runtime.md` listed above.
   Expected RED: probe grammar is unsupported and the successful PR disclosure
   is absent. Existing negative tests stay green.
 
-- [ ] **Step 2: Implement the probe and verified disclosure.** In
+- [x] **Step 2: Implement the probe and verified disclosure.** In
   `code-review.js`, import `classifyOcrRange` and `OcrApplicabilityError`. Include
   the latter in `fail()`'s known-error check. Add the exact grammar to `USAGE`
   and dispatch `args[0] === 'applicability'` before existing OCR execution.
@@ -762,7 +762,7 @@ files, `code-review/SKILL.md`, `pr.md`, and `review-runtime.md` listed above.
   No input flag, alternate verifier, or direct inspection may manufacture this
   count. Rerun Step 1's focused command and require GREEN.
 
-- [ ] **Step 3: Add instruction contracts before changing workflow prose.** Use
+- [x] **Step 3: Add instruction contracts before changing workflow prose.** Use
   the existing Shell test helpers, adding these assertions before each file's
   final summary:
 
@@ -789,7 +789,7 @@ files, `code-review/SKILL.md`, `pr.md`, and `review-runtime.md` listed above.
   assertion failures before prose changes. No external review or GitHub call
   is authorized by running these offline fixtures.
 
-- [ ] **Step 4: Update the instruction surfaces and documentation.** Add this
+- [x] **Step 4: Update the instruction surfaces and documentation.** Add this
   block to `code-review/SKILL.md` after local readiness and before OCR selection:
 
   > For version-one finalization, retain the literal immutable segment endpoints
@@ -890,12 +890,23 @@ files, `code-review/SKILL.md`, `pr.md`, and `review-runtime.md` listed above.
   Run staged Markdown lint and `git diff --check`. Refactor only duplication
   introduced by this task and only after all its public behaviors are green.
 
-- [ ] **Step 5: Verify and commit the completed integration.** Stage only the
+- [x] **Step 5: Verify and commit the completed integration.** Stage only the
   Task 3 files in the responsibility table. In a later exclusive tool call:
 
   ```bash
   prism-tool commit create --type fix --scope review --subject "select and disclose verified ocr non-applicability"
   ```
+
+Task 3 evidence: unsupported probe grammar, unproven-range diagnostics, and
+missing PR disclosure each demonstrated RED before implementation. The local
+probe classifies without consent/egress and retains local version checks;
+real-chain PR tests retain forged-claim and prior-Blocking rejection. The full
+Node suite reports 1,375 passing tests. Instruction contracts demonstrated six
+review-policy failures and three PR-disclosure failures before prose changes;
+final runs report 210 and 90 passing assertions respectively. Scoped ESLint
+and harness validation pass. Pi 0.85.0 skills and prompt-template docs were read
+completely before instruction edits. All runtime/contract tasks are complete;
+finalization remains pending at the final cleaned and synchronized HEAD.
 
 ## Completion and finalization
 
@@ -951,5 +962,6 @@ files, `code-review/SKILL.md`, `pr.md`, and `review-runtime.md` listed above.
 - The approved temporary-artifact wording and unrelated authority-cutover spec
   remain untouched. ADR-0106 acceptance precedes runtime code; ADR-0080's body
   remains immutable.
-- Implementation has not begun. Approval of this complete plan, including
-  ADR-0106 ratification and the disclosed finalization effects, is required.
+- The user approved this plan with `go`, including ADR-0106 ratification and
+  the disclosed initial finalization effects. Additional reviews remain
+  separately approval-gated.

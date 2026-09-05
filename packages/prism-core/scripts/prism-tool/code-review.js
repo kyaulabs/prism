@@ -1,4 +1,4 @@
-// $KYAULabs: code-review.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: code-review.js kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
 
 'use strict';
 
@@ -10,6 +10,7 @@ const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./
 const {inspectReviewChainV2, verifyReviewChainV2} = require('../prism-review/review-chain-v2');
 const {REVIEW_STATE} = require('../prism-review/review-state');
 const {runBounded, sanitizeDetail} = require('./process');
+const {classifyOcrRange, OcrApplicabilityError} = require('./ocr-applicability');
 const {
     ReviewChainError,
     recordReviewSegment,
@@ -19,7 +20,8 @@ const {
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
 const USAGE = 'usage: prism-tool code-review ocr -- review [--from SHA --to HEAD] --audience agent --format json | ' +
     'prism-tool code-review ocr -- scan PATH --audience agent --format json | ' +
-    'prism-tool code-review chain inspect|record|verify [controls]\n';
+    'prism-tool code-review chain inspect|record|verify [controls] | ' +
+    'prism-tool code-review applicability --from SHA --to SHA --json\n';
 const REVIEW_ARGS = Object.freeze(['review', '--audience', 'agent', '--format', 'json']);
 const EXPLICIT_REVIEW_LENGTH = 9;
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -212,7 +214,7 @@ function reviewChainCommand(args, context) {
 }
 
 function fail(error) {
-    if (error instanceof CodeReviewError || error instanceof ReviewChainError) {
+    if (error instanceof CodeReviewError || error instanceof ReviewChainError || error instanceof OcrApplicabilityError) {
         process.stderr.write(`prism-tool: code-review ${error.message}\n`);
         return error.code ?? EXIT.TOOL;
     }
@@ -269,9 +271,30 @@ function execute(args, context) {
     return EXIT.OK;
 }
 
+function applicabilityCommand(args, context) {
+    if (args.length !== 6 || args[0] !== 'applicability' || args[1] !== '--from' ||
+        !SHA_RE.test(args[2]) || args[3] !== '--to' || !SHA_RE.test(args[4]) || args[5] !== '--json') {
+        throw new CodeReviewError(EXIT.USAGE, 'applicability arguments are invalid');
+    }
+    const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
+    let contract;
+    try { contract = loadCoreContract(coreRoot); }
+    catch { throw new CodeReviewError(EXIT.USAGE, 'invalid core toolchain contract'); }
+    const readiness = checkExternalTools({
+        contract, env: context.env ?? process.env, run: context.run ?? runBounded,
+    });
+    if (readiness.some(({status}) => status !== 'PASS')) {
+        throw new CodeReviewError(EXIT.READINESS, 'external readiness failed');
+    }
+    const result = classifyOcrRange({from: args[2], to: args[4]}, context);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return EXIT.OK;
+}
+
 function codeReviewCommand(args, context = {}) {
     try {
         if (args[0] === 'chain') return reviewChainCommand(args.slice(1), context);
+        if (args[0] === 'applicability') return applicabilityCommand(args, context);
         return execute(args, context);
     } catch (error) {
         if (error instanceof CodeReviewError && error.code === EXIT.USAGE) {
