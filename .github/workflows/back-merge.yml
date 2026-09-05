@@ -19,14 +19,75 @@ jobs:
   back-merge:
     if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Open or reuse back-merge pull request
+        shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          existing="$(gh pr list --state open --base develop --head main --json number --jq '.[0].number // empty')"
-          if [ -n "$existing" ]; then
-            echo "Back-merge pull request #$existing already exists."
+          set -euo pipefail
+
+          if ! ahead_by=$(gh api "repos/$GITHUB_REPOSITORY/compare/develop...main" --jq 'if type == "object" then if (.ahead_by | type) == "number" then if .ahead_by >= 0 and (.ahead_by | floor) == .ahead_by then .ahead_by else "invalid" end else "invalid" end else "invalid" end' 2>/dev/null); then
+            echo "::error::back-merge comparison failed" >&2
+            exit 1
+          fi
+          case "$ahead_by" in
+            ''|*[!0-9]*)
+              echo "::error::back-merge comparison was malformed" >&2
+              exit 1
+              ;;
+          esac
+          if [ "$ahead_by" = '0' ]; then
+            echo "develop already contains main; nothing to do"
             exit 0
           fi
-          gh pr create --base develop --head main --title "chore: back-merge main into develop" --body "Automated back-merge after a successful merge into main."
+
+          inspect_open_prs() {
+            gh pr list --repo "$GITHUB_REPOSITORY" \
+              --base develop --head main --state open --limit 2 --json number \
+              --jq 'if type == "array" then if all(.[]; if type == "object" then if (.number | type) == "number" then .number > 0 and (.number | floor) == .number else false end else false end) then length else "invalid" end else "invalid" end' 2>/dev/null
+          }
+
+          if ! open_count=$(inspect_open_prs); then
+            echo "::error::back-merge pull-request inspection failed" >&2
+            exit 1
+          fi
+          case "$open_count" in
+            0) ;;
+            1)
+              echo "open back-merge pull request already exists; nothing to do"
+              exit 0
+              ;;
+            ''|*[!0-9]*)
+              echo "::error::back-merge pull-request state was malformed" >&2
+              exit 1
+              ;;
+            *)
+              echo "::error::back-merge pull-request state is ambiguous" >&2
+              exit 1
+              ;;
+          esac
+
+          if gh pr create --repo "$GITHUB_REPOSITORY" --base develop --head main \
+            --title "Back-merge main into develop" \
+            --body "Automated back-merge pull request. Human review and merge required." \
+            >/dev/null 2>&1; then
+            echo "opened back-merge pull request"
+            exit 0
+          fi
+
+          if ! open_count=$(inspect_open_prs); then
+            echo "::error::back-merge pull-request creation failed" >&2
+            exit 1
+          fi
+          if [ "$open_count" = '1' ]; then
+            echo "back-merge pull request was created concurrently; nothing to do"
+            exit 0
+          fi
+
+          echo "::error::back-merge pull-request creation failed" >&2
+          exit 1
