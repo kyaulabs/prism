@@ -55,8 +55,29 @@ Semgrep/OCR mismatch blocks the review):
 prism-tool doctor --local-only
 ```
 
+For version-one finalization, retain the literal immutable segment endpoints
+as FROM_SHA and TO_SHA and run the applicability probe below after local
+readiness. These names are documentation markers, not shell variables;
+replace them with the validated full commit IDs in a separate tool call.
+The probe is read-only and grants neither review nor publication authority.
+
+```bash
+prism-tool code-review applicability --from FROM_SHA --to TO_SHA --json
+```
+
+A `MARKDOWN_ONLY` result permits `COMPLETE_NO_OCR` for tooling only after
+local tooling/style inspection completes; all four axes remain required.
+OCR did not run and need not be invoked for an empty selection. The recorder
+and authoritative verifier independently reprove the exact range.
+Mixed ranges retain normal OCR requirements.
+A `REQUIRED` result uses the existing OCR path.
+A skipped response is not proof, and a failed or malformed probe
+cannot establish an exemption. Stop chain completion on that failure.
+Staged and full-path audits without immutable segment endpoints retain their
+existing behavior. This exception does not apply to version-two review.
+
 Standing OCR consent is established globally by `/setup`; ask no connectivity
-or code-egress question here. Initial review uses:
+or code-egress question here. When OCR is applicable, initial review uses:
 
 ```bash
 prism-tool code-review ocr -- review --audience agent --format json
@@ -149,9 +170,11 @@ Axis status: tooling COMPLETE · standards-review COMPLETE · spec-review COMPLE
 <scanner findings>
 ```
 
-Each axis is `COMPLETE`, `FAILED` (with the exact error), or `SKIPPED` (with
-the reason). Always return the report when one or more axes fail — partial
-review evidence is useful, but it is explicitly incomplete.
+Each axis reports `COMPLETE`, `FAILED` (with the exact error), or `SKIPPED`
+(with the reason). Tooling alone may report `COMPLETE_NO_OCR` after Git proof
+and local inspection; requirement coverage may report `COMPLETE_NO_SPEC`
+under its existing policy. Always return the report when one or more axes
+fail; partial review evidence is useful, but it is explicitly incomplete.
 
 ### 5. De-duplication contract
 
@@ -177,9 +200,9 @@ let the reviewer decide.
   execution.
 - If an axis fails, report the exact error and continue with the remaining
   axes; do not record a complete segment.
-- The review never freezes or hides partial evidence: always return per-axis
-  status (`COMPLETE` / `FAILED` / `SKIPPED`). A human may explicitly waive an
-  incomplete axis in-session.
+- Report partial evidence honestly. A prose waiver cannot complete a review
+  chain. `COMPLETE_NO_OCR` requires Git proof and completed local tooling/style
+  inspection; generic `SKIPPED` and `FAILED` remain incomplete.
 - External OCR review requires valid global standing consent because code
   leaves the repository boundary.
 - If the diff is empty, fail early before any axis runs.

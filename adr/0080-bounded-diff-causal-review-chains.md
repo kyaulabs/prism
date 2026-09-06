@@ -6,6 +6,9 @@ Date: 2026-08-23
 
 Accepted
 
+Selectively superseded by ADR-0106 for the external OCR requirement on
+proven Markdown-only version-one ranges. All other review-chain clauses remain.
+
 Selectively supersedes ADR-0074's branch-finalization review restart,
 finding-blocking, and repair-evidence clauses. Retains ADR-0074's standing OCR
 consent, one-attempt acceptance, complete four-axis review, fail-closed

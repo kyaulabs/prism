@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
 
 # $KYAULabs$
 
@@ -662,6 +662,10 @@ assert_contains "$COMMAND_FILE" 'changed SHA or dirty tree invalidates' \
 	'command consumes drifted or dirty attempts'
 assert_not_contains "$COMMAND_FILE" '--force-review' \
 	'command has no blanket review bypass'
+
+assert_contains "$COMMAND_FILE" 'OCR_EXEMPT_SEGMENTS' 'pr consumes verified exemption disclosure'
+assert_contains "$COMMAND_FILE" 'OCR not applicable: verified Markdown-only range' 'pr discloses non-applicability explicitly'
+assert_contains "$COMMAND_FILE" 'Never describe an exempt segment as a completed external OCR review' 'pr never fabricates OCR completion'
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 

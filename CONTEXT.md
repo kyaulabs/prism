@@ -52,6 +52,7 @@ documentation, and conversation.
 | standing web-access consent | A global, explicit, persistent, and revocable Prism authorization for the web-access extension's loopback SearXNG search, fixed-origin keyless search, and guarded public textual fetching. It contains no credentials or project data and does not authorize other tools or network effects. |
 | plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
 | review chain | Local schema-versioned finalization evidence linking one complete initial branch review to continuous repair-delta reviews, exact branch/base/HEAD identities, axis completion, finding dispositions, and deterministic closure evidence. |
+| OCR not applicable | A version-one tooling outcome proving that a segment's exact non-empty immutable Git range affects only qualifying Markdown regular blobs; local tooling/style inspection and the other review axes still complete. |
 | diff-causal finding | A review finding classified by whether the reviewed delta introduced or materially worsened a concrete defect in changed behavior or its verification evidence; only concrete workflow-impacting findings block finalization. |
 | candidate workspace | The adapter-owned ephemeral area used to prepare, resolve, audit, and journal a proposed complete scaffold before approved consumer state changes. It is not a general scratch directory. |
 | empty-project bootstrap transaction | The Core-owned outer transaction that composes strict-empty source evidence, provisional package state, trusted provider reports, approved metadata, one combined plan, durable application, rollback, and recovery. It is distinct from an adapter candidate transaction. |
@@ -330,6 +331,7 @@ The bounded authority for GitHub issue-tracker access and mutations.
 The bounded finalization evidence for one continuously reviewed work-branch history.
 
 - Begins with one complete four-axis review of the attested branch range.
+- Version-one tooling may record OCR not applicable only after exact-range Git proof, repeated during authoritative verification; it never claims OCR ran.
 - A standalone `/pr` invocation may authorize that initial review only when deterministic preflight classifies the chain as absent.
 - Extends through continuous repair-delta reviews rather than rescanning unchanged branch content.
 - Blocks only on unresolved diff-causal findings with concrete workflow impact.
@@ -566,6 +568,9 @@ Pi-era decisions:
   Core-only as an explicit established provider composition and create the
   established project manifest inside the verified automation transaction
   before separate hook activation.
+
+- `adr/0106-verified-markdown-only-ocr-exemption.md` — verify Markdown-only OCR
+  non-applicability in version-one chains without changing other review gates.
 
 ## When to update this file
 

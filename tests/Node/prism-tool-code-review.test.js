@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-code-review.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-tool-code-review.test.js kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const {spawnSync} = require('node:child_process');
 
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
@@ -417,6 +418,83 @@ test('review timeout and output-limit failures are bounded and redacted', (t) =>
         assert.equal(result.stdout, '');
         assert.doesNotMatch(result.stderr, /CANARY-PROVIDER/);
     }
+});
+
+function initializeRange(target, filename = 'notes.md') {
+    const git = (...args) => {
+        const result = spawnSync('git', args, {cwd: target.repository, encoding: 'utf8'});
+        assert.equal(result.status, 0, result.stderr);
+        return result.stdout.trim();
+    };
+    git('init', '-q');
+    git('config', 'user.name', 'Fixture');
+    git('config', 'user.email', 'fixture@example.com');
+    fs.writeFileSync(path.join(target.repository, filename), 'base\n');
+    git('add', '--', filename);
+    git('commit', '-qm', 'base');
+    const from = git('rev-parse', 'HEAD');
+    fs.writeFileSync(path.join(target.repository, filename), 'changed\n');
+    git('commit', '-qam', 'change');
+    const to = git('rev-parse', 'HEAD');
+    const externalRun = target.context.run;
+    target.context.run = (command, args, options) => path.basename(command) === 'git'
+        ? spawnSync(command, args, options) : externalRun(command, args, options);
+    return {from, to};
+}
+
+test('local applicability classifies Markdown and code without consent or egress', (t) => {
+    for (const [filename, status] of [['notes.md', 'MARKDOWN_ONLY'], ['code.js', 'REQUIRED']]) {
+        const target = fixture(t, {consent: 'absent'});
+        const range = initializeRange(target, filename);
+        const result = capture(() => main([
+            'code-review', 'applicability', '--from', range.from, '--to', range.to, '--json',
+        ], target.context));
+        assert.equal(result.status, 0, result.stderr);
+        assert.deepEqual(JSON.parse(result.stdout), {schemaVersion: 1, ...range, status});
+        assert.deepEqual(target.calls.map(({kind}) => kind), ['semgrep-version', 'ocr-version']);
+        assert.equal(fs.existsSync(path.join(target.repository, '.pi')), false);
+    }
+});
+
+test('applicability reports unproven ranges without raw output or egress', (t) => {
+    const target = fixture(t, {consent: 'absent'});
+    const range = initializeRange(target);
+    for (const to of [range.from, '0'.repeat(40)]) {
+        const result = capture(() => main([
+            'code-review', 'applicability', '--from', range.from, '--to', to, '--json',
+        ], target.context));
+        assert.equal(result.status, 4);
+        assert.equal(result.stdout, '');
+        assert.equal(result.stderr, 'prism-tool: code-review OCR applicability could not be proven\n');
+    }
+    assert.equal(target.calls.some(({kind}) => kind === 'ocr-connectivity' || kind === 'ocr-review'), false);
+});
+
+test('applicability retains mandatory local readiness', (t) => {
+    const target = fixture(t, {ocrVersion: {status: 0, stdout: 'open-code-review v2.0.0\n'}});
+    const range = initializeRange(target);
+    const result = capture(() => main([
+        'code-review', 'applicability', '--from', range.from, '--to', range.to, '--json',
+    ], target.context));
+    assert.equal(result.status, 3);
+    assert.match(result.stderr, /external readiness failed/);
+    assert.equal(result.stdout, '');
+    assert.equal(target.calls.some(({kind}) => kind === 'ocr-connectivity' || kind === 'ocr-review'), false);
+});
+
+test('applicability rejects symbolic operands and extra controls before external calls', (t) => {
+    const target = fixture(t);
+    const range = initializeRange(target);
+    for (const args of [
+        ['--from', range.from, '--to', 'HEAD', '--json'],
+        ['--from', range.from, '--to', range.to, '--json', '--skip'],
+        ['--from', range.from, '--to', range.to],
+    ]) {
+        const result = capture(() => main(['code-review', 'applicability', ...args], target.context));
+        assert.equal(result.status, 2);
+        assert.equal(result.stdout, '');
+    }
+    assert.deepEqual(target.calls, []);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

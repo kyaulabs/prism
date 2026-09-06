@@ -1,4 +1,4 @@
-// $KYAULabs: review-chain.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: review-chain.js kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {TextDecoder} = require('node:util');
 const {runBounded} = require('./process');
+const {classifyOcrRange} = require('./ocr-applicability');
 
 const STATE = Object.freeze({ABSENT: 'ABSENT', VALID: 'VALID', UNSAFE: 'UNSAFE'});
 const FILE_LIMIT = 131072;
@@ -98,7 +99,10 @@ function findingFingerprint(finding) {
 function validateAxes(value) {
     exactKeys(value, AXES, 'review axes');
     for (const axis of AXES) {
-        if (!AXIS_STATUS.has(value[axis])) throw new ReviewChainError('review axis is incomplete');
+        const exempt = axis === 'tooling' && value[axis] === 'COMPLETE_NO_OCR';
+        if (!AXIS_STATUS.has(value[axis]) && !exempt) {
+            throw new ReviewChainError('review axis is incomplete');
+        }
     }
     return {...value};
 }
@@ -350,6 +354,18 @@ function publish(record, context) {
     return file;
 }
 
+function assertOcrApplicability(segments, context) {
+    for (const segment of segments) {
+        if (segment.axes.tooling !== 'COMPLETE_NO_OCR') continue;
+        let proof;
+        try { proof = classifyOcrRange({from: segment.from, to: segment.to}, context); }
+        catch { throw new ReviewChainError('review OCR exemption is unproven'); }
+        if (proof.status !== 'MARKDOWN_ONLY') {
+            throw new ReviewChainError('review OCR exemption is unproven');
+        }
+    }
+}
+
 function recordReviewSegment(input, context = {}) {
     const segment = validateSegment(input, context);
     const current = inspectReviewChain(context);
@@ -403,6 +419,7 @@ function recordReviewSegment(input, context = {}) {
         findings,
         openBlocking,
     };
+    assertOcrApplicability(segments, context);
     const file = publish(record, context);
     return {...record, path: file};
 }
@@ -414,6 +431,7 @@ function verifyReviewChain(expected, context = {}) {
     for (const key of ['branch', 'baseRef', 'baseSha', 'headSha']) {
         if (record[key] !== expected[key]) throw new ReviewChainError('review chain identity is stale');
     }
+    assertOcrApplicability(record.segments, context);
     let prior = record.baseSha;
     for (const segment of record.segments) {
         if (segment.from !== prior) throw new ReviewChainError('review history is discontinuous');
