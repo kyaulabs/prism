@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -126,7 +126,7 @@ test('resolves exact candidate graphs in isolation with scripts disabled', (t) =
     assert.equal(result.status, 'GO');
     assert.equal(result.data.diff, 'diff fixture\n'.repeat(7));
     const plan = JSON.parse(fs.readFileSync(result.data.planPath, 'utf8'));
-    assert.equal(plan.schemaVersion, 1);
+    assert.equal(plan.schemaVersion, 2);
     assert.equal(plan.adapter, '@kyaulabs/prism-php-web');
     assert.equal(plan.projectRoot, fs.realpathSync(projectRoot));
     assert.deepEqual(plan.audit, {critical: 0, high: 0, moderate: 0, low: 0});
@@ -138,6 +138,7 @@ test('resolves exact candidate graphs in isolation with scripts disabled', (t) =
             original: 'absent',
             candidate: sha256(fs.readFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', name))),
             mode: 0o644,
+            observed: null,
         });
     }
     for (const [name, content] of Object.entries(sourceFiles)) {
@@ -161,47 +162,106 @@ test('resolves exact candidate graphs in isolation with scripts disabled', (t) =
     }
 });
 
-test('preserves exact canonical visual review files without rewriting them', (t) => {
-    const projectRoot = makeTempDir();
-    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
-    fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
-    for (const name of ['composer.json', 'composer.lock', 'package.json', 'package-lock.json']) {
-        fs.writeFileSync(path.join(projectRoot, name), '{}\n');
-    }
-    const identities = new Map();
-    for (const name of VISUAL_REVIEW_FILES) {
-        const target = path.join(projectRoot, name);
-        fs.copyFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', name), target);
-        fs.chmodSync(target, 0o644);
-        const stat = fs.statSync(target, {bigint: true});
-        identities.set(name, {ino: stat.ino, mtimeNs: stat.mtimeNs});
-    }
-    const run = (command, args, options) => {
-        if (command === 'composer' && args[0] === 'update') {
-            writeJson(path.join(options.cwd, 'composer.lock'), {});
+for (const mode of [0o644, 0o640, 0o600, 0o400]) {
+    test(`records exact visual review observations at ${mode.toString(8)} without rewriting files`, (t) => {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        fs.mkdirSync(path.join(projectRoot, '.pi'), {recursive: true});
+        for (const name of ['composer.json', 'composer.lock', 'package.json', 'package-lock.json']) {
+            fs.writeFileSync(path.join(projectRoot, name), '{}\n');
         }
-        if (command === 'npm' && args[0] === 'install') {
-            writeJson(path.join(options.cwd, 'package-lock.json'), {});
+        const identities = new Map();
+        for (const name of VISUAL_REVIEW_FILES) {
+            const target = path.join(projectRoot, name);
+            fs.copyFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', name), target);
+            fs.chmodSync(target, mode);
+            const stat = fs.statSync(target, {bigint: true});
+            identities.set(name, {ino: stat.ino, mtimeNs: stat.mtimeNs});
         }
-        if (command === 'composer' && args[0] === 'audit') {
-            return {status: 0, stdout: '{"advisories":{}}', stderr: '', error: undefined};
+        const run = (command, args, options) => {
+            if (command === 'composer' && args[0] === 'update') {
+                writeJson(path.join(options.cwd, 'composer.lock'), {});
+            }
+            if (command === 'npm' && args[0] === 'install') {
+                writeJson(path.join(options.cwd, 'package-lock.json'), {});
+            }
+            if (command === 'composer' && args[0] === 'audit') {
+                return {status: 0, stdout: '{"advisories":{}}', stderr: '', error: undefined};
+            }
+            if (command === 'npm' && args[0] === 'audit') {
+                return {status: 0, stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}', stderr: '', error: undefined};
+            }
+            if (command === 'git') return {status: 0, stdout: '', stderr: '', error: undefined};
+            return {status: 0, stdout: '', stderr: '', error: undefined};
+        };
+        const contract = loadContract(path.join(ADAPTER_ROOT, 'toolchain.json'));
+
+        const result = resolveCandidate({contract, packageRoot: ADAPTER_ROOT, projectRoot, run});
+
+        assert.equal(result.status, 'GO');
+        const plan = JSON.parse(fs.readFileSync(result.data.planPath, 'utf8'));
+        assert.equal(plan.schemaVersion, 2);
+        for (const name of VISUAL_REVIEW_FILES) {
+            const target = path.join(projectRoot, name);
+            const observed = fs.lstatSync(target);
+            assert.deepEqual(plan.scaffold[name], {
+                disposition: 'PRESERVE',
+                original: sha256(fs.readFileSync(target)),
+                candidate: sha256(fs.readFileSync(target)),
+                mode: 0o644,
+                observed: {
+                    dev: observed.dev, ino: observed.ino, uid: observed.uid, gid: observed.gid,
+                    size: observed.size, mode, mtimeMs: observed.mtimeMs, ctimeMs: observed.ctimeMs,
+                    sha256: sha256(fs.readFileSync(target)),
+                },
+            });
+            const stat = fs.statSync(path.join(projectRoot, name), {bigint: true});
+            assert.deepEqual({ino: stat.ino, mtimeNs: stat.mtimeNs}, identities.get(name));
         }
-        if (command === 'npm' && args[0] === 'audit') {
-            return {status: 0, stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}', stderr: '', error: undefined};
-        }
-        if (command === 'git') return {status: 0, stdout: '', stderr: '', error: undefined};
-        return {status: 0, stdout: '', stderr: '', error: undefined};
-    };
+    });
+}
+
+test('rejects foreign ownership before reading visual review files or resolving dependencies', (t) => {
     const contract = loadContract(path.join(ADAPTER_ROOT, 'toolchain.json'));
+    for (const phase of ['initial', 'held']) {
+        const projectRoot = makeTempDir();
+        t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+        fs.mkdirSync(path.join(projectRoot, '.pi'));
+        const target = path.join(projectRoot, VISUAL_REVIEW_FILES[0]);
+        fs.copyFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', VISUAL_REVIEW_FILES[0]), target);
+        fs.chmodSync(target, 0o644);
+        const inode = fs.lstatSync(target).ino;
+        const lstat = fs.lstatSync;
+        const fstat = fs.fstatSync;
+        const read = fs.readSync;
+        let readOutput = false;
+        let invoked = false;
+        t.mock.method(fs, 'lstatSync', (file, ...args) => {
+            const stat = lstat(file, ...args);
+            if (phase === 'initial' && file === target) stat.uid = process.getuid() + 1;
+            return stat;
+        });
+        t.mock.method(fs, 'fstatSync', (descriptor, ...args) => {
+            const stat = fstat(descriptor, ...args);
+            if (phase === 'held' && stat.ino === inode) stat.uid = process.getuid() + 1;
+            return stat;
+        });
+        t.mock.method(fs, 'readSync', (descriptor, ...args) => {
+            if (fstat(descriptor).ino === inode) readOutput = true;
+            return read(descriptor, ...args);
+        });
 
-    const result = resolveCandidate({contract, packageRoot: ADAPTER_ROOT, projectRoot, run});
+        const result = resolveCandidate({
+            contract, projectRoot,
+            run() { invoked = true; throw new Error('dependency command must not run'); },
+        });
 
-    assert.equal(result.status, 'GO');
-    const plan = JSON.parse(fs.readFileSync(result.data.planPath, 'utf8'));
-    for (const name of VISUAL_REVIEW_FILES) {
-        assert.equal(plan.scaffold[name].disposition, 'PRESERVE');
-        const stat = fs.statSync(path.join(projectRoot, name), {bigint: true});
-        assert.deepEqual({ino: stat.ino, mtimeNs: stat.mtimeNs}, identities.get(name));
+        assert.equal(result.status, 'NO-GO', phase);
+        assert.equal(result.data.stage, 'managed-file-conflict', phase);
+        assert.equal(result.checks[0].message, `managed file ownership is invalid: ${VISUAL_REVIEW_FILES[0]}`);
+        assert.equal(readOutput, false, phase);
+        assert.equal(invoked, false, phase);
+        t.mock.restoreAll();
     }
 });
 
@@ -222,7 +282,7 @@ test('rejects conflicting visual review files before dependency commands', (t) =
             fs.writeFileSync(target, 'different\n', {mode: 0o644});
         } else if (scenario === 'mode') {
             fs.copyFileSync(path.join(ADAPTER_ROOT, 'config', 'bootstrap', 'visual-review', VISUAL_REVIEW_FILES[0]), target);
-            fs.chmodSync(target, 0o600);
+            fs.chmodSync(target, 0o664);
         } else if (scenario === 'symlink') {
             const outside = path.join(projectRoot, 'outside');
             fs.writeFileSync(outside, 'different\n');

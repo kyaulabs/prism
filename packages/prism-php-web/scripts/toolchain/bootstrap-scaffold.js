@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {normalizeComposerAudit, normalizeNpmAudit} = require('./audit');
+const {ManagedFileError, requireManagedMode} = require('./managed-file');
 
 const AUTOMATION_OUTPUTS = Object.freeze([
     '.github/scripts/check-php.sh',
@@ -619,11 +620,15 @@ function runBootstrapQuality({projectRoot, contract, run}) {
     if (
         stat.isSymbolicLink() ||
         !stat.isFile() ||
-        (stat.mode & 0o777) !== 0o755 ||
         fs.realpathSync(scriptPath) !== scriptPath
     ) {
         throw new Error('PHP/web bootstrap quality script is invalid');
     }
+    if (typeof process.getuid !== 'function' || stat.uid !== process.getuid()) {
+        throw new ManagedFileError('MANAGED_OWNER',
+            'managed file ownership is invalid: .github/scripts/check-php.sh');
+    }
+    requireManagedMode(stat.mode, 0o755, '.github/scripts/check-php.sh');
     const result = run(scriptPath, ['--local'], {
         cwd: canonicalProject,
         maxBuffer: 1048576,

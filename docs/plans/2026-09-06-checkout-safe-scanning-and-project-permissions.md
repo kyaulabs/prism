@@ -174,38 +174,66 @@ prism-tool commit create --type fix --scope hooks --subject "accept safe restric
 **Files:** Create `packages/prism-php-web/scripts/toolchain/managed-file.js`.
 Modify `bootstrap-scaffold.js`, `automation-provider.js`, and `transaction.js`
 in that directory. Extend `tests/Node/prism-tool-php-web-bootstrap.test.js`,
-`prism-tool-apply.test.js`, and `source-toolchain-parity.test.js`.
+`prism-tool-apply.test.js`, `prism-tool-resolve.test.js`, and
+`source-toolchain-parity.test.js`. The existing resolver tests also cover the
+private plan producer; including them corrects the original test-file omission.
 
 **Interface:** Existing adapter handler signatures, reports, and protocol stay
 unchanged. Use a tiny package-local mode predicate with the same independently
 specified accepted/rejected matrix as Core; do not add a cross-package service
 handoff or dependency merely to share that predicate.
 
-- [ ] Prove that the existing quality entry point accepts a valid `0700` shared
+- [x] Prove that the existing quality entry point accepts a valid `0700` shared
   check script, and automation verification accepts safe restrictive outputs.
   Unsafe modes and identities must fail before script execution or content reads.
-- [ ] Preserve exact candidate checks when verification is against a candidate
+- [x] Preserve exact candidate checks when verification is against a candidate
   root. Relax only existing public runtime files, not provider declarations,
   initial publication proof, or active bootstrap journal/inventory identities.
-- [ ] Existing canonical visual-review files at restrictive modes are PRESERVE.
+- [x] Existing canonical visual-review files at restrictive modes are PRESERVE.
   Bind their actual mode/identity independently in the adapter's private plan;
   reject stale or old-version plans without a provider-protocol change.
   Applying unrelated work leaves preserved files unchanged.
-- [ ] Test an adapter-selected fixture after real Git recreation under all three
+- [x] Test an adapter-selected fixture after real Git recreation under all three
   umasks, plus missing execute access, unsafe writes, content tampering, symlinks,
   candidate substitution, stale observations, and exact rollback behavior.
-- [ ] Verify fresh scaffold bytes, declared creation modes, reports, and bootstrap
+- [x] Verify fresh scaffold bytes, declared creation modes, reports, and bootstrap
   protocol are unchanged. Re-run the Core tests to catch package-policy drift.
 
 Focused command:
 
 ```bash
-node --test tests/Node/prism-tool-php-web-bootstrap.test.js tests/Node/prism-tool-apply.test.js tests/Node/source-toolchain-parity.test.js
+node --test tests/Node/prism-tool-php-web-bootstrap.test.js tests/Node/prism-tool-apply.test.js tests/Node/prism-tool-resolve.test.js tests/Node/source-toolchain-parity.test.js
 ```
 
 ```bash
 prism-tool commit create --type fix --scope php-web --subject "preserve restrictive managed scaffold files" --refs 520
 ```
+
+### Task 2 verification
+
+**Tests:** PASS — 189 focused Core/adapter tests and 1,423 full Node tests.
+The full suite also passed after hook-owned header normalization:
+`/tmp/prism-520-task2-verify.cAUg5G/node-final.log`.
+**Coverage:** N/A — no PHP changes; Node counts are not JavaScript coverage.
+**Repro:** PASS — restrictive quality-script execution and all nine native
+Git-operation/umask combinations pass through adapter-selected hooks without
+changing managed bytes, metadata, or index bytes.
+**Debug artifacts:** CLEAN.
+**Lint:** PASS — ESLint, Node syntax, harness validation, Markdown, whitespace,
+and the effective pre-commit hook.
+**File hygiene:** PASS — normalized headers/modelines; no generated assets or
+dependency changes.
+**Secrets:** CLEAN — staged Gitleaks scan passed.
+**Verdict:** VERIFIED for Task 2; aggregate scanner-dependent checks remain
+scheduled after Task 4.
+
+Internal spec-compliance and code-quality reviews passed. Provider reports,
+creation modes, and bootstrap protocol/journals remain unchanged. Private
+adapter plans alone advance to version two, separating canonical modes from
+exact observed identities and digests. Old plans require regeneration; private
+approval files require exact `0600` and ownership/held-read validation. Runtime
+verification does not chmod or rewrite managed files. Existing candidate
+substitution and rollback tests remain green.
 
 ## Task 3: Isolate the launcher's Semgrep execution
 

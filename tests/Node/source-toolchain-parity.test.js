@@ -1,4 +1,4 @@
-// $KYAULabs: source-toolchain-parity.test.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: source-toolchain-parity.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -40,6 +40,23 @@ const NPM_CONTRACT = {
 function stripV(version) {
     return typeof version === 'string' ? version.replace(/^v/, '') : version;
 }
+
+test('Core and PHP/web independently satisfy the public managed-mode matrix', () => {
+    const predicates = [
+        require('../../packages/prism-core/scripts/prism-tool/managed-file').isSafeManagedMode,
+        require('../../packages/prism-php-web/scripts/toolchain/managed-file').isSafeManagedMode,
+    ];
+    for (const accept of predicates) {
+        for (const mode of [0o644, 0o640, 0o600, 0o400, 0o440]) assert.equal(accept(mode, 0o644), true);
+        for (const mode of [0o755, 0o750, 0o700, 0o500, 0o550]) assert.equal(accept(mode, 0o755), true);
+        for (const mode of [0, 0o200, 0o664, 0o646, 0o755, 0o1644, 0o2644, 0o4644]) {
+            assert.equal(accept(mode, 0o644), false);
+        }
+        for (const mode of [0, 0o100, 0o400, 0o600, 0o775, 0o757, 0o1755, 0o2755, 0o4755]) {
+            assert.equal(accept(mode, 0o755), false);
+        }
+    }
+});
 
 test('root Composer require-dev pins the three adapter tools exactly', () => {
     for (const [name, version] of Object.entries(COMPOSER_CONTRACT)) {
