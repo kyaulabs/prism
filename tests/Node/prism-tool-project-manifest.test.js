@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-project-manifest.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: prism-tool-project-manifest.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -22,7 +22,7 @@ const metadata = Object.freeze({
     suggestedDisplayName: 'fixture',
 });
 
-test('renders and reads a closed established Core-only manifest', (t) => {
+function manifestFixture(t, mode = 0o644) {
     const projectRoot = makeTempDir();
     t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
     fs.mkdirSync(path.join(projectRoot, '.prism'));
@@ -35,8 +35,13 @@ test('renders and reads a closed established Core-only manifest', (t) => {
         adapter: null,
     });
     const manifestPath = path.join(projectRoot, '.prism', 'project.json');
-    fs.writeFileSync(manifestPath, contents, {mode: 0o644});
-    fs.chmodSync(manifestPath, 0o644);
+    fs.writeFileSync(manifestPath, contents, {mode});
+    fs.chmodSync(manifestPath, mode);
+    return {projectRoot, manifestPath, contents};
+}
+
+test('renders and reads a closed established Core-only manifest', (t) => {
+    const {projectRoot, contents} = manifestFixture(t);
 
     const result = readProjectManifest({projectRoot, coreRoot: CORE_ROOT});
 
@@ -46,6 +51,74 @@ test('renders and reads a closed established Core-only manifest', (t) => {
     assert.equal(result.versionCurrent, true);
     assert.deepEqual(result.contents, contents);
     assert.match(result.digest, /^[0-9a-f]{64}$/);
+});
+
+test('reads an owner-only managed manifest without changing the file', (t) => {
+    const {projectRoot, manifestPath, contents} = manifestFixture(t, 0o600);
+    const before = fs.lstatSync(manifestPath);
+    assert.equal(before.mode & 0o7777, 0o600);
+
+    const result = readProjectManifest({projectRoot, coreRoot: CORE_ROOT});
+
+    assert.equal(result.value.project.displayName, 'Core Project');
+    assert.equal(result.value.adapter, null);
+    assert.deepEqual(fs.readFileSync(manifestPath), contents);
+    const after = fs.lstatSync(manifestPath);
+    for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+        assert.equal(after[field], before[field], field);
+    }
+});
+
+test('reports unsafe manifest modes separately from malformed content', (t) => {
+    const {projectRoot, manifestPath} = manifestFixture(t);
+    for (const [mode, observed] of [
+        [0o0000, '0000'], [0o0200, '0200'], [0o0646, '0646'],
+        [0o0660, '0660'], [0o0744, '0744'], [0o0645, '0645'],
+        [0o4644, '4644'], [0o2644, '2644'], [0o1644, '1644'],
+    ]) {
+        fs.chmodSync(manifestPath, mode);
+
+        assert.throws(() => readProjectManifest({projectRoot, coreRoot: CORE_ROOT}), {
+            code: 'MANAGED_MODE',
+            message: `managed file permissions are invalid: .prism/project.json (observed ${observed}; requires 0400 within 0644)`,
+        });
+        assert.equal(fs.lstatSync(manifestPath).mode & 0o7777, mode);
+    }
+});
+
+test('rejects a manifest owned by another user before reading its contents', (t) => {
+    const {projectRoot, manifestPath} = manifestFixture(t, 0o600);
+    const lstat = fs.lstatSync;
+    t.mock.method(fs, 'lstatSync', (file, options) => {
+        const stat = lstat(file, options);
+        if (file === manifestPath) stat.uid = process.getuid() + 1;
+        return stat;
+    });
+    const read = t.mock.method(fs, 'readSync');
+
+    assert.throws(() => readProjectManifest({projectRoot, coreRoot: CORE_ROOT}), {
+        code: 'MANAGED_OWNER',
+        message: 'managed file ownership is invalid: .prism/project.json',
+    });
+    assert.equal(read.mock.callCount(), 0);
+});
+
+test('rejects manifest identity changes at open before reading contents', (t) => {
+    const {projectRoot} = manifestFixture(t);
+    const fstat = fs.fstatSync;
+    for (const field of ['uid', 'gid', 'mode', 'size', 'mtimeMs', 'ctimeMs']) {
+        t.mock.method(fs, 'fstatSync', (descriptor) => {
+            const stat = fstat(descriptor);
+            stat[field] += 1;
+            return stat;
+        });
+        const read = t.mock.method(fs, 'readSync');
+
+        assert.throws(() => readProjectManifest({projectRoot, coreRoot: CORE_ROOT}),
+            /project manifest changed/, field);
+        assert.equal(read.mock.callCount(), 0, field);
+        t.mock.restoreAll();
+    }
 });
 
 test('continues to render a schema-one Blank manifest', () => {

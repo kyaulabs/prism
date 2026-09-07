@@ -1,4 +1,4 @@
-// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -12,10 +12,12 @@ const {
     readBootstrapJournal,
 } = require('./bootstrap-journal');
 const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
-const {discoverOptionalAdapter, loadAdapterHandler} = require('./discovery');
+const {loadAdapterHandler} = require('./discovery');
+const {validateProjectComposition} = require('./managed-project');
 const {readProjectManifest} = require('./project-manifest');
 const {runBounded} = require('./process');
 const {applyManagedHooks} = require('./managed-hooks');
+const {ManagedFileError} = require('./managed-file');
 
 const OID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const MAX_MANIFEST_BYTES = 65536;
@@ -44,23 +46,6 @@ function readBounded(descriptor, maximum, message) {
     }
     if (offset > maximum) throw new Error(message);
     return buffer.subarray(0, offset);
-}
-
-function validateProjectComposition({projectRoot, project}) {
-    const registration = discoverOptionalAdapter({projectRoot});
-    if (project.value.adapter === null) {
-        if (registration !== null) throw new Error('project adapter identity is invalid');
-        return null;
-    }
-    if (
-        registration === null ||
-        (project.value.source.mode === 'ESTABLISHED' &&
-            project.value.adapter.id !== registration.packageName) ||
-        registration.packageName !== project.value.adapter.packageName ||
-        registration.packageVersion !== project.value.adapter.packageVersion ||
-        registration.bootstrapProtocol !== project.value.adapter.bootstrapProtocol
-    ) throw new Error('project adapter identity is invalid');
-    return registration;
 }
 
 function validateProjectAutomation({projectRoot, coreRoot, project}) {
@@ -462,8 +447,9 @@ function reconcileHooksCommand(args, context) {
     let project;
     try {
         project = readProjectManifest({projectRoot, coreRoot});
-    } catch {
-        result = hookGateFailure('project-manifest', 'project manifest evidence is invalid');
+    } catch (error) {
+        result = hookGateFailure('project-manifest', error instanceof ManagedFileError
+            ? error.message : 'project manifest evidence is invalid');
     }
     if (result === undefined) {
         try {
@@ -475,8 +461,9 @@ function reconcileHooksCommand(args, context) {
     if (result === undefined) {
         try {
             validateProjectAutomation({projectRoot, coreRoot, project});
-        } catch {
-            result = hookGateFailure('project-automation', 'project automation evidence is invalid');
+        } catch (error) {
+            result = hookGateFailure('project-automation', error instanceof ManagedFileError
+                ? error.message : 'project automation evidence is invalid');
         }
     }
     try {
@@ -533,8 +520,9 @@ function hookCommand(args, context = {}) {
             );
         }
         return 0;
-    } catch {
-        process.stderr.write(`prism hook: ${event} policy failed\n`);
+    } catch (error) {
+        const message = error instanceof ManagedFileError ? error.message : `${event} policy failed`;
+        process.stderr.write(`prism hook: ${message}\n`);
         return 1;
     }
 }

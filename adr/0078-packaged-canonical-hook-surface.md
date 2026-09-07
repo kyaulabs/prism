@@ -6,6 +6,10 @@ Date: 2026-08-20
 
 Accepted
 
+Partially superseded by ADR-0108 for public runtime-mode equality only.
+Canonical creation modes, package-resource checks, ownership, content, and
+transaction protections remain unchanged.
+
 ## Context
 
 Prism Core owns language-agnostic commit, branch, history, and protected-ref policy, while active adapters own stack-specific staged and pre-push quality behavior. The current hook installer assumes a Prism source checkout, points `core.hooksPath` at the repository's existing hook directory, and does not inspect conflicting hooks or another configured hook manager.

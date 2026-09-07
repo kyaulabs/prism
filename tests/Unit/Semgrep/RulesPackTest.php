@@ -2,84 +2,18 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: RulesPackTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: RulesPackTest.php kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+
+use Tests\Semgrep\FixtureRepository;
+
+require_once __DIR__ . '/FixtureRepository.php';
 
 /**
  * Validates every rule in .semgrep/kyaulabs.yml against its positive and
  * negative fixtures in tests/Semgrep/<Dir>/.
  *
- * Skipped when semgrep is not installed — validation runs on the Linux
- * pre-push gate (/check).
+ * Prism verifies required tools; missing tools fail rather than skip.
  */
-
-/**
- * Resolve the semgrep binary path.
- *
- * Probes ~/.local/bin/semgrep first (when HOME or USERPROFILE is set),
- * then semgrep on PATH. Returns the first binary that answers --version,
- * or null if neither is available. Memoizes the result so probing occurs
- * at most once per process.
- *
- * @return ?string  Quoted binary path, unquoted 'semgrep', or null.
- */
-function semgrepResolve(): ?string
-{
-    static $resolved = null;
-    static $set = false;
-
-    if ($set) {
-        return $resolved;
-    }
-
-    $home = getenv('USERPROFILE') ?: getenv('HOME');
-    $candidates = [];
-
-    if ($home) {
-        $candidates[] = '"' . $home . DIRECTORY_SEPARATOR . '.local'
-            . DIRECTORY_SEPARATOR . 'bin' . DIRECTORY_SEPARATOR . 'semgrep' . '"';
-    }
-    $candidates[] = 'semgrep';
-
-    foreach ($candidates as $bin) {
-        $output = [];
-        $code = 0;
-        exec($bin . ' --version 2>&1', $output, $code);
-
-        if ($code === 0) {
-            $resolved = $bin;
-            $set = true;
-
-            return $resolved;
-        }
-    }
-
-    $resolved = null;
-    $set = true;
-
-    return null;
-}
-
-/**
- * Check whether semgrep is available on this system.
- *
- * @return bool
- */
-function semgrepAvailable(): bool
-{
-    return semgrepResolve() !== null;
-}
-
-/**
- * Return the semgrep binary path.
- *
- * Must only be called when semgrep is available (guarded by semgrepAvailable).
- *
- * @return string  Quoted binary path or 'semgrep'.
- */
-function semgrepBin(): string
-{
-    return semgrepResolve() ?? 'semgrep';
-}
 
 /**
  * Mutable cell for tracking semgrep process invocations.
@@ -108,48 +42,67 @@ function semgrepInvocationCounter(int $increment = 0): int
  * in-process by filterFindings().
  *
  * @return array{results: array, exitCode: int}
+ * @throws \RuntimeException When the scan or its evidence is incomplete.
  */
 function semgrepScanAll(): array
 {
     static $cached = null;
 
+    if ($cached instanceof \Throwable) {
+        throw $cached;
+    }
+
     if ($cached !== null) {
         return $cached;
     }
 
-    $projectRoot = realpath(__DIR__ . '/../../..');
+    try {
+        $projectRoot = realpath(__DIR__ . '/../../..');
 
-    if ($projectRoot === false) {
-        throw new \RuntimeException("Project root not resolvable");
+        if ($projectRoot === false) {
+            throw new \RuntimeException("Project root not resolvable");
+        }
+
+        $paths = ['.semgrep/kyaulabs.yml'];
+
+        foreach (semgrepRulesProvider() as $row) {
+            foreach (['positive.php', 'negative.php'] as $fixture) {
+                $paths[] = 'tests/Semgrep/' . $row['dir'] . '/' . $fixture;
+            }
+        }
+
+        $outcome = FixtureRepository::scan($projectRoot, $paths);
+        semgrepInvocationCounter(1);
+
+        if ($outcome['exitCode'] !== 0) {
+            throw new \RuntimeException('Semgrep fixture scan failed (exit ' . $outcome['exitCode'] . ')');
+        }
+
+        $json = json_decode($outcome['stdout'], true);
+
+        if (!is_array($json) || !isset($json['results'], $json['errors'])
+            || !is_array($json['results']) || !array_is_list($json['results']) || $json['errors'] !== []) {
+            throw new \RuntimeException('Semgrep fixture output is invalid');
+        }
+
+        foreach ($json['results'] as $finding) {
+            if (!is_array($finding) || !isset($finding['check_id'], $finding['path'])
+                || !is_string($finding['check_id']) || $finding['check_id'] === ''
+                || !is_string($finding['path']) || $finding['path'] === '') {
+                throw new \RuntimeException('Semgrep fixture output is invalid');
+            }
+        }
+
+        $cached = [
+            'results' => $json['results'],
+            'exitCode' => $outcome['exitCode'],
+        ];
+
+        return $cached;
+    } catch (\Throwable $error) {
+        $cached = $error;
+        throw $error;
     }
-
-    $configPath = '.semgrep/kyaulabs.yml';
-    $scanTarget = 'tests/Semgrep/';
-    $null = (PHP_OS_FAMILY === 'Windows') ? 'nul' : '/dev/null';
-
-    $cmd = 'cd ' . escapeshellarg($projectRoot) . ' && '
-        . semgrepBin() . ' scan --config ' . escapeshellarg($configPath)
-        . ' --json --metrics off --disable-version-check --x-ignore-semgrepignore-files '
-        . escapeshellarg($scanTarget) . ' 2>' . $null;
-
-    $output = [];
-    $code = 0;
-    exec($cmd, $output, $code);
-    semgrepInvocationCounter(1);
-
-    $json = json_decode(implode("\n", $output), true);
-
-    $results = [];
-    if (is_array($json) && isset($json['results'])) {
-        $results = $json['results'];
-    }
-
-    $cached = [
-        'results' => $results,
-        'exitCode' => $code,
-    ];
-
-    return $cached;
 }
 
 /**
@@ -279,7 +232,6 @@ test('rules pack stays in sync across YAML, provider, and fixtures', function ()
 });
 
 test('semgrep scan over fixtures exits zero (experimental flag still recognized)')
-    ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (): int {
         return semgrepScanAll()['exitCode'];
     })->toBe(0, 'semgrep exited non-zero. The experimental'
@@ -288,15 +240,15 @@ test('semgrep scan over fixtures exits zero (experimental flag still recognized)
         . ' result until this passes (negatives pass vacuously on empty results).');
 
 test('semgrep still advertises the --x-ignore-semgrepignore-files flag')
-    ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (): bool {
         $output = [];
         $code = 0;
-        exec(semgrepBin() . ' scan --help 2>&1', $output, $code);
+        $launcher = dirname(__DIR__, 3) . '/packages/prism-core/scripts/prism-tool.js';
+        exec('node ' . escapeshellarg($launcher) . ' run semgrep -- scan --help 2>&1', $output, $code);
 
         $help = preg_replace('/\x1b\[[0-9;]*m/', '', implode("\n", $output));
 
-        return str_contains($help, 'x-ignore-semgrepignore-files');
+        return $code === 0 && str_contains($help, 'x-ignore-semgrepignore-files');
     })->toBeTrue('semgrep no longer advertises'
         . ' --x-ignore-semgrepignore-files in `scan --help`. The flag may be'
         . ' graduating (dropping the x- prefix) or being removed. Update the'
@@ -307,7 +259,6 @@ test('Semgrep rules: each positive fixture fires its rule the expected number of
         static fn (array $r): array => [$r['dir'], $r['rule'], $r['positive']],
         semgrepRulesProvider(),
     ))
-    ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (string $dir, string $ruleId, int $expectedCount): bool {
         $scan = semgrepScanAll();
         $findings = filterFindings($scan['results'], $ruleId, $dir, 'positive.php');
@@ -320,26 +271,13 @@ test('Semgrep rules: each negative fixture does not trigger its rule')
         static fn (array $r): array => [$r['dir'], $r['rule']],
         semgrepRulesProvider(),
     ))
-    ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (string $dir, string $ruleId): array {
         $scan = semgrepScanAll();
 
         return filterFindings($scan['results'], $ruleId, $dir, 'negative.php');
     })->toBeEmpty();
 
-test('semgrepBin returns a working binary when semgrep is available')
-    ->skip(! semgrepAvailable(), 'semgrep not installed')
-    ->expect(function (): int {
-        $bin = semgrepBin();
-        $output = [];
-        $code = 0;
-        exec($bin . ' --version 2>&1', $output, $code);
-
-        return $code;
-    })->toBe(0);
-
 test('semgrepScanAll invokes exactly one semgrep process across multiple calls')
-    ->skip(!semgrepAvailable(), 'semgrep not installed')
     ->expect(function (): int {
         semgrepScanAll();
         semgrepScanAll();

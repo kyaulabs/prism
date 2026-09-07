@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-e2e.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: prism-review-e2e.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -42,7 +42,7 @@ function packAndExtract(packagePath, destination, name) {
     const archive = path.join(destination, entry.filename);
     const extracted = path.join(destination, name);
     fs.mkdirSync(extracted);
-    command('tar', ['-xzf', archive, '-C', extracted]);
+    command('tar', ['--same-permissions', '-xzf', archive, '-C', extracted]);
     return {root: path.join(extracted, 'package'), archive, inventory: entry.files};
 }
 

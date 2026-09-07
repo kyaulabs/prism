@@ -53,6 +53,59 @@ This policy applies only to the active version-one path. It changes no
 version-two profile, byte-exposure requirement, receipt, authority, or
 publication boundary (ADR-0106).
 
+## Isolated Semgrep scans
+
+`prism-tool run semgrep -- scan` and Core's deterministic Semgrep gate share one
+isolation boundary. They export committed eligible input into a private temporary
+Git repository outside the consumer. Baseline identities, required ancestry,
+and the effective merge base are retained; no-baseline scans still report
+existing findings. Gitlinks stay opaque and unpopulated. Sensitive paths,
+private state, and dependency trees are excluded before blob export.
+
+For example, replace `BASE_SHA` with the validated baseline commit:
+
+```text
+prism-tool run semgrep -- scan --config .semgrep/kyaulabs.yml --baseline-commit BASE_SHA --metrics off --disable-version-check --json
+```
+
+The closed grammar accepts tracked local configuration files or the fixed
+presets `p/php`, `p/secrets`, and `p/javascript`; optional relative tracked
+files/directories select targets. Preset retrieval remains subject to the active
+workflow's network authorization. Local configurations are passed as explicit
+`./` paths. Supported controls are `--json`, `--error`, `--metrics off`,
+`--disable-version-check`, `--x-ignore-semgrepignore-files`, and one
+`--baseline-commit` selector. `SEMGREP_BASELINE_COMMIT` may supply a baseline;
+if both forms are present they must resolve to the same commit. Exact
+`scan --help` uses an empty private workspace without consuming stdin or a
+baseline. Stdin selectors, arbitrary URLs, `auto` configuration, output-file,
+authentication, mutation, and unsupported controls are rejected.
+
+Scans require a clean supported independent Git checkout and locally available
+historical objects. Dirty input, unsafe paths or encodings, redirected roots,
+unsupported administration, and missing objects fail without stash, reset,
+fetch, repair, or consumer-scan fallback. Source Git configuration is revalidated
+around each Git read. An inactive `config.worktree` left by checkout tooling is
+not read or modified. Git parses the held main-config snapshot with includes
+disabled to determine whether worktree configuration is enabled; an enabled
+secondary configuration remains unsupported. Scanner execution has a private
+home/cache and sanitized environment without inherited credentials,
+authentication state, or Git commands.
+
+The total launcher budget is ten minutes, including preparation and cleanup;
+callers may impose a shorter deadline. Git calls have a thirty-second ceiling.
+Limits are 100,000 paths, 4,096 bytes per path, 64 MiB aggregate metadata,
+32 MiB per blob, 256 MiB aggregate blob bytes, and 1 MiB per output stream.
+Preparation supports cancellation and reserves time for preservation and cleanup.
+Interruptions, timeout, output overflow, and scanner failure terminate owned
+process groups and attempt cleanup once.
+
+Consumer file identities and Git administration are checked independently of
+scanner success. Preservation or cleanup failure blocks the result even after
+scanner exit zero; Prism does not repair consumer drift. Managed health then
+checks runtime permissions and composition after review and before either PR
+route succeeds. Its diagnostics do not discard completed review evidence or
+authorize another review. See [Project manifest](project-manifest.md#read-only-health).
+
 ## Commands and exits
 
 Run the executable from the repository being reviewed:

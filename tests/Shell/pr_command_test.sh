@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 # $KYAULabs$
 
@@ -304,6 +304,28 @@ assert_preflight_field 'preflight reports exact MERGE_BASE' "$baseline_output" M
 assert_preflight_field 'preflight reports non-zero COMMIT_COUNT' "$baseline_output" COMMIT_COUNT 1
 assert_preflight_field 'preflight reports non-zero NON_MERGE_COUNT' "$baseline_output" NON_MERGE_COUNT 1
 rm -f "$baseline_output"
+
+health_fixture=
+new_standard_fixture health_fixture
+record_review_chain "$health_fixture"
+cp "$REPO_ROOT/packages/prism-core/config/bootstrap/hooks/pre-commit" "$health_fixture/.git/hooks/pre-commit"
+chmod 700 "$health_fixture/.git/hooks/pre-commit"
+health_before=$(find "$health_fixture/.pi/prism-tool/code-review" -type f -exec sha256sum {} +)
+for script in "$REVIEW_PREFLIGHT_SCRIPT" "$PREFLIGHT_SCRIPT"; do
+	health_output="$WORK_DIR/health-output"
+	rc=0
+	(cd "$health_fixture" && PATH="$TOOLCHAIN_PATH" bash "$script") > "$health_output" 2>&1 || rc=$?
+	health_after=$(find "$health_fixture/.pi/prism-tool/code-review" -type f -exec sha256sum {} +)
+	if [ "$rc" -ne 0 ] \
+		&& grep -Fq 'managed project health failed: project manifest is missing' "$health_output" \
+		&& [ -z "$(preflight_value HEAD_SHA "$health_output")" ] \
+		&& [ "$health_before" = "$health_after" ] \
+		&& [ ! -e "$health_fixture/.prism/project.json" ]; then
+		pass "$(basename "$script") blocks broken managed state without replacing review evidence"
+	else
+		fail "$(basename "$script") bypassed managed health or changed review evidence"
+	fi
+done
 
 # ── 7. hotfix branch targets main ───────────────────────────────────────────
 

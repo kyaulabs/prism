@@ -129,6 +129,23 @@ configuration, and never loads project-local Markdown configuration, plugins,
 or custom rules. Skills, prompts, agent instructions, generated history, legal
 text, and unrelated templates require separate format-aware treatment.
 
+Semgrep scans run in disposable private Git repositories, never in the consumer
+checkout. Supported inputs, preservation checks, and bounds are documented in
+[Review runtime](docs/review-runtime.md#isolated-semgrep-scans).
+
+Managed project readiness is read-only:
+
+```bash
+prism-tool automation health --json
+```
+
+It verifies manifest composition, automation, and effective canonical hooks.
+`CURRENT` means configured state passed; `NOT_CONFIGURED` reports inapplicable
+checks as `SKIPPED`; `CONFLICT` blocks readiness without repair. Runtime readers
+accept safe restrictive permissions after Git recreation; creation remains
+`0644` for data and `0755` for executable wrappers. See
+[Project manifest](docs/project-manifest.md#public-managed-file-permissions).
+
 ## Supervised test servers
 
 Adapters may declare foreground-scoped loopback server profiles for test
@@ -320,8 +337,11 @@ preparation. One complete initial review starts the review chain. After a
 Blocking repair, fresh acceptance reviews only the repair delta. Advisory
 findings do not block `/pr`. Advisory findings do not block publication or need
 a waiver. Base or history changes, discontinuity, incomplete axes, malformed
-state, or a `HEAD` mismatch require a new complete initial review. A failed gate
-requires fresh finalization acceptance after repair.
+state, or a `HEAD` mismatch require a new complete initial review. Managed health
+runs after review and before PR readiness without discarding completed evidence
+or authorizing another OCR attempt. A health-only failure does not invalidate
+unchanged reviewed identities; repairs that change those identities follow the
+existing review-chain rules. Any additional review requires fresh finalization acceptance.
 
 A standalone `/pr` invocation may authorize one complete initial review only
 when deterministic preflight classifies the review chain as absent. Invalid

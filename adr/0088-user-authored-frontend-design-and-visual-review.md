@@ -6,6 +6,10 @@ Date: 2026-08-25
 
 Accepted
 
+Partially superseded by ADR-0108 for public runtime-mode equality only.
+Canonical creation modes, package-resource checks, ownership, content, and
+transaction protections remain unchanged.
+
 Extends ADR-0025, ADR-0058, ADR-0056, ADR-0063, ADR-0070, ADR-0073,
 ADR-0082, ADR-0083, and ADR-0084.
 
