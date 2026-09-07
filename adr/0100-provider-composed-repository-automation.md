@@ -6,6 +6,10 @@ Date: 2026-09-01
 
 Accepted
 
+Partially superseded by ADR-0108 for public runtime-mode equality only.
+Canonical creation modes, package-resource checks, ownership, content, and
+transaction protections remain unchanged.
+
 Partially supersedes ADR-0046's release-workflow ownership of
 back-merge preparation. Extends ADR-0078, ADR-0079, ADR-0084, and ADR-0099.
 

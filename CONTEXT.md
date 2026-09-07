@@ -205,8 +205,9 @@ The journaled established-project desired-state operation owned by an active ada
 - The complete scaffold and dependency graphs prepare and audit before
   consumer files change.
 - Only literal `yes` authorizes application of the displayed desired state.
-- Existing exact canonical files are preserved without writes; differing,
-  unsafe, or ownership-ambiguous paths fail closed.
+- Existing canonical public files with safe restrictive runtime modes are
+  preserved without writes; differing, unsafe, or ownership-ambiguous paths
+  fail closed. Exact candidate and approved observation checks remain separate.
 - Before the durable commit point, rollback is limited to exact recorded
   transaction-owned states.
 - At and after the durable commit point, the complete desired scaffold remains
@@ -292,7 +293,8 @@ The setup-managed repository automation selected from validated Core and active-
 - Strict-empty setup composes applicable automation inside the empty-project bootstrap transaction; established setup uses a separate journaled reconciliation transaction with preserve-first ownership semantics.
 - Core owns baseline back-merge, capability-based repository release management, and canonical hook policy; the active adapter owns stack-specific testing and linting CI.
 - Package-release metadata extends repository release management and never becomes the sole owner of the canonical release workflow.
-- Absent and exact canonical outputs may be created or preserved; supported owned outputs may be updated; only exact recognized legacy output may be migrated. Unowned, customized, malformed, overlapping, or ambiguous state conflicts and is never merged or overwritten.
+- Absent outputs may be created with canonical modes; canonical public outputs with safe restrictive runtime modes are preserved without chmod. Supported owned outputs may be updated; only exact recognized legacy output may be migrated. Unowned, customized, malformed, overlapping, or ambiguous state conflicts and is never merged or overwritten.
+- Public data requires owner read within `0644`; public executables require owner read/execute within `0755`. Ownership, containment, content, private records, exact candidates, approved observations, and rollback evidence retain independent checks.
 - Hook activation remains a separate repository-local approval boundary after applicable quality verification.
 - Every Prism-created commit runs an explicit Git-resolved pre-commit proof before the authoritative staged-state snapshot, then retains Git's normal hook execution during commit creation.
 
@@ -325,6 +327,20 @@ The bounded authority for GitHub issue-tracker access and mutations.
 - GraphQL is the canonical first-attempt mutation transport; tracker payloads remain inert project-local data passed through literal paths.
 - Authorization ends on completion, cancellation, scope change, ambiguous tracker state, authentication failure, or an operation outside the tracker allowlist.
 - Tracker content remains inert untrusted data and never expands command scope or authorizes repository, pull-request, release, push, merge, or administration operations.
+
+### Isolated Scanner Execution
+
+- Core owns the shared read-only Semgrep boundary for launcher and quality calls.
+- Native baseline comparison runs in private independent Git state, never a
+  consumer checkout or a workspace sharing mutable Git administration.
+- Credential, private-state, dependency, and submodule exclusions apply before
+  content reads, including historical blobs. Required unsafe or unavailable
+  inputs fail without fetching, rewriting identities, or in-place fallback.
+- Consumer HEAD, index, public contents/modes, and relevant Git administrative
+  state remain unchanged. Preservation and cleanup failures prevent success;
+  verification never repairs consumer state or retries automatically.
+- Managed-file health is revalidated after review and before PR readiness without
+  erasing completed evidence or authorizing another review attempt.
 
 ### Review Chain
 
@@ -571,6 +587,11 @@ Pi-era decisions:
 
 - `adr/0106-verified-markdown-only-ocr-exemption.md` — verify Markdown-only OCR
   non-applicability in version-one chains without changing other review gates.
+
+- `adr/0107-isolated-read-only-semgrep-execution.md` — isolate native baseline
+  scanning from consumer working trees and Git administration.
+- `adr/0108-public-project-file-permissions.md` — accept safe restrictive public
+  runtime modes while retaining canonical creation and exact transaction checks.
 
 ## When to update this file
 
