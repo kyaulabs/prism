@@ -262,25 +262,25 @@ needs a runtime fixture.
 **Interfaces:** Consume schema-two `SOURCE_CHECKOUT_SETUP` and the existing
 validation commands. Produce no provider, plan, journal, or receipt format.
 
-- [ ] Red: replace the deferral-only Shell assertion with a contract requiring
+- [x] Red: replace the deferral-only Shell assertion with a contract requiring
   the source branch before the established consumer branch and requiring
   source applicability guards on each project-mutating stage.
-- [ ] Green: document the closed source result and route the existing numbered
+- [x] Green: document the closed source result and route the existing numbered
   stages according to the source setup effects above. Remove stale #501
   deferral text; do not merely suppress consumer failure diagnostics.
-- [ ] Red/Green: source success reporting requires successful existing checks
+- [x] Red/Green: source success reporting requires successful existing checks
   and final route revalidation. Missing tools, bad adapter activation, failed
   harness/quality checks, changed source identity, or unresolved bootstrap
   state stop without repairs or consumer fallback.
-- [ ] Exercise the instruction-owned command blocks with bounded test-owned
+- [x] Exercise the instruction-owned command blocks with bounded test-owned
   process stubs, retaining actual exit propagation. Stubs may replace external
   effects, not invent native classifier or provider success.
-- [ ] Verify source guards forbid metadata/automation/release/scaffold/hook
+- [x] Verify source guards forbid metadata/automation/release/scaffold/hook
   mutation while preserving the independent global/consent questions. Do not
   test or transmit real consent or credential state.
-- [ ] Re-run established and strict-empty workflow contracts to ensure their
+- [x] Re-run established and strict-empty workflow contracts to ensure their
   ordering and approval boundaries were not changed.
-- [ ] Run focused/full Shell tests, harness validation, Markdown, whitespace,
+- [x] Run focused/full Shell tests, harness validation, Markdown, whitespace,
   and the internal task reviews before committing.
 
 ```bash
@@ -292,6 +292,20 @@ composer test:shell
 ```bash
 prism-tool commit create --type fix --scope setup --subject "preserve source-owned automation during setup" --refs 501
 ```
+
+### Task 2 evidence
+
+Source dispatch/guards and required quality/final-revalidation assertions each
+failed before their prompt changes. Focused Shell contracts and the full Shell
+suite pass, including all 215 established/strict-empty/toolchain entrypoint
+assertions. The actual instruction-owned validator block was executed with a
+bounded test-owned executable: exit 0 and exit 17 both propagate unchanged.
+This is process-boundary evidence, not a claim of native quality success or
+live `/setup` execution. Native source classification remains covered by the
+Task 1 CLI tests. Harness, Bash syntax, Markdown, and whitespace checks pass;
+internal specification and code-quality review found no blocking deviation.
+Logs: `/tmp/prism-501-planning.tyceWYya/task2-shell.log` and
+`task2-harness.log`. No real consent, installation, or GitHub effect was tested.
 
 ## Task 3: Verify preservation and retained consumer behavior
 

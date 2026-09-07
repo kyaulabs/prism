@@ -177,6 +177,32 @@ configuration is a private closed record containing only browser `auto` or
 `disabled` and an optional loopback SearXNG URL. See
 [`extensions/web-access/README.md`](extensions/web-access/README.md).
 
+## Source-checkout setup
+
+`prism-tool setup route --json` recognizes independent Prism development clones
+and forks structurally, without remote lookup, pristine source requirements, or
+a directory-name convention. A verified source reports `SOURCE_CHECKOUT` and
+`SOURCE_CHECKOUT_SETUP` in the closed schema-two route. Incomplete or unsafe
+claims fail closed; source-shaped linked worktrees remain unsupported.
+
+`/setup` checks retained bootstrap continuity before proceeding. The source
+branch preserves repository-owned workflows, hooks, coverage infrastructure,
+release configuration, manifests, lockfiles, and disk-backed adapter activation.
+Consumer metadata, automation and release reconciliation, scaffold/dependency
+provisioning, and canonical hook activation are not applicable. Missing or
+invalid source adapter activation requires human remediation, not an implicit
+Core-only result or an installation that rewrites tracked settings.
+
+Shared global installation, independent standing consent, optional model/web
+preferences, and optional GitHub operations retain their existing approvals.
+Source recognition grants none of those effects. Source validation reuses
+`/check` and the resolved harness validator, including existing clean-tree and
+branch gates. Failures remain NO-GO; setup never repairs files or uses the
+normalizing pre-commit hook as a read-only validator. Identity is revalidated
+before source execution and final success. Reports distinguish preserved source
+files and inapplicable consumer reconciliation from actual validation PASS/FAIL.
+Recognition itself does not certify quality or bypass commit/review gates.
+
 ## Established and strict-empty setup
 
 Established projects keep the existing evidence-driven setup path. They do not
@@ -353,7 +379,9 @@ merge.
 
 ## Managed lockstep npm releases
 
-`/setup` discovers publishable packages and displays the exact package list.
+For applicable consumer projects, `/setup` discovers publishable packages and
+displays the exact package list. Source checkouts preserve their release files
+without consumer reconciliation.
 It installs Core-owned release configuration only after explicit enablement and displayed-diff mutation approval. The package-release lock records its owner
 PID; a human confirms that the process has stopped before removing the exact
 lock path.
