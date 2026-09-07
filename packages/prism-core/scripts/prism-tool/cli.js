@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -58,6 +58,7 @@ const {
 } = require('./bootstrap-adapter');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
+const {runIsolatedSemgrep} = require('./semgrep');
 const {prCommand} = require('./pr');
 const {serverCommand} = require('./server');
 const {commitCommand} = require('./commit');
@@ -1784,6 +1785,21 @@ function runDeclaredTool(args, context) {
     if (!context.run && component.argvPrefix?.length && !resolveExecutable(argv[0], env)) {
         process.stderr.write(`prism-tool: command ${argv[0]} required for tool ${component.id} is unavailable\n`);
         return EXIT.READINESS;
+    }
+    if (component.id === 'semgrep') {
+        return runIsolatedSemgrep({
+            projectRoot, executable, args: toolArgs, env,
+            timeoutMs: context.timeout ?? parsed.timeoutMs ?? defaultTimeoutMs,
+            maxBuffer: context.maxBuffer,
+        }).then((result) => {
+            if (result.error) {
+                process.stderr.write(`prism-tool: ${result.error.message}\n`);
+                return EXIT.TOOL;
+            }
+            if (result.stdout) process.stdout.write(result.stdout);
+            if (result.stderr) process.stderr.write(result.stderr);
+            return result.status === 0 ? EXIT.OK : EXIT.TOOL;
+        });
     }
     let input;
     try {

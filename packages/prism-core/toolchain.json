@@ -62,7 +62,8 @@
       "authentication": "optional",
       "executable": "semgrep",
       "versionArguments": ["--version"],
-      "argumentPolicy": {"mode": "first-token", "allowed": ["scan", "ci"]}
+      "executionTimeoutMs": 600000,
+      "argumentPolicy": {"mode": "first-token", "allowed": ["scan"]}
     },
     {
       "id": "ocr",

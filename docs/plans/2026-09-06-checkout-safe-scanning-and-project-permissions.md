@@ -240,7 +240,10 @@ substitution and rollback tests remain green.
 **Files:** Create `packages/prism-core/scripts/prism-tool/semgrep.js` and
 `semgrep-workspace.js`. Modify `cli.js` and `packages/prism-core/toolchain.json`.
 Create `tests/Node/prism-tool-semgrep.test.js`; extend
-`tests/Node/prism-tool-run.test.js` and `toolchain-contract.test.js`.
+`tests/Node/prism-tool-run.test.js`, `prism-tool-preflight.test.js`, and
+`toolchain-contract.test.js`. The full suite exposed a preflight fixture that
+assumed uncommitted input and no Git on PATH; migrate it to a committed
+private fixture while retaining the no-login/no-network-approval assertion.
 
 **Interface:** Retain `prism-tool run semgrep -- scan ...` and its existing exit
 mapping. Internally, `runIsolatedSemgrep({projectRoot, executable, args, env,
@@ -248,17 +251,17 @@ timeoutMs, maxBuffer})` returns a Promise of the existing bounded process result
 shape: status, stdout, stderr, timedOut, error. Isolation/preservation failure
 sets an error even if Semgrep exited zero. No public fallback or bypass flag.
 
-- [ ] Start with a disposable committed fixture and a process-boundary fake that
+- [x] Start with a disposable committed fixture and a process-boundary fake that
   performs Semgrep's baseline/reset pattern. Through the real launcher, prove
   that a scan under `0077` cannot change the consumer's index bytes, refs/reflogs,
   HEAD, or public file contents/modes/identity/timestamps. Ignore access-time
   changes caused by observation; never read protected content for the snapshot.
-- [ ] Implement independent private Git materialization using native Git plumbing:
+- [x] Implement independent private Git materialization using native Git plumbing:
   validate commit/tree metadata and endpoint paths before copying required blobs,
   retain original baseline/HEAD identities, and compute the effective merge base.
   No linked worktree, object alternates, hardlinks, full-history blob copy,
   consumer hooks/filters, populated submodules, or inherited authentication.
-- [ ] Accept only the read-only scan arguments used by current workflows: tracked
+- [x] Accept only the read-only scan arguments used by current workflows: tracked
   local configs, existing fixed registry presets, baseline, error/JSON, metrics
   off, version-check disablement, validated targets, and the rule-fixture ignore
   flag. Reject `ci`, login/publish/autofix/output writes, arbitrary remote config,
@@ -266,12 +269,12 @@ sets an error even if Semgrep exited zero. No public fallback or bypass flag.
   probes remain distinct. Validate CLI and environment baselines; conflicting
   selectors or missing objects fail without fetching. Preserve supported local
   changes by rejecting dirty input before work rather than stashing it.
-- [ ] Run real installed Semgrep with a local synthetic rule: unchanged baseline
+- [x] Run real installed Semgrep with a local synthetic rule: unchanged baseline
   findings disappear; a new HEAD finding remains at the correct relative path.
   Cover divergent history, paths with spaces, both supported Git object formats,
   and no-baseline scanning. Use private home/cache/config and neutral Git settings;
   do not inherit credentials or access remote presets in automated tests.
-- [ ] Exercise scanner failure, spawn failure, timeout, output overflow, handled
+- [x] Exercise scanner failure, spawn failure, timeout, output overflow, handled
   SIGINT/SIGTERM, child cleanup, unsafe historical endpoints, ignored canaries,
   symlinks, and concurrent consumer changes. Kill the owned process group before
   cleanup. Keep failed scanner output distinguishable from preservation failure;
@@ -295,6 +298,34 @@ node --test tests/Node/prism-tool-semgrep.test.js tests/Node/prism-tool-run.test
 ```bash
 prism-tool commit create --type fix --scope security --subject "isolate semgrep scans from consumer checkouts" --refs 520
 ```
+
+### Task 3 verification
+
+**Tests:** PASS — 93 focused Semgrep/runner/contract tests, the preflight
+regressions, and 1,475 full Node tests. The full suite passed again after
+hook-owned header normalization:
+`/tmp/prism-520-task3-verify.b5IX2Z/node-final.log`.
+**Coverage:** N/A — no PHP changes; Node counts are not JavaScript coverage.
+**Repro:** PASS — real-launcher reset isolation under `0077`, native baseline
+filtering, divergent merge bases, relative/Unicode paths, both Git object
+formats, and full scans pass in disposable committed repositories.
+**Debug artifacts:** CLEAN.
+**Lint:** PASS — ESLint, Node syntax, harness validation, Markdown, whitespace,
+and the effective pre-commit hook.
+**File hygiene:** PASS — hook-normalized headers/modelines; no generated assets,
+dependencies, release declarations, or provider-protocol changes.
+**Secrets:** CLEAN — staged Gitleaks passed; tests block excluded blob export
+before reading private historical endpoints.
+**Verdict:** VERIFIED for Task 3. Remaining scanner callers and aggregate
+scanner-dependent checks remain scheduled in Task 4.
+
+Internal spec-compliance and code-quality reviews passed. Git preparation and
+filesystem inventories are cancellable; a monotonic total deadline reserves
+preservation/cleanup time. Metadata accounting includes aggregate Git responses
+and preservation records. Missing objects never fetch; unsupported administrative
+layouts, changed Git configuration, stdin selectors, and invalid path encodings
+fail closed. Scanner outcome, preservation failure, and cleanup failure remain
+distinct, with no consumer repair or automatic retry.
 
 ## Task 4: Route the remaining scanners through the same boundary
 
