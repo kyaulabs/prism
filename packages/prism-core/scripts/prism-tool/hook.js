@@ -1,4 +1,4 @@
-// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -16,6 +16,7 @@ const {discoverOptionalAdapter, loadAdapterHandler} = require('./discovery');
 const {readProjectManifest} = require('./project-manifest');
 const {runBounded} = require('./process');
 const {applyManagedHooks} = require('./managed-hooks');
+const {ManagedFileError} = require('./managed-file');
 
 const OID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const MAX_MANIFEST_BYTES = 65536;
@@ -462,8 +463,9 @@ function reconcileHooksCommand(args, context) {
     let project;
     try {
         project = readProjectManifest({projectRoot, coreRoot});
-    } catch {
-        result = hookGateFailure('project-manifest', 'project manifest evidence is invalid');
+    } catch (error) {
+        result = hookGateFailure('project-manifest', error instanceof ManagedFileError
+            ? error.message : 'project manifest evidence is invalid');
     }
     if (result === undefined) {
         try {
@@ -475,8 +477,9 @@ function reconcileHooksCommand(args, context) {
     if (result === undefined) {
         try {
             validateProjectAutomation({projectRoot, coreRoot, project});
-        } catch {
-            result = hookGateFailure('project-automation', 'project automation evidence is invalid');
+        } catch (error) {
+            result = hookGateFailure('project-automation', error instanceof ManagedFileError
+                ? error.message : 'project automation evidence is invalid');
         }
     }
     try {
@@ -533,8 +536,9 @@ function hookCommand(args, context = {}) {
             );
         }
         return 0;
-    } catch {
-        process.stderr.write(`prism hook: ${event} policy failed\n`);
+    } catch (error) {
+        const message = error instanceof ManagedFileError ? error.message : `${event} policy failed`;
+        process.stderr.write(`prism hook: ${message}\n`);
         return 1;
     }
 }

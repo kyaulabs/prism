@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-managed-hooks.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: prism-tool-managed-hooks.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -12,6 +12,7 @@ const {renderCoreAutomationProvider} = require(
 );
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 const {hookCommand} = require('../../packages/prism-core/scripts/prism-tool/hook');
+const {verifyAutomation} = require('../../packages/prism-core/scripts/prism-tool/automation');
 const {renderProjectManifest} = require(
     '../../packages/prism-core/scripts/prism-tool/project-manifest'
 );
@@ -177,6 +178,97 @@ test('runs canonical pre-commit for a verified Core-only manifest without adapte
     assert.equal(adapterLoads, 0);
 });
 
+test('explains managed permission failures at the hook command boundary', (t) => {
+    for (const relative of ['.prism/project.json', '.github/workflows/back-merge.yml']) {
+        const fixture = makeFixture(t);
+        const file = path.join(fixture.projectRoot, relative);
+        fs.chmodSync(file, 0o664);
+        const message = `managed file permissions are invalid: ${relative} (observed 0664; requires 0400 within 0644)`;
+
+        const hook = captureWrites(() => hookCommand(['pre-commit'], {
+            ...fixture, hookRun: passingHookRun,
+        }));
+        assert.equal(hook.status, 1);
+        assert.equal(hook.stderr, `prism hook: ${message}\n`);
+
+        const reconcile = captureWrites(() => main(['hook', 'reconcile',
+            '--approval=yes', '--json'], fixture));
+        assert.equal(reconcile.status, 5);
+        assert.equal(JSON.parse(reconcile.stdout).checks[0].message, message);
+        assert.equal(fs.lstatSync(file).mode & 0o7777, 0o664);
+        assert.equal(readHooksPath(fixture.projectRoot), null);
+    }
+});
+
+test('keeps Core-only hooks usable after Git checkout, switch, and fast-forward under restrictive umasks', (t) => {
+    for (const [mask, dataMode, executableMode] of [
+        ['0022', 0o644, 0o755], ['0027', 0o640, 0o750], ['0077', 0o600, 0o700],
+    ]) {
+        for (const operation of ['checkout', 'switch', 'fast-forward']) {
+            const fixture = makeFixture(t);
+            const env = {
+                PATH: process.env.PATH,
+                HOME: fixture.projectRoot,
+                LC_ALL: 'C',
+                GIT_CONFIG_NOSYSTEM: '1',
+                GIT_CONFIG_GLOBAL: '/dev/null',
+                GIT_TERMINAL_PROMPT: '0',
+                GIT_AUTHOR_DATE: '2026-09-06T12:00:00Z',
+                GIT_COMMITTER_DATE: '2026-09-06T12:00:00Z',
+            };
+            const git = (args, umask = '0022') => execFileSync('bash', [
+                '-c', 'umask "$1"; shift; exec git "$@"', 'fixture-git', umask, ...args,
+            ], {cwd: fixture.projectRoot, env, encoding: 'utf8', timeout: 15000, stdio: 'pipe'});
+            const commit = (subject) => git(['-c', 'core.hooksPath=/dev/null',
+                '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', subject]);
+            commit('empty fixture');
+            assert.equal(applyManagedHooks({...fixture, env, approval: 'yes'}).status, 'GO');
+            git(['switch', '-c', 'feat/tester-abcd-complete']);
+            const files = ['.prism/project.json', '.github/workflows/back-merge.yml',
+                ...CANONICAL_HOOKS.map((name) => `.github/hooks/${name}`)];
+            git(['add', '--', ...files]);
+            commit('managed fixture');
+            const complete = git(['rev-parse', 'HEAD']).trim();
+            git(['switch', 'feat/tester-abcd-hooks']);
+            assert.equal(files.every((relative) => !fs.existsSync(path.join(fixture.projectRoot, relative))), true);
+
+            const args = operation === 'checkout' ? ['checkout', complete, '--', ...files]
+                : operation === 'switch' ? ['switch', 'feat/tester-abcd-complete']
+                    : ['merge', '--ff-only', 'feat/tester-abcd-complete'];
+            git(args, mask);
+
+            const before = new Map(files.map((relative) => {
+                const stat = fs.lstatSync(path.join(fixture.projectRoot, relative));
+                assert.equal(stat.mode & 0o7777,
+                    relative.startsWith('.github/hooks/') ? executableMode : dataMode,
+                    `${operation} ${mask}: ${relative}`);
+                return [relative, stat];
+            }));
+            const index = fs.readFileSync(path.join(fixture.projectRoot, '.git/index'));
+            assert.equal(verifyAutomation(fixture).status, 'GO');
+            assert.equal(verifyManagedHooks({...fixture, env}).status, 'GO');
+            const context = {
+                ...fixture,
+                env,
+                hookRun(command, commandArgs, options) {
+                    return command === 'git' ? runBounded(command, commandArgs, {...options, env})
+                        : {status: 0, stdout: '', stderr: ''};
+                },
+                input: `refs/heads/feat/tester-abcd-hooks ${complete} refs/heads/feat/tester-abcd-hooks ${'0'.repeat(40)}\n`,
+            };
+            assert.equal(hookCommand(['pre-commit'], context), 0, `${operation} ${mask}`);
+            assert.equal(hookCommand(['pre-push', 'origin', 'fixture'], context), 0, `${operation} ${mask}`);
+            assert.deepEqual(fs.readFileSync(path.join(fixture.projectRoot, '.git/index')), index);
+            for (const relative of files) {
+                const after = fs.lstatSync(path.join(fixture.projectRoot, relative));
+                for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+                    assert.equal(after[field], before.get(relative)[field], `${relative}: ${field}`);
+                }
+            }
+        }
+    }
+});
+
 test('rejects incoherent manifest and adapter evidence before hook mutation', (t) => {
     const adapterIdentity = {
         id: '@kyaulabs/prism-php-web',
@@ -295,6 +387,145 @@ test('applies canonical hooks, removes only owned obsolete hooks, and is idempot
     );
     assert.equal(verifyManagedHooks(fixture).status, 'GO');
     assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).disposition, 'CURRENT');
+});
+
+test('preserves current restrictive hooks without migrating or rewriting them', (t) => {
+    for (const mode of [0o700, 0o750, 0o500]) {
+        const fixture = makeFixture(t);
+        assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+        const before = new Map(CANONICAL_HOOKS.map((name) => {
+            const file = hookPath(fixture.projectRoot, name);
+            fs.chmodSync(file, mode);
+            return [name, fs.lstatSync(file)];
+        }));
+
+        assert.equal(inspectManagedHooks(fixture).disposition, 'CURRENT');
+        assert.equal(verifyManagedHooks(fixture).status, 'GO');
+        assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).disposition, 'CURRENT');
+
+        for (const name of CANONICAL_HOOKS) {
+            const file = hookPath(fixture.projectRoot, name);
+            assert.deepEqual(fs.readFileSync(file), canonical(name));
+            const after = fs.lstatSync(file);
+            for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+                assert.equal(after[field], before.get(name)[field], `${name}: ${field}`);
+            }
+        }
+    }
+});
+
+test('rejects unsafe owned hook modes instead of treating them as migration', (t) => {
+    const fixture = makeFixture(t);
+    assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+    const file = hookPath(fixture.projectRoot, 'pre-commit');
+    for (const older of [false, true]) {
+        fs.chmodSync(file, 0o755);
+        fs.writeFileSync(file, Buffer.concat([
+            canonical('pre-commit'),
+            Buffer.from(older ? '\n# older owned wrapper\n' : ''),
+        ]));
+        for (const [mode, observed] of [
+            [0o777, '0777'], [0o775, '0775'], [0o757, '0757'],
+            [0o4755, '4755'], [0o2755, '2755'], [0o1755, '1755'],
+            [0o600, '0600'], [0o400, '0400'], [0o100, '0100'],
+        ]) {
+            fs.chmodSync(file, mode);
+            const before = fs.lstatSync(file);
+
+            for (const result of [inspectManagedHooks(fixture), verifyManagedHooks(fixture),
+                applyManagedHooks({...fixture, approval: 'yes'})]) {
+                assert.equal(result.status, 'NO-GO', observed);
+                assert.equal(result.checks[0].message,
+                    `managed file permissions are invalid: .github/hooks/pre-commit (observed ${observed}; requires 0500 within 0755)`);
+            }
+
+            const after = fs.lstatSync(file);
+            for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+                assert.equal(after[field], before[field], `${observed}: ${field}`);
+            }
+        }
+    }
+});
+
+test('rejects another owner at the managed hook boundary before opening the hook', (t) => {
+    const fixture = makeFixture(t);
+    assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+    const file = hookPath(fixture.projectRoot, 'pre-commit');
+    const lstat = fs.lstatSync;
+    t.mock.method(fs, 'lstatSync', (target, options) => {
+        const stat = lstat(target, options);
+        if (target === file) stat.uid = process.getuid() + 1;
+        return stat;
+    });
+    const open = t.mock.method(fs, 'openSync');
+
+    const result = verifyManagedHooks(fixture);
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.checks[0].message,
+        'managed file ownership is invalid: .github/hooks/pre-commit');
+    assert.equal(open.mock.calls.some((call) => call.arguments[0] === file), false);
+});
+
+test('rejects hook identity drift at open before reading managed contents', (t) => {
+    const fixture = makeFixture(t);
+    assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+    const inode = fs.lstatSync(hookPath(fixture.projectRoot, 'pre-commit')).ino;
+    const fstat = fs.fstatSync;
+    const read = fs.readFileSync;
+    for (const field of ['uid', 'gid', 'mode', 'size', 'mtimeMs', 'ctimeMs']) {
+        let readChangedHook = false;
+        t.mock.method(fs, 'fstatSync', (descriptor) => {
+            const stat = fstat(descriptor);
+            if (stat.ino === inode) stat[field] += 1;
+            return stat;
+        });
+        t.mock.method(fs, 'readFileSync', (file, ...args) => {
+            if (typeof file === 'number' && fstat(file).ino === inode) readChangedHook = true;
+            return read(file, ...args);
+        });
+
+        assert.equal(inspectManagedHooks(fixture).status, 'NO-GO', field);
+        assert.equal(readChangedHook, false, field);
+        t.mock.restoreAll();
+    }
+});
+
+test('rejects managed hooks that become unsafe during the content read', (t) => {
+    const fixture = makeFixture(t);
+    assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+    const file = hookPath(fixture.projectRoot, 'pre-commit');
+    const inode = fs.lstatSync(file).ino;
+    const read = fs.readFileSync;
+    t.mock.method(fs, 'readFileSync', (target, ...args) => {
+        const contents = read(target, ...args);
+        if (typeof target === 'number' && fs.fstatSync(target).ino === inode) {
+            fs.chmodSync(file, 0o777);
+        }
+        return contents;
+    });
+
+    assert.equal(inspectManagedHooks(fixture).status, 'NO-GO');
+    assert.equal(fs.lstatSync(file).mode & 0o7777, 0o777);
+});
+
+test('keeps packaged hook resource modes exact rather than using runtime acceptance', (t) => {
+    const fixture = makeFixture(t);
+    assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+    const coreRoot = makeTempDir();
+    t.after(() => fs.rmSync(coreRoot, {recursive: true, force: true}));
+    const resources = path.join(coreRoot, 'config', 'bootstrap', 'hooks');
+    fs.mkdirSync(resources, {recursive: true});
+    for (const name of CANONICAL_HOOKS) {
+        fs.writeFileSync(path.join(resources, name), canonical(name));
+        fs.chmodSync(path.join(resources, name), 0o755);
+    }
+    assert.equal(verifyManagedHooks({...fixture, coreRoot}).status, 'GO');
+
+    for (const mode of [0o700, 0o750, 0o4755, 0o2755, 0o1755]) {
+        fs.chmodSync(path.join(resources, 'pre-commit'), mode);
+        assert.equal(verifyManagedHooks({...fixture, coreRoot}).status, 'NO-GO', mode.toString(8));
+    }
 });
 
 test('fails closed on unowned canonical and obsolete collisions', (t) => {

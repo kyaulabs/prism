@@ -1,4 +1,4 @@
-// $KYAULabs: automation.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: automation.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -17,9 +17,11 @@ const {normalizeProjectMetadata, validateNormalizedProjectMetadata} = require('.
 const {validateBootstrapSource} = require('./bootstrap-source');
 const {readProjectManifest} = require('./project-manifest');
 const {runBounded} = require('./process');
+const {ManagedFileError, isSafeManagedMode, requireManagedMode} = require('./managed-file');
 
 const MAX_OUTPUT_BYTES = 1048576;
 const MAX_PLAN_BYTES = 1048576;
+const PLAN_SCHEMA_VERSION = 2;
 
 class AutomationFailure extends Error {
     constructor(stage) {
@@ -31,6 +33,10 @@ class AutomationFailure extends Error {
 function automationFailure(operation, error) {
     const stage = error instanceof AutomationFailure ? error.stage : null;
     const diagnostics = {
+        'automation-plan-version': [
+            'automation-plan-version',
+            'automation plan version is obsolete; regenerate the plan',
+        ],
         'automation-adapter-discovery': [
             'automation-adapter-discovery',
             'automation adapter evidence is invalid',
@@ -44,10 +50,12 @@ function automationFailure(operation, error) {
             'established project metadata is invalid',
         ],
     };
-    const diagnostic = diagnostics[stage] ?? [
-        `automation-${operation}`,
-        `automation ${operation} failed`,
-    ];
+    const diagnostic = error instanceof ManagedFileError
+        ? ['automation-managed-file', error.message]
+        : diagnostics[stage] ?? [
+            `automation-${operation}`,
+            `automation ${operation} failed`,
+        ];
     return Object.freeze({
         status: 'NO-GO',
         disposition: 'CONFLICT',
@@ -98,7 +106,13 @@ function readBounded(descriptor, maximum, message) {
     return buffer.subarray(0, offset);
 }
 
-function readExistingOutput(projectRoot, relativePath) {
+function samePublicFile(left, right) {
+    return sameFile(left, right) &&
+        ['uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']
+            .every((field) => left[field] === right[field]);
+}
+
+function readExistingOutput(projectRoot, relativePath, canonicalMode) {
     let current = projectRoot;
     for (const segment of relativePath.split('/').slice(0, -1)) {
         current = path.join(current, segment);
@@ -119,10 +133,15 @@ function readExistingOutput(projectRoot, relativePath) {
     ) {
         throw new Error('automation output is invalid');
     }
+    if (typeof process.getuid !== 'function' || initial.uid !== process.getuid()) {
+        throw new ManagedFileError('MANAGED_OWNER',
+            `managed file ownership is invalid: ${relativePath}`);
+    }
+    requireManagedMode(initial.mode, canonicalMode, relativePath);
     const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
         const held = fs.fstatSync(descriptor);
-        if (!held.isFile() || held.size > MAX_OUTPUT_BYTES || !sameFile(initial, held)) {
+        if (!held.isFile() || held.size > MAX_OUTPUT_BYTES || !samePublicFile(initial, held)) {
             throw new Error('automation output changed');
         }
         const contents = readBounded(
@@ -133,15 +152,29 @@ function readExistingOutput(projectRoot, relativePath) {
         const final = fs.fstatSync(descriptor);
         const currentFile = fs.lstatSync(filePath);
         if (
-            !sameFile(held, final) ||
-            !sameFile(held, currentFile) ||
+            !samePublicFile(held, final) ||
+            !samePublicFile(held, currentFile) ||
             contents.length !== held.size ||
             final.size !== held.size ||
             final.mode !== held.mode
         ) {
             throw new Error('automation output changed');
         }
-        return Object.freeze({contents, mode: held.mode & 0o777});
+        return Object.freeze({
+            contents,
+            mode: held.mode & 0o777,
+            observed: Object.freeze({
+                dev: held.dev,
+                ino: held.ino,
+                uid: held.uid,
+                gid: held.gid,
+                size: held.size,
+                mode: held.mode & 0o7777,
+                mtimeMs: held.mtimeMs,
+                ctimeMs: held.ctimeMs,
+                sha256: sha256(contents),
+            }),
+        });
     } finally {
         fs.closeSync(descriptor);
     }
@@ -158,8 +191,9 @@ function managedBy(contents, owner) {
 function classifyOutput({projectRoot, coreRoot, output, owner}) {
     let existing;
     try {
-        existing = readExistingOutput(projectRoot, output.path);
-    } catch {
+        existing = readExistingOutput(projectRoot, output.path, output.mode);
+    } catch (error) {
+        if (error instanceof ManagedFileError) throw error;
         return Object.freeze({
             path: output.path,
             disposition: OWNERSHIP.CONFLICT,
@@ -174,7 +208,7 @@ function classifyOutput({projectRoot, coreRoot, output, owner}) {
         });
     }
     const canonical = fs.readFileSync(output.candidatePath);
-    if (existing.mode === output.mode && existing.contents.equals(canonical)) {
+    if (isSafeManagedMode(existing.mode, output.mode) && existing.contents.equals(canonical)) {
         return Object.freeze({
             path: output.path,
             disposition: OWNERSHIP.CURRENT,
@@ -342,6 +376,7 @@ function establishedConfiguration({
             allowVersionMigration: true,
         });
     } catch (error) {
+        if (error instanceof ManagedFileError) throw error;
         if (error?.code !== 'ENOENT') {
             throw new AutomationFailure('automation-project-metadata-invalid');
         }
@@ -657,10 +692,11 @@ function planAutomation({
                 owner: provider.packageName,
                 disposition: ownership.disposition,
                 candidatePath: path.posix.join('candidate', output.path),
+                observed: readExistingOutput(projectRoot, output.path, output.mode)?.observed ?? null,
             });
         })).sort((left, right) => left.path.localeCompare(right.path));
         const plan = Object.freeze({
-            schemaVersion: 1,
+            schemaVersion: PLAN_SCHEMA_VERSION,
             projectRoot,
             configuration: Object.freeze({releaseRepository, established}),
             providers,
@@ -670,7 +706,7 @@ function planAutomation({
         const planDigest = sha256(Buffer.from(JSON.stringify(plan)));
         const planPath = path.join(paths.operationRoot, `plan-${planDigest}.json`);
         fs.writeFileSync(planPath, `${JSON.stringify({
-            schemaVersion: 1,
+            schemaVersion: PLAN_SCHEMA_VERSION,
             planDigest,
             plan,
         }, null, 2)}\n`, {flag: 'wx', mode: 0o600});
@@ -743,13 +779,31 @@ function validEstablishedConfiguration(value) {
     }
 }
 
+function validOutputObservation(value, disposition) {
+    if (disposition === OWNERSHIP.CREATE) return value === null;
+    return hasExactKeys(value, [
+        'dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs', 'sha256',
+    ]) &&
+        ['dev', 'ino', 'uid', 'gid', 'size', 'mode'].every((field) =>
+            Number.isSafeInteger(value[field]) && value[field] >= 0
+        ) &&
+        value.size <= MAX_OUTPUT_BYTES && value.mode <= 0o7777 &&
+        ['mtimeMs', 'ctimeMs'].every((field) => Number.isFinite(value[field])) &&
+        typeof value.sha256 === 'string' && /^[0-9a-f]{64}$/.test(value.sha256);
+}
+
+function sameObservation(left, right) {
+    if (left === null || right === null) return left === right;
+    return Object.keys(left).every((key) => left[key] === right[key]);
+}
+
 function validateRetainedPlan(plan) {
     if (
         !hasExactKeys(plan, [
             'schemaVersion', 'projectRoot', 'configuration', 'providers', 'outputs',
             'preconditions',
         ]) ||
-        plan.schemaVersion !== 1 ||
+        plan.schemaVersion !== PLAN_SCHEMA_VERSION ||
         !hasExactKeys(plan.configuration, ['releaseRepository', 'established']) ||
         !validEstablishedConfiguration(plan.configuration.established) ||
         (plan.configuration.releaseRepository !== null &&
@@ -776,7 +830,7 @@ function validateRetainedPlan(plan) {
         plan.outputs.some((output) =>
             !hasExactKeys(output, [
                 'path', 'mode', 'sha256', 'provider', 'owner', 'disposition',
-                'candidatePath',
+                'candidatePath', 'observed',
             ]) ||
             !validOutputPath(output.path) ||
             ![0o644, 0o755].includes(output.mode) ||
@@ -786,7 +840,8 @@ function validateRetainedPlan(plan) {
             typeof output.owner !== 'string' ||
             ![OWNERSHIP.CREATE, OWNERSHIP.CURRENT, OWNERSHIP.MIGRATE]
                 .includes(output.disposition) ||
-            output.candidatePath !== `candidate/${output.path}`
+            output.candidatePath !== `candidate/${output.path}` ||
+            !validOutputObservation(output.observed, output.disposition)
         ) ||
         new Set(plan.outputs.map(({path: outputPath}) => outputPath)).size !==
             plan.outputs.length ||
@@ -863,10 +918,11 @@ function readPlan(projectRoot, planPath) {
     } catch {
         throw new Error('automation plan is invalid');
     }
+    if (envelope?.schemaVersion === 1) throw new AutomationFailure('automation-plan-version');
     const digest = sha256(Buffer.from(JSON.stringify(envelope.plan)));
     if (
         !hasExactKeys(envelope, ['schemaVersion', 'planDigest', 'plan']) ||
-        envelope.schemaVersion !== 1 ||
+        envelope.schemaVersion !== PLAN_SCHEMA_VERSION ||
         envelope.planDigest !== digest ||
         path.basename(canonicalPlan) !== `plan-${digest}.json` ||
         envelope.plan?.projectRoot !== projectRoot
@@ -962,6 +1018,10 @@ function revalidatePlan(projectRoot, coreRoot, retained, run) {
                 ...output.candidatePath.split('/')
             ),
         }, owner: output.owner});
+        if (!sameObservation(
+            readExistingOutput(projectRoot, output.path, output.mode)?.observed ?? null,
+            output.observed
+        )) throw new Error('automation output observation changed');
         if (current.disposition !== output.disposition) {
             throw new Error('automation ownership changed');
         }
@@ -1028,19 +1088,27 @@ function applyAutomation({
     try {
         revalidatePlan(projectRoot, fs.realpathSync(coreRoot), retained, run);
         for (const output of retained.envelope.plan.outputs) {
+            const previous = readExistingOutput(projectRoot, output.path, output.mode);
+            if (!sameObservation(previous?.observed ?? null, output.observed)) {
+                throw new Error('automation output observation changed');
+            }
             if (output.disposition === OWNERSHIP.CURRENT) continue;
             const destination = path.join(projectRoot, ...output.path.split('/'));
-            const previous = readExistingOutput(projectRoot, output.path);
             const contents = candidateContents(retained.paths, output);
             ensureDestinationParent(projectRoot, output.path, createdDirectories);
             publishFile(destination, contents, output.mode, rename);
             published.push({destination, output, previous});
         }
         for (const output of retained.envelope.plan.outputs) {
-            const current = readExistingOutput(projectRoot, output.path);
+            const current = readExistingOutput(projectRoot, output.path, output.mode);
+            if (output.disposition === OWNERSHIP.CURRENT &&
+                !sameObservation(current?.observed ?? null, output.observed)) {
+                throw new Error('automation output observation changed');
+            }
             if (
                 current === null ||
-                current.mode !== output.mode ||
+                current.mode !== (output.disposition === OWNERSHIP.CURRENT
+                    ? output.observed.mode : output.mode) ||
                 sha256(current.contents) !== output.sha256
             ) {
                 throw new Error('automation application verification failed');
@@ -1064,7 +1132,7 @@ function applyAutomation({
         const rollbackErrors = [];
         for (const record of published.reverse()) {
             try {
-                const current = readExistingOutput(projectRoot, record.output.path);
+                const current = readExistingOutput(projectRoot, record.output.path, record.output.mode);
                 if (
                     current === null ||
                     current.mode !== record.output.mode ||

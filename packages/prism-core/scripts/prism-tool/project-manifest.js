@@ -1,4 +1,4 @@
-// $KYAULabs: project-manifest.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: project-manifest.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -9,6 +9,7 @@ const semver = require('semver');
 const {TextDecoder} = require('node:util');
 const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
+const {ManagedFileError, requireManagedMode} = require('./managed-file');
 
 const MAX_MANIFEST_BYTES = 65536;
 
@@ -124,7 +125,11 @@ function sameFile(left, right) {
     return left.dev === right.dev &&
         left.ino === right.ino &&
         left.size === right.size &&
-        left.mode === right.mode;
+        left.mode === right.mode &&
+        left.uid === right.uid &&
+        left.gid === right.gid &&
+        left.mtimeMs === right.mtimeMs &&
+        left.ctimeMs === right.ctimeMs;
 }
 
 function readBounded(descriptor) {
@@ -145,13 +150,17 @@ function readProjectManifest({projectRoot, coreRoot, allowVersionMigration = fal
     if (
         initial.isSymbolicLink() ||
         !initial.isFile() ||
-        (initial.mode & 0o777) !== 0o644 ||
         initial.size > MAX_MANIFEST_BYTES ||
         fs.realpathSync(manifestPath) !== manifestPath ||
         typeof fs.constants.O_NOFOLLOW !== 'number'
     ) {
         throw new Error('project manifest is invalid');
     }
+    if (typeof process.getuid !== 'function' || initial.uid !== process.getuid()) {
+        throw new ManagedFileError('MANAGED_OWNER',
+            'managed file ownership is invalid: .prism/project.json');
+    }
+    requireManagedMode(initial.mode, 0o644, '.prism/project.json');
     const descriptor = fs.openSync(
         manifestPath,
         fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW

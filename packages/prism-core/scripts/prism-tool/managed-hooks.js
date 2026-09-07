@@ -1,4 +1,4 @@
-// $KYAULabs: managed-hooks.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: managed-hooks.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const {runBounded} = require('./process');
+const {ManagedFileError, isSafeManagedMode, requireManagedMode} = require('./managed-file');
 
 const CANONICAL_HOOKS = Object.freeze([
     'commit-msg',
@@ -48,28 +49,38 @@ function requireSuccess(result, message) {
     return output(result).trim();
 }
 
-function readRegular(filePath, expectedMode = null) {
+function sameHookFile(left, right) {
+    return ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']
+        .every((field) => left[field] === right[field]);
+}
+
+function readRegular(filePath, expectedMode = null, relativePath = null) {
     const initial = fs.lstatSync(filePath);
     if (
         initial.isSymbolicLink() ||
         !initial.isFile() ||
         initial.size > MAX_HOOK_BYTES ||
-        (expectedMode !== null && (initial.mode & 0o777) !== expectedMode) ||
+        (expectedMode !== null && (initial.mode & 0o7777) !== expectedMode) ||
         typeof fs.constants.O_NOFOLLOW !== 'number'
     ) {
         throw new Error('managed hook is invalid');
     }
+    if (relativePath !== null) {
+        if (typeof process.getuid !== 'function' || initial.uid !== process.getuid()) {
+            throw new ManagedFileError('MANAGED_OWNER',
+                `managed file ownership is invalid: ${relativePath}`);
+        }
+        requireManagedMode(initial.mode, 0o755, relativePath);
+    }
     const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
         const held = fs.fstatSync(descriptor);
+        if (!sameHookFile(initial, held)) throw new Error('managed hook changed');
         const contents = fs.readFileSync(descriptor);
         const current = fs.lstatSync(filePath);
         if (
-            !held.isFile() ||
-            held.dev !== initial.dev ||
-            held.ino !== initial.ino ||
-            current.dev !== held.dev ||
-            current.ino !== held.ino ||
+            !sameHookFile(held, fs.fstatSync(descriptor)) ||
+            !sameHookFile(held, current) ||
             contents.length !== held.size ||
             contents.length > MAX_HOOK_BYTES
         ) {
@@ -149,7 +160,7 @@ function existingHook(hooksRoot, name) {
     const filePath = path.join(hooksRoot, name);
     const entry = fs.lstatSync(filePath, {throwIfNoEntry: false});
     if (entry === undefined) return null;
-    return readRegular(filePath);
+    return readRegular(filePath, null, `${HOOKS_PATH}/${name}`);
 }
 
 function prismOwned(contents) {
@@ -193,7 +204,7 @@ function inspectManagedHooks({
             const current = existingHook(hooksRoot, canonical.name);
             let disposition;
             if (current === null) disposition = 'CREATE';
-            else if (current.mode === canonical.mode && current.contents.equals(canonical.contents)) {
+            else if (isSafeManagedMode(current.mode, canonical.mode) && current.contents.equals(canonical.contents)) {
                 disposition = 'CURRENT';
             } else if (prismOwned(current.contents)) disposition = 'MIGRATE';
             else disposition = 'CONFLICT';
@@ -232,8 +243,8 @@ function inspectManagedHooks({
                 message: current ? 'managed hooks are current' : 'managed hooks can be reconciled',
             })]),
         });
-    } catch {
-        return conflictReport();
+    } catch (error) {
+        return conflictReport(error instanceof ManagedFileError ? error.message : undefined);
     }
 }
 
@@ -402,7 +413,7 @@ function applyManagedHooks({
 
 function verifyManagedHooks(options) {
     const inspected = inspectManagedHooks(options);
-    if (inspected.status === 'GO' && inspected.disposition === 'CURRENT') return inspected;
+    if (inspected.status !== 'GO' || inspected.disposition === 'CURRENT') return inspected;
     return Object.freeze({
         ...inspected,
         status: 'NO-GO',

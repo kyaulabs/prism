@@ -94,7 +94,7 @@ Recheck state before acting and preserve unrelated work.
 - [x] Accept the two Proposed ADRs; add partial-supersession Status notes to
   ADR-0078/0088/0100 without editing their bodies. Update `CONTEXT.md` for
   scanner isolation and managed-file runtime acceptance only.
-- [ ] Stage the exact spec, this plan, the matching handoff, the two new ADRs,
+- [x] Stage the exact spec, this plan, the matching handoff, the two new ADRs,
   the three prior ADR Status changes, and `CONTEXT.md`. Preserve the separate
   OCR-cutover specification. Create the documentation commit below.
 
@@ -121,21 +121,21 @@ Typed internal errors carry bounded public-path/mode diagnostics, not raw errors
 
 Run one Red/Green cycle for each behavior, in this order:
 
-- [ ] A valid `0600` project manifest is readable without mutation; next cover
+- [x] A valid `0600` project manifest is readable without mutation; next cover
   `0640`, canonical `0644`, required owner access, and invalid bits.
-- [ ] Canonical hook bytes at `0700`/`0750` inspect as CURRENT, not MIGRATE;
+- [x] Canonical hook bytes at `0700`/`0750` inspect as CURRENT, not MIGRATE;
   reconciliation preserves bytes, mode, inode, and timestamps. Unsafe modes
   cannot fall through to marker-based migration. Package hook sources stay exact.
-- [ ] Existing canonical automation outputs at safe restrictive modes remain
+- [x] Existing canonical automation outputs at safe restrictive modes remain
   CURRENT. Applying a mixed plan preserves those files while creating missing
   canonical outputs. Incorrect content still conflicts or follows existing
   explicit ownership/migration rules; permission failure never becomes repair.
-- [ ] Retained Core automation plans bind each existing output's exact observed
+- [x] Retained Core automation plans bind each existing output's exact observed
   mode, owner, identity, size, and content digest separately from canonical mode.
   Revalidate before mutation; safe-to-safe drift invalidates approval. Use a new
   private plan version rather than accepting missing observations from old plans.
   Keep candidate and rollback verification exact.
-- [ ] Recreate a Core-only managed fixture with actual Git checkout, switch, and
+- [x] Recreate a Core-only managed fixture with actual Git checkout, switch, and
   fast-forward operations under `0022`, `0027`, and `0077`. Verify automation
   and exercise pre-commit/pre-push through `hookCommand` without chmod.
   Fake only external quality processes. Add negative ownership, symlink,
@@ -152,6 +152,22 @@ After focused/full applicable verification and internal review:
 ```bash
 prism-tool commit create --type fix --scope hooks --subject "accept safe restrictive managed file modes" --refs 520
 ```
+
+### Task 1 verification
+
+- Initial documentation commit: `fbd5408311f0e8de75bc75c436238f604f3e6d6b`.
+- Verified Red/Green at manifest, hook, automation, and hook-command seams.
+  All nine Git-operation/umask combinations pass in disposable Core-only fixtures.
+- 92 focused tests and 1,399 full Node tests passed. Final full-suite log:
+  `/tmp/prism-520-task1-verify.0NLa6p/node-final.log`.
+- ESLint, Node syntax, harness validation, staged whitespace, Markdown, and
+  the effective pre-commit hook passed. The hook normalized source headers and
+  ran Gitleaks. No debug artifacts, generated-asset edits, or dependencies.
+- PHP coverage and asset lint/build: N/A for this JavaScript-only task. Full
+  scanner-dependent `/check` remains deferred until Task 4, as approved above.
+- Internal spec-compliance and code-quality reviews passed. Public reports and
+  bootstrap protocol remain unchanged; the private Core plan alone advances to
+  version two and binds exact observations before and during application.
 
 ## Task 2: Keep the existing PHP/web managed-file path compatible
 

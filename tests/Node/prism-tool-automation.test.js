@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-automation.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: prism-tool-automation.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -200,6 +200,274 @@ test('Core-only reconciliation publishes the behavior-tested back-merge candidat
     assert.equal(verified.status, 'GO');
     assert.equal(verified.disposition, 'CURRENT');
     assert.equal(verified.composition, 'CORE_ONLY');
+});
+
+test('rejects a byte-identical output replacement after automation approval', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const initial = planAutomation({...fixture, metadataPath: writeEstablishedMetadata(fixture)});
+    assert.equal(applyAutomation({...fixture, planPath: initial.planPath}).status, 'GO');
+    const planned = planAutomation(fixture);
+    const file = path.join(fixture.projectRoot, '.github/workflows/back-merge.yml');
+    const contents = fs.readFileSync(file);
+    const inode = fs.lstatSync(file).ino;
+    const status = execFileSync('git', ['status', '--porcelain=v2', '--untracked-files=all'],
+        {cwd: fixture.projectRoot});
+    const replacement = path.join(fixture.projectRoot, 'replacement.yml');
+    fs.writeFileSync(replacement, contents, {mode: 0o644});
+    fs.chmodSync(replacement, 0o644);
+    fs.renameSync(replacement, file);
+    assert.notEqual(fs.lstatSync(file).ino, inode);
+    assert.deepEqual(execFileSync('git', ['status', '--porcelain=v2', '--untracked-files=all'],
+        {cwd: fixture.projectRoot}), status);
+
+    assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}),
+        /automation output observation changed/);
+
+    assert.deepEqual(fs.readFileSync(file), contents);
+    assert.equal(fs.existsSync(planned.planPath), true);
+});
+
+test('verifies canonical automation at safe restrictive runtime modes without writes', (t) => {
+    const fixture = makeFixture(t);
+    installCanonicalAutomation(fixture);
+    const data = ['.prism/project.json', '.github/workflows/back-merge.yml',
+        '.github/workflows/ci.yml', '.github/scripts/coverage-gate.php'];
+    for (const [dataMode, executableMode] of [[0o600, 0o700], [0o640, 0o750], [0o400, 0o500]]) {
+        const files = [...data, '.github/scripts/check-php.sh'];
+        const before = new Map(files.map((relative) => {
+            const file = path.join(fixture.projectRoot, relative);
+            fs.chmodSync(file, relative.endsWith('.sh') ? executableMode : dataMode);
+            return [relative, fs.lstatSync(file)];
+        }));
+
+        const result = captureWrites(() => main(['automation', 'verify', '--json'], fixture));
+
+        assert.equal(result.status, 0, result.stdout || result.stderr);
+        assert.equal(JSON.parse(result.stdout).disposition, 'CURRENT');
+        assert.equal(inspectAutomation(fixture).disposition, 'CURRENT');
+        for (const relative of files) {
+            const after = fs.lstatSync(path.join(fixture.projectRoot, relative));
+            for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+                assert.equal(after[field], before.get(relative)[field], `${relative}: ${field}`);
+            }
+        }
+    }
+});
+
+test('reports unsafe automation modes instead of offering migration or repair', (t) => {
+    const fixture = makeGitFixture(t);
+    installCanonicalAutomation(fixture);
+    const file = path.join(fixture.projectRoot, '.github/workflows/back-merge.yml');
+    for (const [mode, observed] of [[0o664, '0664'], [0o646, '0646'], [0o755, '0755'],
+        [0o4644, '4644'], [0o2644, '2644'], [0o1644, '1644'], [0o200, '0200']]) {
+        fs.chmodSync(file, mode);
+        const before = fs.lstatSync(file);
+
+        for (const operation of ['inspect', 'plan', 'verify']) {
+            const result = captureWrites(() => main(['automation', operation, '--json'], fixture));
+            assert.equal(result.status, 5, `${operation}: ${observed}`);
+            assert.deepEqual(JSON.parse(result.stdout).checks, [{
+                id: 'automation-managed-file',
+                status: 'FAIL',
+                message: `managed file permissions are invalid: .github/workflows/back-merge.yml (observed ${observed}; requires 0400 within 0644)`,
+            }]);
+        }
+
+        const after = fs.lstatSync(file);
+        for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+            assert.equal(after[field], before[field], `${observed}: ${field}`);
+        }
+    }
+});
+
+test('creates missing automation while preserving an owner-only manifest exactly', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const initial = planAutomation({...fixture, metadataPath: writeEstablishedMetadata(fixture)});
+    assert.equal(applyAutomation({...fixture, planPath: initial.planPath}).status, 'GO');
+    const manifestPath = path.join(fixture.projectRoot, '.prism/project.json');
+    const workflowPath = path.join(fixture.projectRoot, '.github/workflows/back-merge.yml');
+    fs.chmodSync(manifestPath, 0o600);
+    fs.unlinkSync(workflowPath);
+    const before = fs.lstatSync(manifestPath);
+    const contents = fs.readFileSync(manifestPath);
+    const planned = planAutomation(fixture);
+    assert.equal(planned.providers.find(({id}) => id === 'core-project-manifest')
+        .outputs[0].disposition, 'CURRENT');
+
+    assert.equal(applyAutomation({...fixture, planPath: planned.planPath}).status, 'GO');
+
+    assert.equal(verifyAutomation(fixture).status, 'GO');
+    assert.equal(fs.lstatSync(workflowPath).mode & 0o7777, 0o644);
+    assert.deepEqual(fs.readFileSync(manifestPath), contents);
+    const after = fs.lstatSync(manifestPath);
+    for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+        assert.equal(after[field], before[field], field);
+    }
+});
+
+test('requires regeneration of old private automation plans before publication', (t) => {
+    const fixture = makeGitFixture(t);
+    const planned = planAutomation(fixture);
+    const envelope = JSON.parse(fs.readFileSync(planned.planPath, 'utf8'));
+    envelope.schemaVersion = 1;
+    envelope.plan.schemaVersion = 1;
+    for (const output of envelope.plan.outputs) delete output.observed;
+    envelope.planDigest = crypto.createHash('sha256').update(JSON.stringify(envelope.plan)).digest('hex');
+    const oldPlanPath = path.join(path.dirname(planned.planPath), `plan-${envelope.planDigest}.json`);
+    fs.unlinkSync(planned.planPath);
+    fs.writeFileSync(oldPlanPath, JSON.stringify(envelope), {mode: 0o600});
+
+    const result = captureWrites(() => main(['automation', 'apply',
+        `--plan=${oldPlanPath}`, '--approval=yes', '--json'], fixture));
+
+    assert.equal(result.status, 5);
+    assert.deepEqual(JSON.parse(result.stdout).checks, [{
+        id: 'automation-plan-version',
+        status: 'FAIL',
+        message: 'automation plan version is obsolete; regenerate the plan',
+    }]);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+    assert.equal(fs.existsSync(oldPlanPath), true);
+});
+
+test('rejects another owner before opening a managed automation output', (t) => {
+    const fixture = makeFixture(t);
+    installCanonicalAutomation(fixture);
+    const file = path.join(fixture.projectRoot, '.github/workflows/back-merge.yml');
+    const lstat = fs.lstatSync;
+    t.mock.method(fs, 'lstatSync', (target, options) => {
+        const stat = lstat(target, options);
+        if (target === file) stat.uid = process.getuid() + 1;
+        return stat;
+    });
+    const open = t.mock.method(fs, 'openSync');
+
+    const result = captureWrites(() => main(['automation', 'verify', '--json'], fixture));
+
+    assert.equal(result.status, 5);
+    assert.deepEqual(JSON.parse(result.stdout).checks, [{
+        id: 'automation-managed-file',
+        status: 'FAIL',
+        message: 'managed file ownership is invalid: .github/workflows/back-merge.yml',
+    }]);
+    assert.equal(open.mock.calls.some((call) => call.arguments[0] === file), false);
+});
+
+test('rejects changing public automation identity before accepting its contents', (t) => {
+    const fixture = makeFixture(t);
+    installCanonicalAutomation(fixture);
+    const inode = fs.lstatSync(path.join(fixture.projectRoot, '.github/workflows/back-merge.yml')).ino;
+    const fstat = fs.fstatSync;
+    const read = fs.readSync;
+    for (const phase of ['open', 'after-read']) {
+        for (const field of ['uid', 'gid', 'mode', 'size', 'mtimeMs', 'ctimeMs']) {
+            let readOutput = false;
+            t.mock.method(fs, 'fstatSync', (descriptor, ...options) => {
+                const stat = fstat(descriptor, ...options);
+                if (stat.ino === inode && (phase === 'open' || readOutput)) stat[field] += 1;
+                return stat;
+            });
+            t.mock.method(fs, 'readSync', (descriptor, ...args) => {
+                if (fstat(descriptor).ino === inode) readOutput = true;
+                return read(descriptor, ...args);
+            });
+
+            const result = verifyAutomation(fixture);
+            assert.equal(result.status, 'NO-GO', `${phase}: ${field}`);
+            assert.equal(result.checks[0].id, 'automation-verification');
+            if (phase === 'open') assert.equal(readOutput, false, field);
+            t.mock.restoreAll();
+        }
+    }
+});
+
+test('preserves changed observations during application and rolls back only new outputs', (t) => {
+    for (const trigger of ['check-php.sh', 'ci.yml']) {
+        const fixture = makeGitFixture(t);
+        renderCoreAutomationProvider({coreRoot: CORE_ROOT, candidateRoot: fixture.projectRoot});
+        const planned = planAutomation(fixture);
+        const file = path.join(fixture.projectRoot, '.github/workflows/back-merge.yml');
+        const contents = fs.readFileSync(file);
+        let replacementInode;
+
+        assert.throws(() => applyAutomation({
+            ...fixture,
+            planPath: planned.planPath,
+            rename(source, destination) {
+                fs.renameSync(source, destination);
+                if (!destination.endsWith(`/${trigger}`)) return;
+                const replacement = path.join(fixture.projectRoot, 'replacement.yml');
+                fs.writeFileSync(replacement, contents, {mode: 0o644});
+                fs.chmodSync(replacement, 0o644);
+                fs.renameSync(replacement, file);
+                replacementInode = fs.lstatSync(file).ino;
+            },
+        }), /automation output observation changed/, trigger);
+
+        assert.equal(fs.lstatSync(file).ino, replacementInode);
+        assert.deepEqual(fs.readFileSync(file), contents);
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github/scripts')), false);
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github/workflows/ci.yml')), false);
+        assert.equal(fs.existsSync(planned.planPath), true);
+    }
+});
+
+test('keeps manifest permission failures distinct from invalid setup metadata', (t) => {
+    const fixture = makeGitFixture(t);
+    installCanonicalAutomation(fixture);
+    fs.chmodSync(path.join(fixture.projectRoot, '.prism/project.json'), 0o664);
+
+    for (const operation of ['plan', 'verify']) {
+        const result = captureWrites(() => main(['automation', operation, '--json'], fixture));
+        assert.equal(result.status, 5);
+        assert.deepEqual(JSON.parse(result.stdout).checks, [{
+            id: 'automation-managed-file',
+            status: 'FAIL',
+            message: 'managed file permissions are invalid: .prism/project.json (observed 0664; requires 0400 within 0644)',
+        }]);
+    }
+});
+
+test('invalidates approval when an output changes between two safe runtime modes', (t) => {
+    const fixture = makeCoreOnlyGitFixture(t);
+    const initial = planAutomation({...fixture, metadataPath: writeEstablishedMetadata(fixture)});
+    assert.equal(applyAutomation({...fixture, planPath: initial.planPath}).status, 'GO');
+    const file = path.join(fixture.projectRoot, '.github/workflows/back-merge.yml');
+    for (const [before, after] of [[0o600, 0o640], [0o640, 0o644], [0o644, 0o600]]) {
+        fs.chmodSync(file, before);
+        const planned = planAutomation(fixture);
+        const status = execFileSync('git', ['status', '--porcelain=v2'], {cwd: fixture.projectRoot});
+        fs.chmodSync(file, after);
+        assert.equal(verifyAutomation(fixture).status, 'GO');
+        assert.deepEqual(execFileSync('git', ['status', '--porcelain=v2'], {cwd: fixture.projectRoot}), status);
+
+        assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}),
+            /automation output observation changed/);
+
+        assert.equal(fs.lstatSync(file).mode & 0o7777, after);
+        assert.equal(fs.existsSync(planned.planPath), true);
+    }
+});
+
+test('does not apply public runtime mode acceptance to private plans or exact candidates', (t) => {
+    for (const [kind, mode] of [
+        ['plan', 0o640], ['plan', 0o644], ['data', 0o600], ['data', 0o640],
+        ['executable', 0o700], ['executable', 0o750],
+    ]) {
+        const fixture = makeGitFixture(t);
+        const planned = planAutomation(fixture);
+        const file = kind === 'plan' ? planned.planPath
+            : path.join(path.dirname(planned.planPath), 'candidate', kind === 'data'
+                ? '.github/workflows/back-merge.yml' : '.github/scripts/check-php.sh');
+        fs.chmodSync(file, mode);
+
+        assert.throws(() => applyAutomation({...fixture, planPath: planned.planPath}),
+            kind === 'plan' ? /automation plan is invalid/ : /automation candidate changed/);
+
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github')), false);
+        assert.equal(fs.lstatSync(file).mode & 0o7777, mode);
+        assert.equal(fs.existsSync(planned.planPath), true);
+    }
 });
 
 test('reports established Core-only metadata requirements', (t) => {
