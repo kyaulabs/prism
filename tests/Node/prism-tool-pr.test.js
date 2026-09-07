@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const {execFileSync} = require('node:child_process');
+const {applyManagedHooks} = require('../../packages/prism-core/scripts/prism-tool/managed-hooks');
+const {renderCoreAutomationProvider} = require('../../packages/prism-core/scripts/prism-tool/automation-providers');
+const {renderProjectManifest} = require('../../packages/prism-core/scripts/prism-tool/project-manifest');
+const {recordReviewSegment} = require('../../packages/prism-core/scripts/prism-tool/review-chain');
+const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
+const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
 const CORE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
@@ -58,12 +65,99 @@ function makePreflightRun(overrides = new Map()) {
     };
 }
 
-test('pr preflight reports the exact branch attestation', () => {
+function unconfiguredFixture(t) {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    execFileSync('git', ['init', '--quiet', '-b', 'fix/tester-abcd-health'], {cwd: root});
+    return root;
+}
+
+function managedPreflightFixture(t) {
+    const projectRoot = unconfiguredFixture(t);
+    const env = {PATH: process.env.PATH, HOME: projectRoot, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1'};
+    const git = (...args) => execFileSync('git', args, {cwd: projectRoot, env, encoding: 'utf8', timeout: 15000}).trim();
+    fs.mkdirSync(path.join(projectRoot, '.prism'));
+    fs.writeFileSync(path.join(projectRoot, '.prism', 'project.json'), renderProjectManifest({
+        schemaVersion: 2, source: {mode: 'ESTABLISHED', evidence: null}, capabilities: [],
+        metadata: {schemaVersion: 1, displayName: 'Health Fixture', summary: 'A reviewed managed project.'},
+        coreVersion: require('../../packages/prism-core/package.json').version, adapter: null,
+    }), {mode: 0o600});
+    renderCoreAutomationProvider({coreRoot: CORE_ROOT, candidateRoot: projectRoot});
+    assert.equal(applyManagedHooks({projectRoot, coreRoot: CORE_ROOT, approval: 'yes', env}).status, 'GO');
+    fs.appendFileSync(path.join(projectRoot, '.git/info/exclude'), '\n.pi/\n');
+    git('add', '--all');
+    const commit = () => git('-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false',
+        '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '--quiet', '-m', 'fixture');
+    commit();
+    const baseSha = git('rev-parse', 'HEAD');
+    git('update-ref', 'refs/remotes/origin/develop', baseSha);
+    fs.writeFileSync(path.join(projectRoot, 'note.txt'), 'reviewed change\n');
+    git('add', '--', 'note.txt');
+    commit();
+    const headSha = git('rev-parse', 'HEAD');
+    const context = {projectRoot, cwd: projectRoot, coreRoot: CORE_ROOT, env, run(command, args, options) {
+        if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') return completed(0);
+        assert.ok(command === 'git' || command === 'bash', 'preflight must not run another review');
+        return runBounded(command, args, {...options, env});
+    }};
+    return {context, baseSha, headSha};
+}
+
+test('both PR routes block post-review managed drift without changing completed evidence or repeating review', (t) => {
+    const {context, baseSha, headSha} = managedPreflightFixture(t);
+    const record = recordReviewSegment({schemaVersion: 1, kind: 'initial', branch: 'fix/tester-abcd-health',
+        baseRef: 'origin/develop', baseSha, from: baseSha, to: headSha,
+        axes: {tooling: 'COMPLETE', standards: 'COMPLETE', spec: 'COMPLETE', sast: 'COMPLETE'},
+        findings: [], closures: []}, context);
+    const evidence = fs.readFileSync(record.path);
+    const before = fs.lstatSync(record.path);
+    const hook = path.join(context.projectRoot, '.github/hooks/pre-commit');
+    for (const operation of ['preflight', 'review-preflight']) {
+        const healthy = captureWrites(() => main(['pr', operation], context));
+        assert.equal(healthy.status, 0, healthy.stderr);
+        fs.chmodSync(hook, 0o777);
+
+        const blocked = captureWrites(() => main(['pr', operation], context));
+
+        assert.equal(blocked.status, 4, operation);
+        assert.equal(blocked.stdout, '');
+        assert.match(blocked.stderr, /managed project health failed.*permissions are invalid.*pre-commit/);
+        assert.equal(fs.lstatSync(hook).mode & 0o7777, 0o777);
+        assert.deepEqual(fs.readFileSync(record.path), evidence);
+        const after = fs.lstatSync(record.path);
+        for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+            assert.equal(after[field], before[field], field);
+        }
+        fs.chmodSync(hook, 0o755);
+        const restored = captureWrites(() => main(['pr', operation], context));
+        assert.equal(restored.status, 0, restored.stderr);
+    }
+});
+
+test('absent-chain recovery blocks on managed drift without creating review evidence', (t) => {
+    const {context} = managedPreflightFixture(t);
+    const workflow = path.join(context.projectRoot, '.github/workflows/back-merge.yml');
+    fs.chmodSync(workflow, 0o666);
+
+    const blocked = captureWrites(() => main(['pr', 'review-preflight'], context));
+
+    assert.equal(blocked.status, 4);
+    assert.equal(blocked.stdout, '');
+    assert.match(blocked.stderr, /managed project health failed.*permissions are invalid.*back-merge.yml/);
+    assert.equal(fs.existsSync(path.join(context.projectRoot, '.pi/prism-review')), false);
+    assert.equal(fs.lstatSync(workflow).mode & 0o7777, 0o666);
+    fs.chmodSync(workflow, 0o644);
+    const restored = captureWrites(() => main(['pr', 'review-preflight'], context));
+    assert.equal(restored.status, 0, restored.stderr);
+    assert.match(restored.stdout, /REVIEW_CHAIN\tABSENT/);
+});
+
+test('pr preflight reports the exact branch attestation', (t) => {
     const run = makePreflightRun();
 
     const result = captureWrites(() => main(['pr', 'preflight'], {
         coreRoot: CORE_ROOT,
-        cwd: '/repo',
+        cwd: unconfiguredFixture(t),
         env: process.env,
         run,
         inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
@@ -99,11 +193,11 @@ test('pr preflight reports the exact branch attestation', () => {
     ].join('\n'));
 });
 
-test('pr preflight selects a complete version-two chain as one unit', () => {
+test('pr preflight selects a complete version-two chain as one unit', (t) => {
     const v1Calls = [];
     const result = captureWrites(() => main(['pr', 'preflight'], {
         coreRoot: CORE_ROOT,
-        cwd: '/repo',
+        cwd: unconfiguredFixture(t),
         env: process.env,
         run: makePreflightRun(),
         inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
@@ -159,10 +253,10 @@ test('pr preflight rejects version-two receipts that change during verification'
     assert.match(result.stderr, /incomplete, stale, or has unresolved Blocking findings/);
 });
 
-test('pr review-preflight reports an absent review chain', () => {
+test('pr review-preflight reports an absent review chain', (t) => {
     const result = captureWrites(() => main(['pr', 'review-preflight'], {
         coreRoot: CORE_ROOT,
-        cwd: '/repo',
+        cwd: unconfiguredFixture(t),
         env: process.env,
         run: makePreflightRun(),
         inspectReviewChainV2: () => ({state: 'ABSENT'}),
@@ -177,10 +271,10 @@ test('pr review-preflight reports an absent review chain', () => {
     assert.doesNotMatch(result.stdout, /REVIEW_CHAIN_VERSION|ADVISORY_COUNT/);
 });
 
-test('pr review-preflight reports ready only for both exact version-two receipts', () => {
+test('pr review-preflight reports ready only for both exact version-two receipts', (t) => {
     const result = captureWrites(() => main(['pr', 'review-preflight'], {
         coreRoot: CORE_ROOT,
-        cwd: '/repo',
+        cwd: unconfiguredFixture(t),
         env: process.env,
         run: makePreflightRun(),
         inspectReviewChainV2: () => ({state: 'ABSENT'}),
@@ -278,10 +372,10 @@ test('pr preflight rejects stale or Blocking version-two state without falling b
     }
 });
 
-test('pr review-preflight verifies a present chain', () => {
+test('pr review-preflight verifies a present chain', (t) => {
     const result = captureWrites(() => main(['pr', 'review-preflight'], {
         coreRoot: CORE_ROOT,
-        cwd: '/repo',
+        cwd: unconfiguredFixture(t),
         env: process.env,
         run: makePreflightRun(),
         inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
@@ -323,7 +417,7 @@ test('pr review-preflight rejects unusable present review-chain evidence', () =>
     assert.doesNotMatch(result.stderr, /CANARY/);
 });
 
-test('pr preflight accepts SHA-256 object ids', () => {
+test('pr preflight accepts SHA-256 object ids', (t) => {
     const base = '1'.repeat(64);
     const head = '2'.repeat(64);
     const run = makePreflightRun(new Map([
@@ -338,7 +432,7 @@ test('pr preflight accepts SHA-256 object ids', () => {
 
     const result = captureWrites(() => main(['pr', 'preflight'], {
         coreRoot: CORE_ROOT,
-        cwd: '/repo',
+        cwd: unconfiguredFixture(t),
         env: process.env,
         run,
         inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),

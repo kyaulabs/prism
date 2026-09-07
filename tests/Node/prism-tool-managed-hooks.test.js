@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-managed-hooks.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: prism-tool-managed-hooks.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -134,6 +134,213 @@ function captureWrites(action) {
         process.stderr.write = stderrWrite;
     }
 }
+
+test('reports current managed health without rewriting restrictive project files', (t) => {
+    const fixture = makeFixture(t);
+    assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+    const files = ['.prism/project.json', '.github/workflows/back-merge.yml',
+        ...CANONICAL_HOOKS.map((name) => `.github/hooks/${name}`)];
+    for (const relative of files) {
+        fs.chmodSync(path.join(fixture.projectRoot, relative), relative.includes('/hooks/') ? 0o700 : 0o600);
+    }
+    execFileSync('git', ['add', '--', ...files], {cwd: fixture.projectRoot});
+    const observed = [...files, '.git/index', '.git/config'];
+    const snapshot = () => observed.map((relative) => {
+        const file = path.join(fixture.projectRoot, relative);
+        const stat = fs.lstatSync(file);
+        return {relative, bytes: fs.readFileSync(file), dev: stat.dev, ino: stat.ino, uid: stat.uid,
+            gid: stat.gid, size: stat.size, mode: stat.mode, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs};
+    });
+    const before = snapshot();
+
+    const result = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.command, 'automation health');
+    assert.equal(report.disposition, 'CURRENT');
+    assert.deepEqual(report.checks.map(({id, status}) => ({id, status})), [
+        {id: 'project-manifest', status: 'PASS'},
+        {id: 'project-adapter', status: 'PASS'},
+        {id: 'project-automation', status: 'PASS'},
+        {id: 'managed-hooks', status: 'PASS'},
+    ]);
+    assert.deepEqual(snapshot(), before);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi', 'prism-tool')), false);
+});
+
+test('managed health verifies adapter-selected restrictive automation without mutation', (t) => {
+    const fixture = makeFixture(t);
+    writeAdapterSettings(fixture.projectRoot);
+    replaceManifest(fixture.projectRoot, {adapter: {
+        id: '@kyaulabs/prism-php-web',
+        packageName: '@kyaulabs/prism-php-web',
+        packageVersion: require('../../packages/prism-php-web/package.json').version,
+        bootstrapProtocol: 1,
+    }});
+    const {prepareAutomation} = require('../../packages/prism-php-web/scripts/toolchain/automation-provider');
+    const rendered = prepareAutomation({packageRoot: ADAPTER_ROOT, candidateRoot: fixture.projectRoot,
+        contract: require('../../packages/prism-php-web/toolchain.json')});
+    assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+    const files = ['.prism/project.json', '.pi/settings.json', '.github/workflows/back-merge.yml',
+        ...rendered.outputs.map(({path: relative}) => relative),
+        ...CANONICAL_HOOKS.map((name) => `.github/hooks/${name}`)];
+    for (const relative of files) {
+        const file = path.join(fixture.projectRoot, relative);
+        fs.chmodSync(file, fs.lstatSync(file).mode & 0o100 ? 0o700 : 0o600);
+    }
+    execFileSync('git', ['add', '--', ...files], {cwd: fixture.projectRoot});
+    const snapshot = () => [...files, '.git/index', '.git/config'].map((relative) => {
+        const file = path.join(fixture.projectRoot, relative);
+        const stat = fs.lstatSync(file);
+        return {relative, bytes: fs.readFileSync(file), dev: stat.dev, ino: stat.ino, uid: stat.uid,
+            gid: stat.gid, size: stat.size, mode: stat.mode, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs};
+    });
+    const before = snapshot();
+
+    const result = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).disposition, 'CURRENT');
+    assert.deepEqual(snapshot(), before);
+    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi/prism-tool')), false);
+
+    fs.chmodSync(path.join(fixture.projectRoot, '.github/workflows/ci.yml'), 0o664);
+    const invalid = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+    assert.equal(invalid.status, 5);
+    assert.equal(JSON.parse(invalid.stdout).checks.some(({message}) => message ===
+        'managed file permissions are invalid: .github/workflows/ci.yml (observed 0664; requires 0400 within 0644)'), true,
+    invalid.stdout);
+    assert.equal(fs.lstatSync(path.join(fixture.projectRoot, '.github/workflows/ci.yml')).mode & 0o7777, 0o664);
+});
+
+test('managed health distinguishes missing files, content drift, and unsafe permissions', (t) => {
+    const cases = [
+        ['.github/workflows/back-merge.yml', 'missing', 'managed automation file is missing: .github/workflows/back-merge.yml'],
+        ['.github/workflows/back-merge.yml', 'content', 'managed automation file is not current: .github/workflows/back-merge.yml'],
+        ['.github/hooks/pre-commit', 'missing', 'managed hook file is missing: .github/hooks/pre-commit'],
+        ['.github/hooks/pre-commit', 'content', 'managed hook file is not current: .github/hooks/pre-commit'],
+        ['.prism/project.json', 'mode', 'managed file permissions are invalid: .prism/project.json (observed 0666; requires 0400 within 0644)'],
+        ['.github/hooks/pre-commit', 'mode', 'managed file permissions are invalid: .github/hooks/pre-commit (observed 0666; requires 0500 within 0755)'],
+    ];
+    for (const [relative, change, message] of cases) {
+        const fixture = makeFixture(t);
+        assert.equal(applyManagedHooks({...fixture, approval: 'yes'}).status, 'GO');
+        const file = path.join(fixture.projectRoot, relative);
+        if (change === 'missing') fs.unlinkSync(file);
+        else if (change === 'content') fs.appendFileSync(file, '\n# unexpected local change\n');
+        else fs.chmodSync(file, 0o666);
+        const before = fs.lstatSync(file, {throwIfNoEntry: false});
+
+        const result = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+
+        assert.equal(result.status, 5, `${relative}: ${change}`);
+        const report = JSON.parse(result.stdout);
+        assert.equal(report.disposition, 'CONFLICT');
+        assert.equal(report.checks.some((check) => check.status === 'FAIL' && check.message === message), true,
+            JSON.stringify(report));
+        const after = fs.lstatSync(file, {throwIfNoEntry: false});
+        for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+            assert.equal(after?.[field], before?.[field], `${relative}: ${field}`);
+        }
+    }
+});
+
+test('reports unconfigured repositories and the Prism source checkout without fabricating managed state', (t) => {
+    const fixture = makeFixture(t);
+    fs.unlinkSync(path.join(fixture.projectRoot, '.prism', 'project.json'));
+    for (const projectRoot of [fixture.projectRoot, REPOSITORY_ROOT]) {
+        const result = captureWrites(() => main(['automation', 'health', '--json'], {projectRoot, coreRoot: CORE_ROOT}));
+
+        assert.equal(result.status, 0, result.stderr);
+        const report = JSON.parse(result.stdout);
+        assert.equal(report.disposition, 'NOT_CONFIGURED');
+        assert.equal(report.checks.every(({status}) => status === 'SKIPPED'), true);
+        assert.equal(fs.existsSync(path.join(projectRoot, '.prism', 'project.json')), false);
+    }
+});
+
+test('missing manifests conflict with managed claims at the effective Git hooks path only', (t) => {
+    for (const [directory, active, managed, expected] of [
+        ['.github/hooks', true, true, 'CONFLICT'],
+        ['.git/hooks', false, true, 'CONFLICT'],
+        ['custom-hooks', true, true, 'CONFLICT'],
+        ['.github/hooks', false, true, 'NOT_CONFIGURED'],
+        ['custom-hooks', true, false, 'NOT_CONFIGURED'],
+    ]) {
+        const fixture = makeFixture(t);
+        fs.unlinkSync(path.join(fixture.projectRoot, '.prism', 'project.json'));
+        const hooks = path.join(fixture.projectRoot, directory);
+        fs.mkdirSync(hooks, {recursive: true});
+        fs.writeFileSync(path.join(hooks, 'pre-commit'), managed ? canonical('pre-commit') : '#!/bin/sh\nexit 0\n', {mode: 0o700});
+        if (active) execFileSync('git', ['config', '--local', 'core.hooksPath', directory], {cwd: fixture.projectRoot});
+
+        const result = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+        const report = JSON.parse(result.stdout);
+
+        assert.equal(report.disposition, expected, `${directory}: ${active}: ${managed}`);
+        assert.equal(result.status, expected === 'CONFLICT' ? 5 : 0);
+        if (expected === 'CONFLICT') assert.equal(report.checks[0].message, 'project manifest is missing: .prism/project.json');
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.prism', 'project.json')), false);
+    }
+});
+
+test('managed health never treats malformed, unreadable, or symlinked manifest state as absence', (t) => {
+    for (const change of ['malformed', 'unreadable', 'dangling-file', 'dangling-parent', 'linked-parent']) {
+        const fixture = makeFixture(t);
+        const directory = path.join(fixture.projectRoot, '.prism');
+        const file = path.join(directory, 'project.json');
+        if (change === 'malformed') fs.writeFileSync(file, '{invalid');
+        else if (change === 'unreadable') fs.chmodSync(file, 0o000);
+        else {
+            fs.unlinkSync(file);
+            if (change === 'dangling-file') fs.symlinkSync(path.join(fixture.projectRoot, 'absent'), file);
+            else {
+                fs.rmdirSync(directory);
+                const target = path.join(fixture.projectRoot, 'alternate-state');
+                if (change === 'linked-parent') fs.mkdirSync(target);
+                fs.symlinkSync(target, directory);
+            }
+        }
+
+        const result = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+
+        assert.equal(result.status, 5, change);
+        const report = JSON.parse(result.stdout);
+        assert.equal(report.disposition, 'CONFLICT', change);
+        assert.equal(report.checks[0].id, 'project-manifest', change);
+    }
+});
+
+test('unconfigured health fails closed on unsafe or excluded effective hooks without reading them', (t) => {
+    for (const change of ['link', 'ancestor-link', 'private', 'outside', 'permissions']) {
+        const fixture = makeFixture(t);
+        fs.unlinkSync(path.join(fixture.projectRoot, '.prism', 'project.json'));
+        const target = path.join(fixture.projectRoot, 'canary');
+        fs.writeFileSync(target, 'public unreadable canary\n', {mode: 0o000});
+        let directory = 'custom-hooks';
+        if (change === 'private') directory = '.pi/prism-review';
+        if (change === 'outside') directory = path.dirname(fixture.projectRoot);
+        const hooks = path.resolve(fixture.projectRoot, directory);
+        if (change !== 'outside') {
+            if (change === 'ancestor-link') fs.symlinkSync(path.join(fixture.projectRoot, '.git/hooks'), hooks);
+            else {
+                fs.mkdirSync(hooks, {recursive: true});
+                if (change === 'link') fs.symlinkSync(target, path.join(hooks, 'pre-commit'));
+                else fs.writeFileSync(path.join(hooks, 'pre-commit'), canonical('pre-commit'), {mode: 0o000});
+            }
+        }
+        execFileSync('git', ['config', '--local', 'core.hooksPath', directory], {cwd: fixture.projectRoot});
+        const open = t.mock.method(fs, 'openSync');
+
+        const result = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+
+        assert.equal(result.status, 5, change);
+        assert.equal(JSON.parse(result.stdout).disposition, 'CONFLICT', change);
+        assert.equal(open.mock.calls.some((call) => call.arguments[0] === target || call.arguments[0] === path.join(hooks, 'pre-commit')), false, change);
+        t.mock.restoreAll();
+    }
+});
 
 test('does not activate canonical hooks before the project manifest exists', (t) => {
     const fixture = makeFixture(t);
@@ -314,6 +521,9 @@ test('rejects incoherent manifest and adapter evidence before hook mutation', (t
         assert.equal(JSON.parse(result.stdout).checks[0].id, item.check, item.name);
         assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.github', 'hooks')), false);
         assert.equal(readHooksPath(fixture.projectRoot), null);
+        const health = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+        assert.equal(health.status, 5, item.name);
+        assert.equal(JSON.parse(health.stdout).checks.find(({status}) => status === 'FAIL').id, item.check, item.name);
     }
 });
 

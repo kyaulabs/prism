@@ -63,6 +63,7 @@ const {prCommand} = require('./pr');
 const {serverCommand} = require('./server');
 const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
+const {verifyManagedProject} = require('./managed-project');
 const {markdownCommand} = require('./markdown');
 const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
 const {webAccessCommand} = require('./web-access-config');
@@ -1871,7 +1872,13 @@ function automationCommand(args, context) {
         return EXIT.USAGE;
     }
     let result;
-    if (['inspect', 'plan', 'verify'].includes(operation)) {
+    if (operation === 'health') {
+        if (controls.some((argument) => argument !== '--json')) {
+            process.stderr.write('usage: prism-tool automation health [--json]\n');
+            return EXIT.USAGE;
+        }
+        result = verifyManagedProject(roots);
+    } else if (['inspect', 'plan', 'verify'].includes(operation)) {
         const releaseControls = controls.filter((argument) =>
             argument.startsWith('--release-repository=')
         );

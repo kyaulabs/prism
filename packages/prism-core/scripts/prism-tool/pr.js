@@ -1,4 +1,4 @@
-// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
+// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -13,6 +13,7 @@ const {
 const {REVIEW_STATE} = require('../prism-review/review-state');
 const {runBounded} = require('./process');
 const {verifyReviewChain} = require('./review-chain');
+const {verifyManagedProject} = require('./managed-project');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -301,6 +302,15 @@ function preflight(context, options = {}) {
         }
     } catch {
         return failure('review chain is incomplete, stale, or has unresolved Blocking findings');
+    }
+
+    try {
+        const health = verifyManagedProject({projectRoot: cwd, coreRoot});
+        if (health.status !== 'GO') {
+            return failure(`managed project health failed: ${health.checks.find(({status}) => status === 'FAIL').message}`);
+        }
+    } catch {
+        return failure('managed project health could not be verified');
     }
 
     const fields = [

@@ -411,18 +411,18 @@ composes existing manifest, automation, and managed-hook checks. Report CURRENT,
 NOT_CONFIGURED, or CONFLICT with bounded checks; no writes, repair commands,
 new state files, provider protocol, or project-wide inventory.
 
-- [ ] With a configured managed consumer, all healthy canonical/restrictive files
+- [x] With a configured managed consumer, all healthy canonical/restrictive files
   pass. Unsafe permissions, malformed metadata, missing managed files, and content
   drift fail with distinct stable diagnostics including safe public paths/modes.
-- [ ] Manifest absence is NOT_CONFIGURED only when no effective canonical managed
+- [x] Manifest absence is NOT_CONFIGURED only when no effective canonical managed
   hook claims that manifest. A missing manifest with managed hooks is CONFLICT;
   malformed, unreadable, or symlinked state is never absence. The Prism source
   checkout retains its existing repository-specific hooks and requires no setup.
   Report genuinely inapplicable checks as SKIPPED, not verified managed health.
-- [ ] Run health during `/check`, after all four review axes/evidence recording,
+- [x] Run health during `/check`, after all four review axes/evidence recording,
   and inside both PR preflight routes before success or absent-chain recovery.
   Use one implementation; do not append an OCR retry or alter receipt schemas.
-- [ ] Simulate post-review drift after successful external output: readiness fails,
+- [x] Simulate post-review drift after successful external output: readiness fails,
   completed evidence survives unchanged, no new review runs, and both PR paths
   block. Restore only the fixture's permissions and prove revalidation does not
   require another source review when recorded identities remain valid.
@@ -440,6 +440,20 @@ bash tests/Shell/toolchain_entrypoints_test.sh
 ```bash
 prism-tool commit create --type fix --scope review --subject "check managed file health before review readiness" --refs 520
 ```
+
+**Task 5 verification:** Read-only Core-only and PHP/web health, composition
+mismatch, missing/unsafe effective hooks, and both PR routes pass native
+filesystem/Git regressions. Post-review permission drift blocks readiness while
+retaining evidence; explicit fixture restoration succeeds without another review.
+Shell workflow contract tests reproduced missing post-review/check health steps
+before the instructions were added. The packaged review fixture now extracts
+archived permissions explicitly so canonical package resources remain exact under
+restrictive umasks; no runtime package-resource policy changed. After hook-owned
+normalization: 1,496 Node tests and all Shell regressions passed, along with
+ESLint, Node syntax, harness, staged Markdown, whitespace, Shellcheck, executable
+bits, Gitleaks, and pre-commit. No PHP source changed in this task; its changed-file
+coverage gate is inapplicable. Evidence: `/tmp/prism-520-task5-verify.CsCa73/`.
+Internal spec-compliance and code-quality review found no Blocking issue.
 
 ## Task 6: Close the original regression and document the behavior
 

@@ -148,7 +148,21 @@ Initial segments cover the target base through HEAD. Repair segments start at
 validated `record.headSha`, include closure evidence for prior Blocking findings,
 and cover only the repair delta and directly affected tests.
 
-### 5. Assemble output
+### 5. Check post-review readiness
+
+After recording evidence, run the read-only check:
+
+```bash
+prism-tool automation health --json
+```
+
+Require `GO` with `CURRENT` or `NOT_CONFIGURED` for readiness. Report failures
+separately from axis results and stop PR preparation without repairing state.
+Preserve completed review evidence. Do not rerun OCR or other review axes merely
+because health failed. The `finishing-a-development-branch` skill owns subsequent
+attestation and repair rules; this check grants no additional review authority.
+
+### 6. Assemble output
 
 Report every axis's completion status at the top:
 
@@ -176,7 +190,7 @@ and local inspection; requirement coverage may report `COMPLETE_NO_SPEC`
 under its existing policy. Always return the report when one or more axes
 fail; partial review evidence is useful, but it is explicitly incomplete.
 
-### 5. De-duplication contract
+### 7. De-duplication contract
 
 Each axis has defined territory:
 

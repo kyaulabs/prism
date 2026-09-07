@@ -17,6 +17,16 @@ prism-tool doctor --local-only
 A missing launcher or failed Semgrep/OCR readiness is blocking — report the
 remediation and stop.
 
+Then verify read-only managed project health:
+
+```bash
+prism-tool automation health --json
+```
+
+A `CONFLICT` is blocking: report its diagnostic without repairing state.
+`CURRENT` verifies managed state; `NOT_CONFIGURED` leaves managed checks
+`SKIPPED` and does not require setup for an unconfigured source checkout.
+
 ## 2. Verification evidence
 
 Load the `verification-before-completion` skill and apply its checklist to the

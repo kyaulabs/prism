@@ -1,10 +1,12 @@
-// $KYAULabs: managed-hooks.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: managed-hooks.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const {loadAdditionalSensitivePaths, sensitivePathMatch} = require('../sensitive-path-policy');
 const {runBounded} = require('./process');
 const {ManagedFileError, isSafeManagedMode, requireManagedMode} = require('./managed-file');
 
@@ -248,6 +250,53 @@ function inspectManagedHooks({
     }
 }
 
+function hasEffectiveManagedHooks({projectRoot: requestedRoot, coreRoot, run = runBounded, env = process.env}) {
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const top = requireSuccess(invoke(run, projectRoot, ['rev-parse', '--show-toplevel'], env),
+        'repository is unavailable');
+    if (fs.realpathSync(top) !== projectRoot) throw new Error('repository root changed');
+    const resolvedResult = invoke(run, projectRoot, [
+        'rev-parse', '--path-format=absolute', '--git-path', 'hooks',
+    ], env);
+    requireSuccess(resolvedResult, 'effective hooks path is unavailable');
+    const configured = invoke(run, projectRoot, ['config', '--path', '--get', 'core.hooksPath'], env);
+    if (configured.error || ![0, 1].includes(configured.status)) throw new Error('effective hooks configuration is unavailable');
+    const resolved = output(resolvedResult).replace(/\n$/, '');
+    const selected = configured.status === 0 ? output(configured).replace(/\n$/, '') : resolved;
+    if (selected === '' || /[\x00-\x1f\x7f]/.test(selected) || /[\x00-\x1f\x7f]/.test(resolved)) {
+        throw new Error('effective hooks path is unsafe');
+    }
+    const hooksRoot = path.resolve(projectRoot, selected);
+    const relative = path.relative(projectRoot, hooksRoot);
+    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relative) || /[\\\x00-\x1f\x7f]/.test(relative) || Buffer.byteLength(relative) > 4096) {
+        throw new Error('effective hooks path is unsafe');
+    }
+    const policy = {home: os.homedir(), extraPaths: loadAdditionalSensitivePaths(env.PRISM_SENSITIVE_PATHS)};
+    const publicRelative = relative.split(path.sep).join('/').toLowerCase();
+    if (sensitivePathMatch(hooksRoot, policy) !== null ||
+        ['.pi/prism-tool', '.pi/prism-review', '.pi/npm', '.pi/git'].some((privatePath) =>
+            publicRelative === privatePath || publicRelative.startsWith(`${privatePath}/`))) {
+        throw new Error('effective hooks path is unsafe');
+    }
+    if (path.resolve(resolved) !== hooksRoot) throw new Error('effective hooks path changed');
+    let parent = projectRoot;
+    for (const part of relative.split(path.sep)) {
+        parent = path.join(parent, part);
+        const stat = fs.lstatSync(parent, {throwIfNoEntry: false});
+        if (stat === undefined) return false;
+        if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('effective hooks path is unsafe');
+    }
+    for (const canonical of canonicalManagedHooks(coreRoot)) {
+        const file = path.join(hooksRoot, canonical.name);
+        if (sensitivePathMatch(file, policy) !== null) throw new Error('effective hook path is unsafe');
+        if (fs.lstatSync(file, {throwIfNoEntry: false}) === undefined) continue;
+        const current = readRegular(file, null, `${relative}/${canonical.name}`);
+        if (current.contents.equals(canonical.contents) || prismOwned(current.contents)) return true;
+    }
+    return false;
+}
+
 function planManagedHooks(options) {
     return inspectManagedHooks(options);
 }
@@ -432,6 +481,7 @@ module.exports = {
     applyManagedHooks,
     canonicalManagedHooks,
     inspectManagedHooks,
+    hasEffectiveManagedHooks,
     planManagedHooks,
     verifyManagedHooks,
 };

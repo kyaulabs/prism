@@ -1,4 +1,4 @@
-// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: hook.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -12,7 +12,8 @@ const {
     readBootstrapJournal,
 } = require('./bootstrap-journal');
 const {loadActiveBootstrapAdapter} = require('./bootstrap-adapter');
-const {discoverOptionalAdapter, loadAdapterHandler} = require('./discovery');
+const {loadAdapterHandler} = require('./discovery');
+const {validateProjectComposition} = require('./managed-project');
 const {readProjectManifest} = require('./project-manifest');
 const {runBounded} = require('./process');
 const {applyManagedHooks} = require('./managed-hooks');
@@ -45,23 +46,6 @@ function readBounded(descriptor, maximum, message) {
     }
     if (offset > maximum) throw new Error(message);
     return buffer.subarray(0, offset);
-}
-
-function validateProjectComposition({projectRoot, project}) {
-    const registration = discoverOptionalAdapter({projectRoot});
-    if (project.value.adapter === null) {
-        if (registration !== null) throw new Error('project adapter identity is invalid');
-        return null;
-    }
-    if (
-        registration === null ||
-        (project.value.source.mode === 'ESTABLISHED' &&
-            project.value.adapter.id !== registration.packageName) ||
-        registration.packageName !== project.value.adapter.packageName ||
-        registration.packageVersion !== project.value.adapter.packageVersion ||
-        registration.bootstrapProtocol !== project.value.adapter.bootstrapProtocol
-    ) throw new Error('project adapter identity is invalid');
-    return registration;
 }
 
 function validateProjectAutomation({projectRoot, coreRoot, project}) {

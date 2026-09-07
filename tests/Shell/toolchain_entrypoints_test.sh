@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/05 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -310,6 +310,7 @@ done
 
 echo "── local-only readiness on /check, /pr, and release ──"
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool doctor --local-only' 'check performs local-only readiness'
+assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool automation health --json' 'check verifies read-only managed project health'
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool markdown lint --changed-from' 'check runs changed Markdown through the shared gate'
 assert_file_contains "$CORE_PROMPTS/check.md" 'one tool call.*retain.*literal SHA|retain.*literal SHA.*later call' 'check resolves and retains the Markdown base separately'
 assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr review-preflight' 'pr delegates review readiness to the launcher'
@@ -343,6 +344,10 @@ assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'all four axes remain r
 assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Mixed ranges retain normal OCR requirements' 'mixed ranges cannot take the Markdown exemption'
 assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'A skipped response is not proof' 'empty selection cannot authorize an exemption'
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'human may explicitly waive an' 'prose waivers cannot complete chain evidence'
+
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool automation health --json' 'review checks managed readiness after recording evidence'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Preserve completed review evidence' 'health failure preserves completed review evidence'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Do not rerun OCR' 'health failure does not authorize another OCR review'
 
 echo "── adapter checks/build use declared tool IDs ──"
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixer -- fix --dry-run --diff' 'check-php runs php-cs-fixer through the launcher'
