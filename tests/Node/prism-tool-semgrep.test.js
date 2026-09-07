@@ -1225,4 +1225,193 @@ test('measures execution budgets independently of wall-clock corrections', async
     assert.equal(result.stdout, 'probe complete');
 });
 
+function phpRulesFixture(t) {
+    const input = fixture(t);
+    const repository = path.resolve(__dirname, '../..');
+    const files = ['.semgrep/kyaulabs.yml', 'tests/Unit/Semgrep/RulesPackTest.php', 'tests/Unit/Semgrep/FixtureRepository.php'];
+    for (const name of fs.readdirSync(path.join(repository, 'tests', 'Semgrep'))) {
+        for (const leaf of ['positive.php', 'negative.php']) files.push(`tests/Semgrep/${name}/${leaf}`);
+    }
+    for (const relative of files) {
+        const target = path.join(input.projectRoot, relative);
+        fs.mkdirSync(path.dirname(target), {recursive: true, mode: 0o700});
+        fs.copyFileSync(path.join(repository, relative), target);
+        fs.chmodSync(target, 0o600);
+    }
+    const launcher = path.join(input.projectRoot, 'packages/prism-core/scripts/prism-tool.js');
+    fs.mkdirSync(path.dirname(launcher), {recursive: true, mode: 0o700});
+    fs.writeFileSync(launcher, `require(${JSON.stringify(CLI)});\n`, {mode: 0o600});
+    input.git('add', '--all');
+    input.commit('PHP rule suite fixture');
+    return {...input, launcher, pest: (filter) => spawnSync(process.execPath, [CLI, 'run', 'pest', '--',
+        path.join(input.projectRoot, 'tests/Unit/Semgrep/RulesPackTest.php'), `--filter=${filter}`,
+        '--no-coverage', `--cache-directory=${path.join(input.root, 'pest-cache')}`], {
+        cwd: repository, env: {...input.env, TMPDIR: input.root, SEMGREP_BASELINE_COMMIT: input.git('rev-parse', 'HEAD').trim()},
+        input: '', encoding: 'utf8', timeout: 120000, maxBuffer: 1048576,
+    })};
+}
+
+test('PHP rule tests scan a disposable committed fixture without an inherited baseline', (t) => {
+    const input = phpRulesFixture(t);
+    const marker = path.join(input.root, 'php-scanner.json');
+    const executable = input.executable('semgrep', `
+if (process.argv[2] === '--version') { process.stdout.write('1.173.0\\n'); process.exit(0); }
+const fs = require('node:fs');
+fs.appendFileSync(${JSON.stringify(marker)}, JSON.stringify({cwd: process.cwd(), baseline: process.env.SEMGREP_BASELINE_COMMIT ?? null, args: process.argv.slice(2)}) + '\\n');
+process.stdout.write(JSON.stringify({results: [], errors: []}));
+`);
+    const localBin = path.join(input.root, '.local', 'bin');
+    fs.mkdirSync(localBin, {recursive: true, mode: 0o700});
+    fs.copyFileSync(executable, path.join(localBin, 'semgrep'));
+    const before = snapshot(input.projectRoot, ['.git/index', '.git/HEAD', '.git/logs/HEAD', '.semgrep/kyaulabs.yml']);
+    const result = input.pest('semgrepScanAll invokes exactly one');
+
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const scans = fs.readFileSync(marker, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+    assert.equal(scans.length, 1);
+    assert.notEqual(scans[0].cwd, input.projectRoot);
+    assert.equal(scans[0].baseline, null);
+    assert.equal(scans[0].args.includes('--baseline-commit'), false);
+    assert.equal(scans[0].args.includes('--x-ignore-semgrepignore-files'), true);
+    assert.equal(fs.existsSync(scans[0].cwd), false);
+    assert.deepEqual(snapshot(input.projectRoot, Object.keys(before)), before);
+    assert.deepEqual(fs.readdirSync(input.root).filter((name) => name.startsWith('prism-rule-fixture-')), []);
+});
+
+test('PHP negative rule assertions fail rather than skip when Semgrep is unavailable', (t) => {
+    const input = phpRulesFixture(t);
+    const marker = path.join(input.root, 'version-probed');
+    input.executable('semgrep', `
+const fs = require('node:fs');
+if (process.argv[2] === '--version' && !fs.existsSync(${JSON.stringify(marker)})) {
+    fs.writeFileSync(${JSON.stringify(marker)}, 'ready once'); process.stdout.write('1.173.0\\n');
+} else process.exitCode = 127;
+`);
+    const result = input.pest('each negative fixture');
+
+    assert.notEqual(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /Semgrep fixture scan failed|semgrep.*(?:unavailable|missing|failed)/i);
+    assert.deepEqual(fs.readdirSync(input.root).filter((name) => name.startsWith('prism-rule-fixture-')), []);
+});
+
+for (const output of ['not JSON', '{}', '{"results":[],"errors":[{"message":"scan failed"}]}', '{"results":[{}],"errors":[]}']) {
+    test(`PHP negative rule assertions reject incomplete scanner evidence: ${output}`, (t) => {
+        const input = phpRulesFixture(t);
+        const marker = path.join(input.root, 'scan-attempts');
+        input.executable('semgrep', `
+if (process.argv[2] === '--version') process.stdout.write('1.173.0\\n');
+else {
+    require('node:fs').appendFileSync(${JSON.stringify(marker)}, '.');
+    process.stdout.write(${JSON.stringify(output)});
+}
+`);
+        const result = input.pest('each negative fixture');
+
+        assert.notEqual(result.status, 0, result.stdout + result.stderr);
+        assert.match(result.stdout + result.stderr, /Semgrep fixture output is invalid/);
+        assert.equal(fs.readFileSync(marker, 'utf8'), '.');
+        assert.deepEqual(fs.readdirSync(input.root).filter((name) => name.startsWith('prism-rule-fixture-')), []);
+    });
+}
+
+for (const [relative, mode] of [['', 0o500], ['home', 0o000]]) {
+    test(`PHP rule assertions fail if their fixture cannot be cleaned after a successful isolated scan: ${relative || 'root'}`, (t) => {
+        const input = phpRulesFixture(t);
+        const marker = path.join(input.root, 'cleanup-outcome.json');
+        input.executable('semgrep', `
+process.stdout.write(process.argv[2] === '--version' ? '1.173.0\\n' : '{"results":[],"errors":[]}');
+`);
+        fs.writeFileSync(input.launcher, `
+const fs = require('node:fs');
+const path = require('node:path');
+const result = require('node:child_process').spawnSync(process.execPath, [${JSON.stringify(CLI)}, ...process.argv.slice(2)],
+    {env: process.env, encoding: 'utf8', timeout: 90000, maxBuffer: 1048576});
+const root = path.dirname(process.cwd());
+if (root === ${JSON.stringify(input.root)} || !root.startsWith(${JSON.stringify(input.root + path.sep)})) process.exit(99);
+const blocked = path.join(root, ${JSON.stringify(relative)});
+fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({root, blocked, status: result.status}));
+fs.chmodSync(blocked, ${mode});
+process.stdout.write(result.stdout); process.stderr.write(result.stderr); process.exitCode = result.status;
+`);
+        let remaining;
+        try {
+            const result = input.pest('each negative fixture');
+            remaining = JSON.parse(fs.readFileSync(marker, 'utf8'));
+            assert.equal(remaining.status, 0);
+            assert.notEqual(result.status, 0, result.stdout + result.stderr);
+            assert.match(result.stdout + result.stderr, /Semgrep fixture directory cleanup failed/);
+            assert.equal(fs.lstatSync(remaining.blocked).mode & 0o7777, mode);
+        } finally {
+            if (remaining && fs.existsSync(remaining.blocked)) fs.chmodSync(remaining.blocked, 0o700);
+        }
+    });
+}
+
+test('PHP rule inputs reject unsafe source permissions before scanning', (t) => {
+    const input = phpRulesFixture(t);
+    const marker = path.join(input.root, 'unexpected-scan');
+    input.executable('semgrep', `
+if (process.argv[2] === '--version') process.stdout.write('1.173.0\\n');
+else {
+    require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'scanned');
+    process.stdout.write('{"results":[],"errors":[]}');
+}
+`);
+    fs.chmodSync(path.join(input.projectRoot, '.semgrep', 'kyaulabs.yml'), 0o666);
+    const result = input.pest('each negative fixture');
+
+    assert.notEqual(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, /Semgrep fixture input is unsafe/);
+    assert.equal(fs.existsSync(marker), false);
+    assert.deepEqual(fs.readdirSync(input.root).filter((name) => name.startsWith('prism-rule-fixture-')), []);
+});
+
+test('native PHP rule outcomes preserve unrelated source changes and all observed metadata', (t) => {
+    const input = phpRulesFixture(t);
+    const native = resolveExecutable('semgrep', process.env);
+    assert.ok(native, 'native Semgrep is required');
+    const marker = path.join(input.root, 'native-php-scan.json');
+    input.executable('semgrep', `
+const cp = require('node:child_process');
+if (process.argv[2] === 'scan' && !process.argv.includes('--help')) {
+    require('node:fs').writeFileSync(${JSON.stringify(marker)}, JSON.stringify({cwd: process.cwd(),
+        files: cp.execFileSync('git', ['ls-files', '-z'], {encoding: 'utf8'}).split('\\0').filter(Boolean)}));
+}
+const result = cp.spawnSync(${JSON.stringify(native)}, process.argv.slice(2), {stdio: 'inherit', timeout: 60000});
+process.exitCode = result.status ?? 99;
+`);
+    fs.appendFileSync(path.join(input.projectRoot, 'source file.js'), '// unrelated local work\n');
+    fs.writeFileSync(path.join(input.projectRoot, 'local-notes.txt'), 'untracked local work\n', {mode: 0o600});
+    const paths = [...input.git('ls-files', '-z').split('\0').filter(Boolean), 'local-notes.txt',
+        '.git/HEAD', '.git/index', '.git/refs/heads/fixture', '.git/logs/HEAD', '.git/logs/refs/heads/fixture'];
+    const before = snapshot(input.projectRoot, paths);
+    const result = input.pest('.*');
+
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout.replace(/\u001b\[[0-9;]*m/g, ''), /16 passed/);
+    const scanned = JSON.parse(fs.readFileSync(marker, 'utf8'));
+    const expected = ['.semgrep/kyaulabs.yml'];
+    for (const name of ['AuroraStatusTrue', 'SqliInterpolatedQuery', 'XssEchoRequestSink',
+        'UnserializeRequestData', 'MissingCsrfToken', 'HardcodedDisplayErrors']) {
+        expected.push(`tests/Semgrep/${name}/positive.php`, `tests/Semgrep/${name}/negative.php`);
+    }
+    assert.deepEqual(scanned.files.sort(), expected.sort());
+    assert.equal(fs.existsSync(scanned.cwd), false);
+    assert.deepEqual(snapshot(input.projectRoot, paths), before);
+    assert.deepEqual(fs.readdirSync(input.root).filter((name) => name.startsWith('prism-rule-fixture-')), []);
+});
+
+test('PHP rule tests use the source launcher without an installed prism-tool', (t) => {
+    const input = phpRulesFixture(t);
+    input.env.PATH = input.env.PATH.split(path.delimiter)
+        .filter((directory) => !fs.existsSync(path.join(directory, 'prism-tool'))).join(path.delimiter);
+    input.executable('semgrep', `
+process.stdout.write(process.argv[2] === '--version' ? '1.173.0\\n' : '{"results":[],"errors":[]}');
+`);
+    const result = input.pest('semgrepScanAll invokes exactly one');
+
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.deepEqual(fs.readdirSync(input.root).filter((name) => name.startsWith('prism-rule-fixture-')), []);
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

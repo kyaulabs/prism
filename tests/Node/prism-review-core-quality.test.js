@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-core-quality.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-review-core-quality.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -149,27 +149,56 @@ test('passes only validated tracked paths to the default Semgrep gate', async (t
     const bin = makeTempDir();
     t.after(() => fs.rmSync(root, {recursive: true, force: true}));
     t.after(() => fs.rmSync(bin, {recursive: true, force: true}));
+    const env = {PATH: `${bin}${path.delimiter}${process.env.PATH}`, HOME: bin,
+        GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1'};
+    const git = (...args) => childProcess.execFileSync('git', args, {cwd: root, env, encoding: 'utf8', timeout: 15000}).trim();
+    git('init', '--quiet', '-b', 'fixture');
+    fs.mkdirSync(path.join(root, '.semgrep'), {mode: 0o700});
+    fs.writeFileSync(path.join(root, '.semgrep', 'kyaulabs.yml'), 'rules: []\n');
+    fs.writeFileSync(path.join(root, '.gitignore'), 'ignored-secret.txt\n');
+    fs.writeFileSync(path.join(root, 'safe.js'), 'module.exports = false;\n');
+    git('add', '--all');
+    const commit = () => git('-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture',
+        '-c', 'user.email=fixture@example.test', 'commit', '--quiet', '-m', 'fixture');
+    commit();
+    const baseline = git('rev-parse', 'HEAD');
     fs.writeFileSync(path.join(root, 'safe.js'), 'module.exports = true;\n');
-    fs.writeFileSync(path.join(root, 'ignored-secret.txt'), 'not-for-semgrep\n');
-    fs.writeFileSync(path.join(bin, 'semgrep'), '#!/bin/sh\nexit 0\n', {mode: 0o755});
-    let scanArgs;
+    git('add', '--', 'safe.js');
+    commit();
+    const head = git('rev-parse', 'HEAD');
+    const trackedPaths = ['.gitignore', '.semgrep/kyaulabs.yml', 'safe.js'];
+    fs.writeFileSync(path.join(root, 'ignored-secret.txt'), 'not-for-semgrep\n', {mode: 0o000});
+    const invocation = path.join(bin, 'scan.json');
+    fs.writeFileSync(path.join(bin, 'semgrep'), `#!${process.execPath}
+if (process.argv[2] === '--version') { process.stdout.write('1.173.0\\n'); process.exit(0); }
+process.umask(0o077);
+const fs = require('node:fs');
+const git = (...args) => require('node:child_process').execFileSync('git', args, {stdio: 'pipe'});
+git('reset', '--hard', ${JSON.stringify(baseline)});
+git('reset', '--hard', ${JSON.stringify(head)});
+fs.writeFileSync(${JSON.stringify(invocation)}, JSON.stringify({cwd: process.cwd(), args: process.argv.slice(2), ignored: fs.existsSync('ignored-secret.txt')}));
+`, {mode: 0o700});
+    const observedPaths = ['safe.js', '.git/index', '.git/refs/heads/fixture', '.git/logs/HEAD', '.git/logs/refs/heads/fixture'];
+    const snapshot = () => observedPaths.map((relative) => {
+        const file = path.join(root, relative);
+        const stat = fs.lstatSync(file);
+        return {relative, bytes: fs.readFileSync(file), mode: stat.mode, ino: stat.ino, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs};
+    });
+    const before = snapshot();
 
     const report = await runCoreQuality({
-        branch: 'feat/check', baseRef: 'develop', baseSha, headSha,
+        branch: 'fixture', baseRef: baseline, baseSha: baseline, headSha: head,
     }, {
         projectRoot: root,
         coreRoot,
-        env: {PATH: `${bin}${path.delimiter}${process.env.PATH}`},
+        env: {...env, SEMGREP_BASELINE_COMMIT: baseline},
         runGit: (_command, args) => ({
             status: 0,
-            stdout: args[0] === 'ls-tree' ? Buffer.from('safe.js\0') : Buffer.alloc(0),
+            stdout: args[0] === 'ls-tree' ? Buffer.from(`${trackedPaths.join('\0')}\0`) : Buffer.alloc(0),
             stderr: Buffer.alloc(0),
         }),
-        run: (command, args) => {
-            if (path.basename(command) === 'semgrep' && args.includes('--version')) {
-                return {status: 0, stdout: '1.173.0\n', stderr: '', error: undefined};
-            }
-            if (path.basename(command) === 'semgrep') scanArgs = args;
+        run: (command, args, options) => {
+            if (path.basename(command) === 'semgrep') return childProcess.spawnSync(command, args, options);
             return {status: args[0] === 'grep' ? 1 : 0, stdout: Buffer.alloc(0),
                 stderr: Buffer.alloc(0), error: undefined};
         },
@@ -178,8 +207,52 @@ test('passes only validated tracked paths to the default Semgrep gate', async (t
     });
 
     assert.equal(report.status, 'PASS');
-    assert.deepEqual(scanArgs.slice(-2), ['--', 'safe.js']);
-    assert.equal(scanArgs.includes('ignored-secret.txt'), false);
+    assert.deepEqual(snapshot(), before);
+    const scanned = JSON.parse(fs.readFileSync(invocation, 'utf8'));
+    assert.deepEqual(scanned.args.slice(-4), ['--', ...trackedPaths]);
+    assert.equal(scanned.ignored, false);
+    assert.notEqual(scanned.cwd, root);
+    assert.equal(fs.existsSync(scanned.cwd), false);
+    assert.deepEqual(report.gates.at(-1).tools, [{id: 'semgrep', version: '1.173.0'}]);
+});
+
+test('fails the real Semgrep gate on scanner or preservation failure while retaining its outcome digest', async (t) => {
+    for (const kind of ['scanner', 'preservation']) {
+        const root = makeTempDir();
+        const bin = makeTempDir();
+        t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+        t.after(() => fs.rmSync(bin, {recursive: true, force: true}));
+        const env = {PATH: `${bin}${path.delimiter}${process.env.PATH}`, HOME: bin,
+            GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1'};
+        const git = (...args) => childProcess.execFileSync('git', args, {cwd: root, env, encoding: 'utf8', timeout: 15000}).trim();
+        git('init', '--quiet', '-b', 'fixture');
+        fs.mkdirSync(path.join(root, '.semgrep'), {mode: 0o700});
+        const rules = path.join(root, '.semgrep', 'kyaulabs.yml');
+        fs.writeFileSync(rules, 'rules: []\n', {mode: 0o600});
+        git('add', '--all');
+        git('-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture',
+            '-c', 'user.email=fixture@example.test', 'commit', '--quiet', '-m', 'fixture');
+        const head = git('rev-parse', 'HEAD');
+        fs.writeFileSync(path.join(bin, 'semgrep'), `#!${process.execPath}
+if (process.argv[2] === '--version') { process.stdout.write('1.173.0\\n'); process.exit(0); }
+${kind === 'preservation' ? `require('node:fs').chmodSync(${JSON.stringify(rules)}, 0o400);` : ''}
+process.stdout.write('scanner-complete');
+process.exitCode = ${kind === 'scanner' ? 7 : 0};
+`, {mode: 0o700});
+        const report = await runCoreQuality({branch: 'fixture', baseRef: head, baseSha: head, headSha: head}, {
+            projectRoot: root, coreRoot, env, hasHarness: false,
+            verifySnapshot: async () => true,
+            run: (command, args, options) => path.basename(command) === 'semgrep'
+                ? childProcess.spawnSync(command, args, options)
+                : {status: args[0] === 'grep' ? 1 : 0, stdout: '', stderr: '', error: undefined},
+        });
+        assert.equal(report.status, 'FAIL', kind);
+        const gate = report.gates.find(({id}) => id === 'core.semgrep');
+        assert.equal(gate.status, 'FAIL', kind);
+        assert.equal(gate.stdout.bytes, 16, kind);
+        assert.deepEqual(gate.tools, [{id: 'semgrep', version: '1.173.0'}], kind);
+        assert.equal(fs.lstatSync(rules).mode & 0o7777, kind === 'preservation' ? 0o400 : 0o600);
+    }
 });
 
 test('fails bounded Core receipts on timeout, nonzero status, and output overflow', async () => {

@@ -339,17 +339,17 @@ extend `tests/Node/prism-tool-semgrep.test.js` for caller parity.
 receipt semantics, calling Task 3's runner rather than duplicating isolation.
 The PHP rule suite retains its six-rule result contract and single-scan cache.
 
-- [ ] Prove the real Core quality path uses isolation and fails its existing
+- [x] Prove the real Core quality path uses isolation and fails its existing
   Semgrep gate on either scanner or preservation failure; command-array
   assertions alone do not establish this behavior.
-- [ ] Make the PHP rule suite copy only its known non-sensitive rule and fixture
+- [x] Make the PHP rule suite copy only its known non-sensitive rule and fixture
   inputs to a private committed test repository, then invoke the launcher there.
   Keep unrelated local changes untouched and retain positive/negative rule cases,
   JSON parsing, the required ignore flag, and one-scan-per-suite behavior.
-- [ ] Test that the PHP path uses neither an inherited baseline nor the consumer
+- [x] Test that the PHP path uses neither an inherited baseline nor the consumer
   checkout accidentally; missing tools, malformed output, and cleanup failure
   must not become successful rule assertions. No provider requests or credentials.
-- [ ] Check all production scanner callers and shipped commands. Existing CI and
+- [x] Check all production scanner callers and shipped commands. Existing CI and
   security prompts already use the launcher; their current read-only scan
   arguments must remain supported. No CI workflow rewrite is planned.
 
@@ -364,6 +364,37 @@ prism-tool run pest -- tests/Unit/Semgrep/RulesPackTest.php
 ```bash
 prism-tool commit create --type fix --scope security --subject "use isolated scanning for quality and rule tests" --refs 520
 ```
+
+### Task 4 verification
+
+**Tests:** PASS — 70 focused tests and 1,487 full Node tests after hook-owned
+header normalization. Native PHP rule tests pass all 16 cases, preserving the
+six-rule counts and negative cases. Full PHP/browser coverage passes 84 tests
+with 127 assertions. Evidence:
+`/tmp/prism-520-task4-verify.SvZeBM/{focused-final,node-final,coverage-final}.log`.
+**Coverage:** PASS — 100% of the configured backend source set. The branch-range
+changed-file gate reports zero failures and two out-of-source executable-code
+warnings for the PHP test/helper files; neither file has measured line coverage.
+**Repro:** PASS — Core quality preserves source bytes and Git/file metadata across
+an actual reset in the isolated scanner process. Native PHP scans retain all
+six-rule outcomes, exclude unrelated local work, ignore an inherited baseline,
+and preserve observed source metadata. Scanner errors, malformed JSON, missing
+tools, unsafe inputs, and cleanup failures cannot produce passing rule assertions.
+**Debug artifacts:** CLEAN.
+**Lint:** PASS — ESLint, PHP style/syntax, Node syntax, stylelint, harness validation,
+all Shell regressions, staged whitespace, and the effective pre-commit hook.
+**File hygiene:** PASS — normalized headers/modelines; no dependencies, generated
+assets, provider protocols, release metadata, or CI workflow changes.
+**Secrets:** CLEAN — staged Gitleaks passed; fixture copying uses a fixed public
+path grammar, held-file identity checks, and a private explicit child environment.
+**Verdict:** VERIFIED for Task 4. Aggregate clean-tree `/check` follows its commit.
+
+Internal spec-compliance and code-quality reviews passed after fixing two review
+findings: PHP tests now use the source launcher, matching CI without requiring an
+installed `prism-tool`; an unreadable empty cleanup directory fails rather than
+producing only a PHP warning. Successful results and failures are memoized, so a
+failed scan is not repeated for later rule assertions. Core gate IDs, receipts,
+version evidence, and the shared isolation implementation remain unchanged.
 
 ## Task 5: Detect managed-file drift before declaring readiness
 
