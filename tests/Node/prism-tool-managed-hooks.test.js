@@ -528,8 +528,15 @@ test('Core-only catalogue consumers retain native scan findings and usable hooks
     const fixture = makeFixture(t);
     const home = makeTempDir();
     t.after(() => fs.rmSync(home, {recursive: true, force: true}));
-    const env = {PATH: process.env.PATH, HOME: home, LC_ALL: 'C',
+    const launcher = path.join(CORE_ROOT, 'scripts/prism-tool.js');
+    const bin = path.join(home, 'bin');
+    fs.mkdirSync(bin, {mode: 0o700});
+    fs.symlinkSync(launcher, path.join(bin, 'prism-tool'));
+    const env = {PATH: `${bin}${path.delimiter}${process.env.PATH}`, HOME: home, LC_ALL: 'C',
         GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0'};
+    assert.equal(execFileSync('bash', ['-c', 'command -v prism-tool'],
+        {cwd: fixture.projectRoot, env, encoding: 'utf8', timeout: 15000}).trim(),
+    path.join(bin, 'prism-tool'));
     const git = (...args) => execFileSync('git', args, {cwd: fixture.projectRoot, env,
         encoding: 'utf8', timeout: 15000, stdio: 'pipe'}).trim();
     const commit = () => git('-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false',
@@ -557,7 +564,6 @@ test('Core-only catalogue consumers retain native scan findings and usable hooks
         return {relative, bytes: fs.readFileSync(file), dev: stat.dev, ino: stat.ino, uid: stat.uid,
             gid: stat.gid, size: stat.size, mode: stat.mode, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs};
     });
-    const launcher = path.join(CORE_ROOT, 'scripts/prism-tool.js');
     const scan = () => JSON.parse(execFileSync('bash', ['-c', 'umask 077; exec "$@"', 'scan-fixture',
         process.execPath, launcher, 'run', 'semgrep', '--', 'scan', '--config', 'rules.yml',
         '--baseline-commit', baseline, '--metrics', 'off', '--disable-version-check', '--json'],
