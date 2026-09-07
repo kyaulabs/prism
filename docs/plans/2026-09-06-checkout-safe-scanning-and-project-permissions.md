@@ -463,25 +463,49 @@ Core-only consumer reproduction; update `packages/prism-core/README.md`,
 `packages/prism-core/docs/review-runtime.md`, `packages/prism-php-web/README.md`,
 and `packages/prism-php-web/docs/visual-review.md` for the adapter behavior.
 
-- [ ] In a disposable `prism-adapters`-shaped Core-only fixture, perform native
+- [x] In a disposable `prism-adapters`-shaped Core-only fixture, perform native
   baseline scanning, real Git recreation, and managed pre-commit/pre-push
   validation. Prove no recurring chmod is needed and unsafe state still fails.
   Add any missing behavioral regression through TDD; do not manufacture Red for
   a test-only consolidation of behavior already implemented.
-- [ ] Document accepted runtime modes, unchanged creation defaults, supported
+- [x] Document accepted runtime modes, unchanged creation defaults, supported
   scan inputs/limits, read-only health diagnostics, and old private-plan
   regeneration. Remove any stale current-doc claim that runtime equality is
   required, without rewriting accepted ADR bodies or unrelated OCR guidance.
-- [ ] Run the complete verification checklist below, including the additional
+- [x] Run the complete verification checklist below, including the additional
   CI commands that the current `/check-php` prompt omits. Do not change unrelated
   planning rules, Pi compatibility, or gate architecture to hide failures.
-- [ ] Confirm the original issue's amended acceptance criteria have evidence,
+- [x] Confirm the original issue's amended acceptance criteria have evidence,
   and no withdrawn migration, protocol, CI preparation, or creation policy has
   entered the diff. Use the sole closing commit only after this proof.
 
 ```bash
 prism-tool commit create --type fix --scope review --subject "verify checkout safe review and hook compatibility" --fixes 520
 ```
+
+**Task 6 verification:** The consolidated catalogue-consumer regression uses
+native Semgrep before and after native Git recreation under `0077`, then executes
+both canonical pre-commit and pre-push wrappers. Findings, consumer metadata,
+and Git evidence remain unchanged; `0600`/`0700` files need no repair and unsafe
+manifest permissions still block both hooks. This is test-only consolidation,
+not a manufactured Red for already implemented behavior. Fixture HOME is outside
+the consumer so external version probes cannot create home state in its worktree.
+
+1,497 Node tests, all `composer test:shell` regressions, and 84 PHP/browser tests
+(127 assertions) pass. Configured backend coverage is 100%; branch-range changed
+PHP coverage reports two out-of-source warnings, not measured helper/test coverage.
+PHP style/syntax, frontend lint, TypeScript, Shellcheck, executable bits, harness,
+Markdown, whitespace, Gitleaks, dependency audits, and commitlint pass. Native
+CI-configured SAST on a disposable staged-tree copy ran 140 rules over 599 files
+with zero findings. Archive smoke and packaged Node E2E tests pass; an additional
+usage-exit probe needs existing Core dependencies supplied outside the consumer
+because the CI smoke archive is not a dependency installation. No dependency was
+added or installed. Evidence: `/tmp/prism-520-task6-verify.1ZBvjQ/`.
+
+Internal spec-compliance and code-quality review found no Blocking issue. Creation
+modes, provider/bootstrap protocols, OCR floors/authority/consent, and publication
+ownership remain unchanged. Final clean-tree `/check`, synchronization, the one
+authorized four-axis review, and preparation-only `/pr` follow the task commit.
 
 ## Verification and finalization
 

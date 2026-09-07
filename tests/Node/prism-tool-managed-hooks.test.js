@@ -476,6 +476,83 @@ test('keeps Core-only hooks usable after Git checkout, switch, and fast-forward 
     }
 });
 
+test('Core-only catalogue consumers retain native scan findings and usable hooks after restrictive Git recreation', (t) => {
+    const fixture = makeFixture(t);
+    const home = makeTempDir();
+    t.after(() => fs.rmSync(home, {recursive: true, force: true}));
+    const env = {PATH: process.env.PATH, HOME: home, LC_ALL: 'C',
+        GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0'};
+    const git = (...args) => execFileSync('git', args, {cwd: fixture.projectRoot, env,
+        encoding: 'utf8', timeout: 15000, stdio: 'pipe'}).trim();
+    const commit = () => git('-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false',
+        'commit', '--allow-empty', '--quiet', '-m', 'catalogue fixture');
+    commit();
+    const empty = git('rev-parse', 'HEAD');
+    assert.equal(applyManagedHooks({...fixture, env, approval: 'yes'}).status, 'GO');
+    fs.writeFileSync(path.join(fixture.projectRoot, 'catalogue.json'), '{"adapters":[]}\n');
+    fs.writeFileSync(path.join(fixture.projectRoot, 'validate.js'), 'danger("existing");\n');
+    fs.writeFileSync(path.join(fixture.projectRoot, 'rules.yml'),
+        'rules:\n  - id: catalogue-danger\n    languages: [javascript]\n    severity: WARNING\n    message: Unsafe catalogue operation\n    pattern: danger(...)\n');
+    git('add', '--all');
+    commit();
+    const baseline = git('rev-parse', 'HEAD');
+    fs.appendFileSync(path.join(fixture.projectRoot, 'validate.js'), 'danger("new");\n');
+    git('add', '--all');
+    commit();
+    const head = git('rev-parse', 'HEAD');
+    const files = ['.prism/project.json', '.github/workflows/back-merge.yml', 'catalogue.json',
+        'validate.js', 'rules.yml', ...CANONICAL_HOOKS.map((name) => `.github/hooks/${name}`)];
+    const snapshot = () => [...files, '.git/index', '.git/config', '.git/HEAD', '.git/logs/HEAD',
+        '.git/refs/heads/feat/tester-abcd-hooks'].map((relative) => {
+        const file = path.join(fixture.projectRoot, relative);
+        const stat = fs.lstatSync(file);
+        return {relative, bytes: fs.readFileSync(file), dev: stat.dev, ino: stat.ino, uid: stat.uid,
+            gid: stat.gid, size: stat.size, mode: stat.mode, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs};
+    });
+    const launcher = path.join(CORE_ROOT, 'scripts/prism-tool.js');
+    const scan = () => JSON.parse(execFileSync('bash', ['-c', 'umask 077; exec "$@"', 'scan-fixture',
+        process.execPath, launcher, 'run', 'semgrep', '--', 'scan', '--config', 'rules.yml',
+        '--baseline-commit', baseline, '--metrics', 'off', '--disable-version-check', '--json'],
+    {cwd: fixture.projectRoot, env, encoding: 'utf8', timeout: 120000, maxBuffer: 1048576, stdio: 'pipe'}));
+    const initial = snapshot();
+    const first = scan();
+    assert.deepEqual(first.errors, []);
+    assert.deepEqual(first.results.map(({check_id: id, path: relative, start}) => ({id, relative, line: start.line})),
+        [{id: 'catalogue-danger', relative: 'validate.js', line: 2}]);
+    assert.deepEqual(snapshot(), initial);
+
+    git('switch', '--detach', empty);
+    assert.equal(files.every((relative) => !fs.existsSync(path.join(fixture.projectRoot, relative))), true);
+    execFileSync('bash', ['-c', 'umask 077; exec git switch feat/tester-abcd-hooks'],
+        {cwd: fixture.projectRoot, env, timeout: 15000, stdio: 'pipe'});
+    for (const relative of files) {
+        assert.equal(fs.lstatSync(path.join(fixture.projectRoot, relative)).mode & 0o7777,
+            relative.includes('/hooks/') ? 0o700 : 0o600, relative);
+    }
+    const recreated = snapshot();
+    assert.deepEqual(scan().results.map(({check_id: id, path: relative, start}) => ({id, relative, line: start.line})),
+        [{id: 'catalogue-danger', relative: 'validate.js', line: 2}]);
+    assert.deepEqual(snapshot(), recreated);
+    for (const event of ['pre-commit', 'pre-push']) {
+        execFileSync(hookPath(fixture.projectRoot, event), event === 'pre-push' ? ['origin', 'fixture'] : [],
+            {cwd: fixture.projectRoot, env, encoding: 'utf8', timeout: 30000, stdio: 'pipe',
+                input: `refs/heads/feat/tester-abcd-hooks ${head} refs/heads/feat/tester-abcd-hooks ${'0'.repeat(40)}\n`});
+    }
+    assert.deepEqual(snapshot(), recreated);
+    const health = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+    assert.equal(health.status, 0, health.stdout);
+    assert.equal(JSON.parse(health.stdout).disposition, 'CURRENT');
+    assert.deepEqual(snapshot(), recreated);
+    fs.chmodSync(path.join(fixture.projectRoot, '.prism/project.json'), 0o666);
+    for (const event of ['pre-commit', 'pre-push']) {
+        assert.throws(() => execFileSync(hookPath(fixture.projectRoot, event),
+            event === 'pre-push' ? ['origin', 'fixture'] : [],
+            {cwd: fixture.projectRoot, env, timeout: 30000, stdio: 'pipe', input: ''}),
+        (error) => error.status === 1 && /managed file permissions are invalid/.test(error.stderr));
+    }
+    assert.equal(fs.lstatSync(path.join(fixture.projectRoot, '.prism/project.json')).mode & 0o7777, 0o666);
+});
+
 test('rejects incoherent manifest and adapter evidence before hook mutation', (t) => {
     const adapterIdentity = {
         id: '@kyaulabs/prism-php-web',
