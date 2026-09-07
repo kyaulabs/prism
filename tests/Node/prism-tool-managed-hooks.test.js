@@ -342,6 +342,54 @@ test('unconfigured health fails closed on unsafe or excluded effective hooks wit
     }
 });
 
+test('managed health rejects hook-directory replacement without reading outside the held root', (t) => {
+    for (const timing of ['after-ancestry-lstat', 'after-canonical-read']) {
+        const fixture = makeFixture(t);
+        fs.unlinkSync(path.join(fixture.projectRoot, '.prism/project.json'));
+        const outside = makeTempDir();
+        t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+        const hooks = path.join(fixture.projectRoot, 'custom-hooks');
+        fs.mkdirSync(hooks);
+        fs.writeFileSync(path.join(outside, 'pre-commit'), '#!/bin/sh\nexit 0\n', {mode: 0o700});
+        execFileSync('git', ['config', 'core.hooksPath', 'custom-hooks'], {cwd: fixture.projectRoot});
+        const outsideInode = fs.lstatSync(path.join(outside, 'pre-commit')).ino;
+        const hooksInode = fs.lstatSync(hooks).ino;
+        const canonicalInode = fs.lstatSync(path.join(CORE_ROOT, 'config/bootstrap/hooks/commit-msg')).ino;
+        const lstat = fs.lstatSync;
+        const read = fs.readFileSync;
+        let swapped = false;
+        let outsideRead = false;
+        const swap = () => {
+            if (swapped) return;
+            swapped = true;
+            fs.renameSync(hooks, path.join(fixture.projectRoot, 'original-hooks'));
+            fs.symlinkSync(outside, hooks);
+        };
+        t.mock.method(fs, 'lstatSync', (file, ...args) => {
+            const stat = lstat(file, ...args);
+            if (timing === 'after-ancestry-lstat' && stat?.isDirectory() && stat.ino === hooksInode) swap();
+            return stat;
+        });
+        t.mock.method(fs, 'readFileSync', (file, ...args) => {
+            if (typeof file === 'number') {
+                const inode = fs.fstatSync(file).ino;
+                if (inode === outsideInode) outsideRead = true;
+                if (timing === 'after-canonical-read' && inode === canonicalInode) swap();
+            }
+            return read(file, ...args);
+        });
+
+        const result = captureWrites(() => main(['automation', 'health', '--json'], fixture));
+
+        t.mock.restoreAll();
+        assert.equal(swapped, true, timing);
+        assert.equal(outsideRead, false, timing);
+        assert.equal(result.status, 5, timing);
+        assert.equal(JSON.parse(result.stdout).disposition, 'CONFLICT', timing);
+        assert.equal(fs.lstatSync(hooks).isSymbolicLink(), true, 'health must not repair the replacement');
+    }
+});
+
 test('does not activate canonical hooks before the project manifest exists', (t) => {
     const fixture = makeFixture(t);
     fs.unlinkSync(path.join(fixture.projectRoot, '.prism', 'project.json'));
