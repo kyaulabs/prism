@@ -143,8 +143,9 @@ async function makeSemgrepWorkspace({projectRoot, baseline, otherBaseline, confi
             const target = path.join(gitDir, name);
             if (fs.existsSync(target)) await checkAdministration(target);
         }
-        const verifySupportedAdministration = () => {
-            for (const name of ['commondir', 'shallow', 'config.worktree', 'reftable', 'objects/info/alternates', 'info/grafts']) {
+        const verifySupportedAdministration = (checkWorktree = true) => {
+            for (const name of ['commondir', 'shallow', 'reftable', 'objects/info/alternates', 'info/grafts',
+                ...(checkWorktree ? ['config.worktree'] : [])]) {
                 try {
                     fs.lstatSync(path.join(gitDir, name));
                     throw new Error('semgrep Git administration is unsupported');
@@ -153,12 +154,12 @@ async function makeSemgrepWorkspace({projectRoot, baseline, otherBaseline, confi
                 }
             }
         };
-        verifySupportedAdministration();
+        verifySupportedAdministration(false);
         const configPath = path.join(gitDir, 'config');
         const {bytes: configBytes, identity: configIdentity} = readHeldFile(configPath, 1048576);
         const config = configBytes.toString('utf8');
         const verifySourceConfiguration = () => {
-            verifySupportedAdministration();
+            verifySupportedAdministration(worktreeConfigEnabled);
             const observed = fs.lstatSync(configPath);
             if (!IDENTITY_FIELDS.every((field) => observed[field] === configIdentity[field]) ||
                 fs.realpathSync(configPath) !== configPath) {
@@ -244,6 +245,10 @@ async function makeSemgrepWorkspace({projectRoot, baseline, otherBaseline, confi
                 child.stdin.end(input);
             });
         };
+        const worktreeConfigEnabled = (await git(directory, [
+            'config', '--no-includes', '--file', '-', '--type', 'bool', '--get', 'extensions.worktreeConfig',
+        ], {input: configBytes, statuses: [0, 1]})).toString().trim() === 'true';
+        verifySourceConfiguration();
         const sourceGit = async (args, options = {}) => {
             verifySourceConfiguration();
             const metadata = args[0] !== 'cat-file' || args[1] !== 'blob';

@@ -620,6 +620,29 @@ test('does not silently classify untracked first-party directories as dependenci
     assert.equal(fs.readFileSync(source, 'utf8'), 'dangerous("untracked first-party code");\n');
 });
 
+test('scans an Actions-style checkout without reading inactive worktree configuration', (t) => {
+    const input = fixture(t);
+    input.git('sparse-checkout', 'disable');
+    input.git('config', '--local', '--unset-all', 'extensions.worktreeConfig');
+    const dormant = path.join(input.projectRoot, '.git', 'config.worktree');
+    assert.equal(fs.lstatSync(dormant).isFile(), true);
+    fs.chmodSync(dormant, 0o000);
+    const dormantBefore = fs.lstatSync(dormant);
+    const before = snapshot(input.projectRoot, [...Object.keys(input.files), '.git/config', '.git/index', '.git/HEAD']);
+
+    const result = spawnSync(process.execPath, [CLI, 'run', 'semgrep', '--',
+        'scan', '--config', 'rules.yml', '--metrics', 'off', '--disable-version-check', '--json'], {
+        cwd: input.projectRoot, env: {...input.env, PATH: process.env.PATH},
+        input: '', encoding: 'utf8', timeout: 60000,
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout).results.map((finding) => ({path: finding.path, line: finding.start.line})),
+        [{path: 'source file.js', line: 1}, {path: 'source file.js', line: 2}]);
+    assert.deepEqual(snapshot(input.projectRoot, Object.keys(before)), before);
+    assert.deepEqual(fs.lstatSync(dormant), dormantBefore);
+});
+
 test('rejects additional worktree configuration before invoking source Git', (t) => {
     const input = fixture(t);
     input.git('config', 'extensions.worktreeConfig', 'true');

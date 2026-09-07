@@ -84,8 +84,12 @@ Scans require a clean supported independent Git checkout and locally available
 historical objects. Dirty input, unsafe paths or encodings, redirected roots,
 unsupported administration, and missing objects fail without stash, reset,
 fetch, repair, or consumer-scan fallback. Source Git configuration is revalidated
-around each Git read. Scanner execution has a private home/cache and sanitized
-environment without inherited credentials, authentication state, or Git commands.
+around each Git read. An inactive `config.worktree` left by checkout tooling is
+not read or modified. Git parses the held main-config snapshot with includes
+disabled to determine whether worktree configuration is enabled; an enabled
+secondary configuration remains unsupported. Scanner execution has a private
+home/cache and sanitized environment without inherited credentials,
+authentication state, or Git commands.
 
 The total launcher budget is ten minutes, including preparation and cleanup;
 callers may impose a shorter deadline. Git calls have a thirty-second ceiling.
