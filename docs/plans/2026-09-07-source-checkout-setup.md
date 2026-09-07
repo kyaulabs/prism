@@ -208,23 +208,23 @@ No new CLI verb. Existing `setup route --json` is the highest public test seam.
 - [x] Recheck branch/base, preserve unrelated files, and create the work branch
   through the resolved branch helper only after plan approval.
 - [x] Accept the required architecture record and glossary change before code.
-- [ ] Red: a disposable real Git repository with valid copied public source
+- [x] Red: a disposable real Git repository with valid copied public source
   identity reports `SOURCE_CHECKOUT_SETUP`, not consumer or bootstrap setup.
   Confirm the same failure on this source checkout through the read-only CLI.
-- [ ] Green: implement only that recognition/classification/route behavior.
-- [ ] Add each boundary through its own Red/Green cycle: unrelated clones;
+- [x] Green: implement only that recognition/classification/route behavior.
+- [x] Add each boundary through its own Red/Green cycle: unrelated clones;
   basename-only and dependency-only lookalikes; a partial Prism identity claim;
   malformed/mismatched fixed metadata; missing required source surfaces;
   unsafe owners/modes; leaf and ancestor symlinks; path replacement during a
   held read; nested roots; source-shaped Gitfiles; non-Git source trees; and
   forbidden strict-empty source selectors.
-- [ ] Prove forks with absent or different remotes and tracked source edits are
+- [x] Prove forks with absent or different remotes and tracked source edits are
   recognized without network access or pristine-byte requirements. Exercise
   the installed-launcher layout as well as source execution.
-- [ ] Prove recognition has no writes, source execution, remote lookup,
+- [x] Prove recognition has no writes, source execution, remote lookup,
   credential read, or adapter invocation. Use filesystem/process boundary
   guards and snapshots, not private helper call-order assertions.
-- [ ] Run focused and full applicable Node checks, lint, syntax, harness checks,
+- [x] Run focused and full applicable Node checks, lint, syntax, harness checks,
   and internal spec/compliance and code-quality review before committing.
 
 ```bash
@@ -234,6 +234,21 @@ node --test tests/Node/prism-tool-source-checkout.test.js tests/Node/prism-tool-
 ```bash
 prism-tool commit create --type fix --scope setup --subject "classify prism source checkouts before consumer setup" --refs 501
 ```
+
+### Task 1 evidence
+
+Architecture commit: `518468be6f6def273064d8a7dc321fdcea9512d9`.
+The real source checkout now reports `SOURCE_CHECKOUT_SETUP`. Native public CLI
+fixtures execute the launcher from a separate Core root, not their inert source
+entry points. The first classification assertion, incomplete-claim matrix,
+unsupported-Git-layout case, unsafe-mode matrix, directory-swap canary, and
+excluded-input guard each failed before its corresponding implementation.
+Additional preservation/ownership/held-read cases pass without source repair.
+22 focused tests, the full Node suite, ESLint, syntax, and harness validation
+pass. Logs: `/tmp/prism-501-planning.tyceWYya/task1-node-final.log` and
+`task1-harness.log`. PHP coverage is inapplicable to this JavaScript-only task.
+No runtime dependencies, global changes, or setup execution were introduced.
+Internal spec-compliance and code-quality reviews passed.
 
 ## Task 2: Wire source-preserving setup and honest validation reporting
 

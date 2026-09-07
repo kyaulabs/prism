@@ -1,13 +1,15 @@
-// $KYAULabs: setup-entry.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: setup-entry.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {inspectSourceCheckout} = require('./source-checkout');
 
 const DISPOSITION = Object.freeze({
     STRICT_EMPTY: 'STRICT_EMPTY',
     ESTABLISHED: 'ESTABLISHED',
+    SOURCE_CHECKOUT: 'SOURCE_CHECKOUT',
     CONFLICT: 'CONFLICT',
 });
 
@@ -15,6 +17,7 @@ const AUTOMATION_APPLICABILITY = Object.freeze({
     STRICT_EMPTY: 'STRICT_EMPTY',
     ESTABLISHED: 'ESTABLISHED',
     SCAFFOLD_ONLY: 'SCAFFOLD_ONLY',
+    SOURCE_CHECKOUT: 'SOURCE_CHECKOUT',
 });
 
 const REASON = Object.freeze({
@@ -151,6 +154,12 @@ function classifySetupEntry({projectRoot}) {
         }
         if (firstGitBoundary.kind === 'INDETERMINATE') {
             return conflict(canonicalRoot, REASON.INDETERMINATE);
+        }
+        const source = inspectSourceCheckout({projectRoot: canonicalRoot});
+        if (source.disposition === 'CONFLICT') return conflict(canonicalRoot, source.reason);
+        if (source.disposition === 'SOURCE_CHECKOUT') {
+            return {projectRoot: canonicalRoot, disposition: DISPOSITION.SOURCE_CHECKOUT,
+                automationApplicability: AUTOMATION_APPLICABILITY.SOURCE_CHECKOUT, reason: source.reason};
         }
         if (firstGitBoundary.kind === 'EXISTING') {
             return {
