@@ -270,4 +270,90 @@ test('rejects source identity growth or identical-byte replacement during a held
     }
 });
 
+test('independent clones preserve source-owned inventory across routing and native syntax validation', (t) => {
+    const origin = fixture(t);
+    const repository = path.resolve(CORE, '../..');
+    const inventory = ['package.json', 'package-lock.json', 'pnpm-lock.yaml', 'composer.json', 'composer.lock',
+        '.github/workflows/ci.yml', '.github/workflows/back-merge.yml', '.github/workflows/release.yml',
+        '.github/scripts/coverage-gate.php', '.github/hooks/pre-commit', '.github/hooks/pre-push',
+        '.github/hooks/commit-msg', '.github/hooks/prepare-commit-msg', '.pi/settings.json', '.prism/release.json',
+        'packages/prism-core/package.json', 'packages/prism-core/toolchain.json',
+        'packages/prism-core/scripts/prism-tool.js'];
+    for (const relative of inventory) {
+        const target = path.join(origin, relative);
+        fs.mkdirSync(path.dirname(target), {recursive: true});
+        fs.copyFileSync(path.join(repository, relative), target);
+    }
+    // Keep the required empty source directories in the disposable Git history.
+    for (const name of ['skills', 'prompts']) fs.writeFileSync(path.join(origin, 'packages/prism-core', name, '.keep'), '');
+    const env = {...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1'};
+    execFileSync('git', ['add', '.'], {cwd: origin, env, timeout: 10000});
+    execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test',
+        'commit', '--quiet', '-m', 'fixture source inventory'], {cwd: origin, env, timeout: 10000});
+    const parent = makeTempDir();
+    t.after(() => fs.rmSync(parent, {recursive: true, force: true}));
+    const root = path.join(parent, 'independent fork');
+    execFileSync('git', ['clone', '--quiet', '--local', '--no-hardlinks', origin, root], {env, timeout: 10000});
+    execFileSync('git', ['config', 'core.hooksPath', '.github/hooks'], {cwd: root, env, timeout: 10000});
+    const script = path.join(root, 'packages/prism-core/scripts/prism-tool.js');
+    const guard = path.join(parent, 'classification-guard.cjs');
+    const protectedFiles = [...inventory, '.git/index', '.git/config'].filter((relative) => ![
+        'package.json', 'packages/prism-core/package.json', 'packages/prism-core/toolchain.json',
+    ].includes(relative));
+    const protectedInodes = protectedFiles.map((relative) => {
+        const {dev, ino} = fs.statSync(path.join(root, relative));
+        return `${dev}:${ino}`;
+    });
+    fs.writeFileSync(guard, `
+        const fs = require('node:fs');
+        const child = require('node:child_process');
+        const protectedInodes = new Set(${JSON.stringify(protectedInodes)});
+        const deny = () => { throw new Error('classification attempted a forbidden effect or read'); };
+        for (const method of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork']) child[method] = deny;
+        for (const module of ['node:http', 'node:https']) {
+            require(module).request = deny;
+            require(module).get = deny;
+        }
+        require('node:net').connect = deny;
+        require('node:net').createConnection = deny;
+        require('node:tls').connect = deny;
+        global.fetch = deny;
+        for (const method of ['writeFileSync', 'writeSync', 'appendFileSync', 'mkdirSync', 'renameSync', 'unlinkSync',
+            'rmSync', 'rmdirSync', 'chmodSync', 'chownSync', 'symlinkSync', 'linkSync', 'copyFileSync']) fs[method] = deny;
+        const open = fs.openSync;
+        fs.openSync = (file, flags, ...args) => {
+            if (typeof flags === 'string' ? !['r', 'rs'].includes(flags) :
+                flags & (fs.constants.O_WRONLY | fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_APPEND)) deny();
+            return open(file, flags, ...args);
+        };
+        for (const method of ['readFileSync', 'readSync']) {
+            const read = fs[method];
+            fs[method] = (file, ...args) => {
+                const stat = typeof file === 'number' ? fs.fstatSync(file) : fs.statSync(file);
+                if (protectedInodes.has(stat.dev + ':' + stat.ino)) deny();
+                return read(file, ...args);
+            };
+        }
+    `, {mode: 0o600});
+    const snapshot = () => [...inventory, '.git/index', '.git/config'].map((relative) => {
+        const file = path.join(root, relative);
+        const {dev, ino, uid, gid, mode, size, mtimeMs, ctimeMs} = fs.lstatSync(file);
+        return {relative, bytes: fs.readFileSync(file), dev, ino, uid, gid, mode, size, mtimeMs, ctimeMs};
+    });
+    for (const valid of [true, false]) {
+        if (!valid) fs.appendFileSync(script, '\nfunction {\n');
+        const before = snapshot();
+        const classification = spawnSync(process.execPath, ['--require', guard, CLI, 'setup', 'route', '--json'], {
+            cwd: root, env, encoding: 'utf8', timeout: 10000,
+        });
+        assert.equal(classification.status, 0, classification.stderr);
+        assert.equal(JSON.parse(classification.stdout).route, 'SOURCE_CHECKOUT_SETUP');
+        const validation = spawnSync(process.execPath, ['--check', script], {cwd: root, encoding: 'utf8', timeout: 10000});
+        assert.equal(validation.status, valid ? 0 : 1, validation.stderr);
+        assert.deepEqual(snapshot(), before);
+        assert.equal(fs.existsSync(path.join(root, '.prism/project.json')), false);
+        assert.equal(fs.existsSync(path.join(root, '.pi/prism-tool')), false);
+    }
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -318,24 +318,24 @@ and remediation where necessary.
 **Interfaces:** No new runtime interface. This task closes the remaining #501
 acceptance criteria and verifies the consumer functionality already merged.
 
-- [ ] In a disposable independent source fixture, retain public copies of its
+- [x] In a disposable independent source fixture, retain public copies of its
   repository-specific workflows, hooks, coverage shim, manifests, lockfiles,
   and dogfooding settings. Snapshot bytes, modes, identity, timestamps, and Git
   index/config before read-only routing and applicable validation.
-- [ ] Prove successful and failed source validation leave that inventory
+- [x] Prove successful and failed source validation leave that inventory
   unchanged and create no `.prism/project.json` or consumer transaction.
   Validation scratch must remain in test-owned private/ignored locations.
-- [ ] Exercise restrictive safe modes and malformed source evidence without
+- [x] Exercise restrictive safe modes and malformed source evidence without
   chmod repair. Preserve independent negative ownership/link/content controls.
-- [ ] Verify established Core-only and adapter-selected flows still require
+- [x] Verify established Core-only and adapter-selected flows still require
   manifest/provider verification before hook activation, reject unowned files,
   accept only recognized migrations, and preserve exact rollback evidence.
-- [ ] Map all nine original acceptance criteria to source tests or retained
+- [x] Map all nine original acceptance criteria to source tests or retained
   consumer tests. Do not claim #501 complete merely because the new enum exists.
 - [ ] Run the complete local `/check`, explicit Node suite, Shell suite,
   source harness validation, PHP/browser coverage, applicable CI lint/static
   checks, package smoke, SAST and dependency audits. No dependency install.
-- [ ] Perform the internal task reviews. Use the sole closing reference only
+- [x] Perform the internal task reviews. Use the sole closing reference only
   after source preservation and retained consumer evidence pass.
 
 ```bash
@@ -347,6 +347,65 @@ prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --c
 ```bash
 prism-tool commit create --type fix --scope setup --subject "verify source setup preservation and consumer compatibility" --fixes 501
 ```
+
+### Task 3 evidence and acceptance mapping
+
+The independent-clone regression retains real public workflows, four hooks,
+coverage shim, manifests, three lockfiles, release configuration, and dogfooding
+settings. It checks bytes, modes, owners, inode identity, size, mtime/ctime, and
+private fixture Git index/config before and after native routing and successful
+or failing Node syntax validation. Process/network/write guards also reject any
+classification attempt to read that unrelated inventory or execute the fixture
+source. No project manifest or consumer operation directory is created. This
+proves native syntax validation preservation, not a mocked full source-quality
+pass. The complete repository checks are separately executed below.
+
+All nine #501 criteria map to fresh or retained checks:
+
+1. Deterministic source routing: `prism-tool-source-checkout.test.js` public CLI
+   positive, partial/unsafe identity, Git-layout, owner, link, race, and selector
+   cases; existing setup-route tests retain consumer/strict-empty behavior.
+2. Byte-for-byte source preservation: independent-clone inventory test, fork and
+   restrictive-mode snapshots, and instruction-owned project-effect guards.
+3. Applicable source validation without reconciliation: native syntax success
+   and failure preservation, source workflow guards, actual validator-block exit
+   propagation, and repository `/check`/harness evidence. No live `/setup` is run.
+4. Established manifest creation before hooks: automation tests `plans an
+   established Core-only manifest with Core automation` and `creates an
+   established manifest for an active adapter`, plus managed-hook manifest and
+   provider preconditions.
+5. No activated manifest-less hooks: `does not activate canonical hooks before
+   the project manifest exists` and `runs canonical pre-commit for a verified
+   Core-only manifest without adapter loading`, including native Git recreation
+   regressions retained from #520.
+6. Established readiness/composition before automation: the Shell entrypoint
+   ordering contract retains doctor → validated composition/metadata → provider
+   inspection → plan/apply/verify → hooks; active-adapter metadata and incoherent
+   composition regressions remain green.
+7. Recognized migration versus unowned conflict: automation legacy/owned-release
+   migration tests and unowned automation/release collision tests; managed-hook
+   ownership, migration, and obsolete collision tests.
+8. Exact rollback or bounded retained recovery: automation rename-failure,
+   restoration-read-failure, concurrent-change, and retained-state tests; managed
+   hook rollback and failed-restoration tests.
+9. Combined contract coverage: the complete Node and Shell suites above and the
+   unchanged consumer fixtures collectively exercise every named category.
+
+Verification so far: 1,510 Node tests, the full Shell suite, 84 PHP/browser tests
+with 127 assertions and 100% configured backend coverage, PHP syntax/style,
+SCSS/JavaScript lint, TypeScript, Shellcheck, harness/executable checks, Composer
+validation, both dependency audits, and Gitleaks passed. Changed-PHP coverage is
+inapplicable. Packaged Core also returns the correct native source and unrelated
+strict-empty routes from an extracted Pi-style location, reusing existing local
+Node dependencies without installation. Package evidence is under
+`/tmp/prism-501-package.MAdefrEX`; check logs use `task3-*` under the planning
+evidence directory.
+
+The isolated SAST gate rejected the still-uncommitted test change; it requires
+clean tracked inputs. Full clean-tree `/check` and SAST remain pending the
+terminal implementation commit and finalization cleanup. Do not represent those
+pending gates as passed. Internal task reviews found no blocking implementation
+deviation and no missing consumer behavior requiring production changes.
 
 ## Verification and finalization
 
