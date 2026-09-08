@@ -156,7 +156,7 @@ adding checkout paths or `NODE_PATH` to the process.
 
 - [x] Regenerate only affected lockfile graph entries with lifecycle scripts disabled. Run root `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`, then `pnpm import`; compare both locks against the root manifest, then populate the approved graph with `npm ci --ignore-scripts --no-audit --no-fund`. Use task-private package-manager HOME/config/cache; no user credential/config inheritance. If `pnpm` or a dependency is unavailable, report the prerequisite rather than install an unapproved tool.
 - [x] Rerun both focused test files; inspect lockfile diffs for unrelated upgrades. Revert only task-caused unrelated resolution changes by regenerating from the original lock, not by editing integrity records manually.
-- [ ] Stage this task's files and commit:
+- [x] Stage this task's files and commit:
 
 ```bash
 prism-tool commit create --type fix --scope review --subject "supply the standalone pi sdk as a runtime dependency" --refs 535
@@ -201,7 +201,7 @@ applies to this task's changed files. Task 1 is verified; its commit follows.
 - `validateSdkVersion(version): string`, `requireMethods(value, names): void`, `validateSdkApi(sdk): sdk`.
 - `loadSdk({repositoryRoot?, resolveEntry?, importSdk?} = {}): Promise<{sdk, version}>`; injections are JavaScript test seams, never CLI or environment controls. When a repository is supplied, reject SDK code inside it before import.
 
-- [ ] **Red: create the test module with normal Node test imports and this version/API matrix.**
+- [x] **Red: create the test module with normal Node test imports and this version/API matrix.**
 
 ```javascript
 const {loadSdk, validateSdkVersion, validateSdkApi, requireMethods} =
@@ -233,8 +233,8 @@ test('an arbitrary exception cannot inject a trusted diagnostic or raw content',
 });
 ```
 
-- [ ] Run `node --test tests/Node/prism-review-sdk.test.js`; establish the missing module once, then use the version and API assertions as meaningful Reds while implementing incrementally.
-- [ ] **Green: implement `readiness.js`.**
+- [x] Run `node --test tests/Node/prism-review-sdk.test.js`; establish the missing module once, then use the version and API assertions as meaningful Reds while implementing incrementally.
+- [x] **Green: implement `readiness.js`.**
 
 ```javascript
 'use strict';
@@ -281,7 +281,7 @@ module.exports = {readinessError, diagnostic, atStage, atStageAsync};
 
 Use the same source header/modeline convention as neighboring files. No raw exception becomes a report field or cause chain.
 
-- [ ] **Green: implement the complete ESM bridge `sdk-import.mjs`.**
+- [x] **Green: implement the complete ESM bridge `sdk-import.mjs`.**
 
 ```javascript
 export function resolveEntry() {
@@ -292,7 +292,7 @@ export function importSdk() {
 }
 ```
 
-- [ ] **Green: implement `sdk.js`.**
+- [x] **Green: implement `sdk.js`.**
 
 ```javascript
 'use strict';
@@ -396,7 +396,7 @@ async function loadSdk(options = {}) {
 module.exports = {loadSdk, validateSdkVersion, validateSdkApi, requireMethods};
 ```
 
-- [ ] Add these complete filesystem/import-boundary tests, one case per Red → Green cycle. Add `fs`, `path`, `os`, and `pathToFileURL` imports from their Node builtins to the test preamble.
+- [x] Add these complete filesystem/import-boundary tests, one case per Red → Green cycle. Add `fs`, `path`, `os`, and `pathToFileURL` imports from their Node builtins to the test preamble.
 
 ```javascript
 function sdkFixture(t) {
@@ -467,12 +467,27 @@ test('valid package metadata and API evidence returns the imported SDK', async t
 });
 ```
 
-- [ ] Rerun `node --test tests/Node/prism-review-sdk.test.js tests/Node/check-peer-deps.test.js`. Run syntax checks on the three new modules with `node --check`.
+- [x] Rerun `node --test tests/Node/prism-review-sdk.test.js tests/Node/check-peer-deps.test.js`. Run syntax checks on the three new modules with `node --check`.
 - [ ] Stage this task's files and commit:
 
 ```bash
 prism-tool commit create --type fix --scope review --subject "validate package-relative sdk version and capabilities" --refs 535
 ```
+
+### Task 2 execution evidence
+
+Task 1 committed as `b7d8507a63f6b432f8c741c00e55fbc8d4bc4506`.
+Task 2 passed 35 focused tests and all 1540 Node tests. Syntax checks on all
+three new modules and harness validation passed. The version matrix includes
+stable build metadata. Tests additionally cover throwing API getters, a
+dangling nearest manifest, and metadata growth at the filesystem-open boundary.
+The oversized and invalid-UTF-8 fixtures contain otherwise valid JSON so they
+exercise those policies rather than accidentally passing on a JSON parse error.
+
+Minor test-driven refinement: `requireMethods` also normalizes throwing getters
+as `SDK_API_UNSUPPORTED`; its public signature is unchanged. This closes a
+returned-object diagnostic gap within the approved API-validation scope.
+Actual installed-package SDK import remains Task 6's separate proof.
 
 ## Task 3: Separate SDK and consumer doctor diagnostics
 
