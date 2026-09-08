@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: branch_finalization_workflow_test.sh kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+# $KYAULabs: branch_finalization_workflow_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 set -euo pipefail
 
@@ -145,8 +145,8 @@ if grep -qF 'approved plan authorizes' <<< "$authorization" \
 	&& grep -qF 'unlimited local `/check` runs' <<< "$authorization" \
 	&& grep -qF 'one four-axis review' <<< "$authorization" \
 	&& grep -qF 'automatic preparation-only `/pr`' <<< "$authorization" \
-	&& grep -qF 'Standing OCR consent' <<< "$authorization"; then
-	pass 'plan approval discloses synchronization, unlimited checks, one review, automatic PR preparation, and OCR boundary'
+	&& grep -qF 'reviewed-code' <<< "$authorization"; then
+	pass 'plan approval discloses synchronization, unlimited checks, one review, automatic PR preparation, and review boundary'
 else
 	fail 'plan-approved finalization disclosure is incomplete'
 fi
@@ -265,7 +265,7 @@ fi
 if health_section=$(section_between '<!-- finalization-managed-health -->' '<!-- finalization-pr -->') \
 	&& grep -qF 'prism-tool automation health --json' <<< "$health_section" \
 	&& grep -qF 'Preserve completed review evidence' <<< "$health_section" \
-	&& grep -qF 'Do not rerun OCR' <<< "$health_section" \
+	&& grep -qF 'Do not rerun any review axis' <<< "$health_section" \
 	&& grep -qF 'stop before `/pr`' <<< "$health_section"; then
 	pass 'post-review managed health blocks readiness without discarding or repeating review'
 else

@@ -1,4 +1,4 @@
-// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: contract.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -277,13 +277,7 @@ function isApprovedBoundedExternal(component, role) {
             component.executable === 'semgrep'
         );
     }
-    return (
-        component.id === 'ocr' &&
-        component.ecosystem === 'npm' &&
-        component.package === '@alibaba-group/open-code-review' &&
-        component.authentication === 'required' &&
-        component.executable === 'ocr'
-    );
+    return false;
 }
 
 function validateComponent(component, role, filePath) {

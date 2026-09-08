@@ -35,7 +35,7 @@ documentation, and conversation.
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
 | source checkout | An independent clone or fork of the Prism development repository recognized through bounded structural evidence. Setup preserves its repository-owned automation and uses existing source validation; recognition grants no consumer or global mutation authority. |
 | active adapter | The project-local stack adapter selected by established-project evidence or explicitly from the supported-adapter catalogue during strict-empty setup. Core workflows delegate stack-specific operations when an adapter is present. |
-| Prism reviewer | The Core-owned `prism-review` executable and skill policy that run bounded four-axis review from a pre-existing installed trust root. It begins as a non-authoritative foundation and becomes finalization authority only after the staged cutover in ADR-0103. |
+| Prism reviewer | The Core-owned `prism-review` executable and skill policy that run bounded four-axis review from a pre-existing installed trust root. It is the sole finalization authority under ADR-0103; ad hoc reports remain non-authoritative. |
 | review profile | A closed package-owned declaration of review skills, axis lenses, deterministic path triggers, and fixed non-text exemptions. An adapter may append lenses but cannot replace Core policy or supply executable review commands. |
 | byte exposure | Deterministic evidence that every required interval of an immutable Git blob or diff was returned to a review session. It records data delivery, not model attention, understanding, or semantic coverage. |
 | criteria receipt | Private managed evidence identifying the exact committed specification, plan, or explicit no-criteria disposition approved before implementation and artifact cleanup. Immutable source blobs remain authoritative over extracted summaries. |
@@ -43,17 +43,15 @@ documentation, and conversation.
 | toolchain contract | A versioned, machine-readable, scope-owned declaration of required tools, exact managed versions or approved bounded external requirements, provisioning modes, readiness checks, and allowed commands. |
 | server profile | An optional adapter toolchain declaration for one foreground-scoped loopback test dependency, including its preferred port, trusted server and health commands, permitted client tools, and selected-endpoint environment templates. |
 | bundled core tool | An unauthenticated language-agnostic command-line tool distributed as an exact runtime dependency of the Prism core and resolved relative to that package. |
-| external core prerequisite | A mandatory system-owned command-line tool that Prism verifies but never installs, configures, authenticates, upgrades, or downgrades autonomously. Semgrep and OCR are the initial prerequisites. |
+| external core prerequisite | A mandatory system-owned command-line tool that Prism verifies but never installs, configures, authenticates, upgrades, or downgrades autonomously. Semgrep is the mandatory prerequisite. |
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
 | toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
-| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Read-only GitHub repository and tracker metadata is standing-authorized; confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. Standing OCR consent covers OCR connectivity and reviewed-code egress. Separately revocable standing web-access consent covers only the web-access extension's bounded loopback search, fixed-origin keyless search, and guarded public textual fetches. Neither grant transfers to other effects. |
+| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Read-only GitHub repository and tracker metadata is standing-authorized; confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. One explicitly authorized review attempt covers its bounded provider cost and reviewed-code egress. Separately revocable standing web-access consent covers only the web-access extension's bounded loopback search, fixed-origin keyless search, and guarded public textual fetches. Neither grant transfers to other effects. |
 | setup attempt | One invocation-scoped `/setup` orchestration with bounded source/package/dependency networking, independently approved project and hook mutation stages, and no standing setup consent after it stops. |
-| standing OCR consent | A global, explicit, persistent, and revocable Prism authorization for OCR connectivity tests and reviewed-code egress from every Prism project. It contains no credentials or project data. |
 | standing web-access consent | A global, explicit, persistent, and revocable Prism authorization for the web-access extension's loopback SearXNG search, fixed-origin keyless search, and guarded public textual fetching. It contains no credentials or project data and does not authorize other tools or network effects. |
 | plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
 | review chain | Local schema-versioned finalization evidence linking one complete initial branch review to continuous repair-delta reviews, exact branch/base/HEAD identities, axis completion, finding dispositions, and deterministic closure evidence. |
-| OCR not applicable | A version-one tooling outcome proving that a segment's exact non-empty immutable Git range affects only qualifying Markdown regular blobs; local tooling/style inspection and the other review axes still complete. |
 | diff-causal finding | A review finding classified by whether the reviewed delta introduced or materially worsened a concrete defect in changed behavior or its verification evidence; only concrete workflow-impacting findings block finalization. |
 | candidate workspace | The adapter-owned ephemeral area used to prepare, resolve, audit, and journal a proposed complete scaffold before approved consumer state changes. It is not a general scratch directory. |
 | empty-project bootstrap transaction | The Core-owned outer transaction that composes strict-empty source evidence, provisional package state, trusted provider reports, approved metadata, one combined plan, durable application, rollback, and recovery. It is distinct from an adapter candidate transaction. |
@@ -74,7 +72,7 @@ documentation, and conversation.
 | repository seed | The sole signed root commit created on unborn `develop` after durable project application, containing only the attested setup-owned inventory for a repository created by the active setup attempt. Its evidence may contain a nullable adapter and binds source, capabilities, providers, metadata, plan, hooks, and staged state. Publication remains human-owned. |
 | protected branch | A Git branch (`develop` or `main`) that accepts only merged pull requests. Local hooks, GitHub rulesets, and CI enforce this invariant; the initial single-root seed is the sole direct-write exception. |
 | work branch | A non-protected branch named from an allowed Conventional Commit type, the resolved human identity, a stable hash, and a description. Humans alone push work branches. |
-| sensitive path | A credential-bearing or security-sensitive filesystem path that every agent is forbidden to read, print, copy, encode, or transmit. The immutable deny floor includes auth stores, OCR configuration, SSH/cloud credentials, private keys, and environment files other than `.env.example`. |
+| sensitive path | A credential-bearing or security-sensitive filesystem path that every agent is forbidden to read, print, copy, encode, or transmit. The immutable deny floor includes auth stores, legacy review configuration, SSH/cloud credentials, private keys, and environment files other than `.env.example`. |
 | script resolution | The convention by which instruction-layer executable references resolve to the prism-core package's `scripts/` or `skills/` directory via a separate `prism-tool resolve` call, preferring an ancestor checkout copy when the working directory is inside a prism checkout (ADR-0073, superseding ADR-0065's invocation syntax). |
 | safety extension | Prism core's fail-closed enforcement extension. It enforces the sensitive-path deny floor, destructive-command policy, safe-directory contract, bypass prohibition, bounded-window denial circuit breaker, and fatal commit-failure latch. |
 | web-access extension | Prism core's bounded read-only web capability. It registers native search and content-fetch tools, enforces standing web-access consent, confines optional browser search, and guards public HTTP(S) and loopback SearXNG boundaries. |
@@ -178,15 +176,18 @@ The declaration that connects Prism resources to executable capabilities.
 
 The measured state required before a toolchain entry point proceeds.
 
-- Missing or mismatched Semgrep or OCR is always NO-GO.
+- Missing or mismatched Semgrep is always NO-GO.
 - Semgrep must satisfy `>=1.173.0 <2.0.0`; login remains optional for local
   scanning.
-- The global installer performs local readiness only. `/setup`, full
-  `/doctor`, and code review validate standing OCR consent before live OCR
-  connectivity; code review validates it again before reviewed-code egress.
-- Standing OCR consent authorizes only OCR connectivity and reviewed-code
-  egress; it never transfers to registry, mutation, Git, GitHub, or other
-  external effects.
+- The global installer performs local readiness only. Full doctor verifies the
+  installed review trust root, SDK, model metadata, policy, and adapter without
+  inference. It neither depends on consent nor grants review authority.
+- One plan-approved initial review includes bounded reviewed-code egress.
+  Each further attempt requires fresh explicit approval. Version-two criteria,
+  check, and review receipts bind exact identities; legacy chains never pass.
+- Consent schema three contains only web access. Only explicit setup migration
+  preserves legacy web choice or removes an all-false managed record. Unsafe
+  consent disables optional web access but does not block review or doctor.
 - Standing web-access consent separately authorizes only the web-access
   extension's loopback SearXNG search, confined keyless search, and guarded
   public textual fetching; browser and SearXNG readiness remain optional.
@@ -352,7 +353,6 @@ The bounded authority for GitHub issue-tracker access and mutations.
 The bounded finalization evidence for one continuously reviewed work-branch history.
 
 - Begins with one complete four-axis review of the attested branch range.
-- Version-one tooling may record OCR not applicable only after exact-range Git proof, repeated during authoritative verification; it never claims OCR ran.
 - A standalone `/pr` invocation may authorize that initial review only when deterministic preflight classifies the chain as absent.
 - Extends through continuous repair-delta reviews rather than rescanning unchanged branch content.
 - Blocks only on unresolved diff-causal findings with concrete workflow impact.
@@ -433,8 +433,8 @@ The explicitly invoked Git worktree workflow (ADR-0072).
 - **Stack runtimes and package managers** — PHP, Node.js, Composer, npm, and
   their registries resolve and execute ecosystem dependencies.
 - **External security and review tools** — Semgrep performs static analysis;
-  OCR and its configured provider perform external review. Prism verifies and
-  invokes them but does not own installation, authentication, or heuristics.
+  the installed Core-owned reviewer uses the active Pi provider for bounded
+  four-axis review. Prism does not choose or configure provider authentication.
 - **Aurora Framework** — the no-MVC PHP framework remains an external
   submodule; Prism's adapter documents and tests integration patterns.
 - **GitHub** — issue tracking, pull requests, Actions, rulesets, release
@@ -463,7 +463,7 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   invocation-scoped setup acquisition under ADR-0083 and signed compatible
   adapter discovery under ADR-0092, separately approved project and hook
   mutations, workflow-scoped tracker authorization under
-  ADR-0085, narrowly scoped standing OCR consent under ADR-0074, or narrowly
+  ADR-0085, bounded review-attempt authorization under ADR-0103, or narrowly
   scoped standing web-access consent under ADR-0091. Read-only GitHub
   repository and tracker metadata is the bounded standing-read exception under
   ADR-0086.
@@ -478,7 +478,7 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   automatic model tiers, or background agents inside Pi.
 - **No orchestration extensions** — Core extensions may enforce or expose a bounded Pi runtime capability only through an accepted ADR; they do not recreate tabs, subagents, modes, model routing, or background agents.
 - **No autonomous external-tool administration** — Prism does not install,
-  authenticate, configure, upgrade, or downgrade Semgrep or OCR.
+  authenticate, configure, upgrade, or downgrade Semgrep.
 - **No general-purpose package manager** — adapter provisioning is restricted
   to tools declared by validated active contracts.
 - **No agent or local credential handling** — Prism agents and local workflows
@@ -514,7 +514,7 @@ cross-era constraints most relevant to current work are:
 - `adr/0027-plans-specs-lifecycle.md` — commit approved development artifacts, then remove them at branch completion.
 - `adr/0028-git-flow-branch-naming-enforcement.md` — mechanically enforce work-branch naming.
 - `adr/0035-ci-runner-fork-isolation.md` — run CI checks on hosted ephemeral runners for fork-PR isolation while preserving gate equivalence with local checks.
-- `adr/0064-slim-commit-footers-and-ocr-sourced-tested-by.md` — three commit footers; `Tested-by:` sourced from OCR config (supersedes ADR-0040's footer clause).
+- `adr/0064-slim-commit-footers-and-ocr-sourced-tested-by.md` — historical footer attribution, superseded by ADR-0103; both model trailers now use active Pi metadata.
 - `adr/0065-self-locating-script-resolution.md` — superseded invocation syntax; its self-locating resolver architecture remains in effect through ADR-0073.
 - `adr/0041-rcs-header-normalizer-in-pre-commit.md` — normalize required source headers in pre-commit.
 - `adr/0044-pr-only-protected-branches.md` — protect `main` and `develop` with PR-only integration.
@@ -534,7 +534,7 @@ Pi-era decisions:
 - `adr/0060-global-core-project-local-adapter-install.md` — install core globally, adapters locally, and deploy merge-safe always-on instructions.
 - `adr/0061-scope-owned-toolchain-contract.md` — superseded scope-owned toolchain baseline retained as historical context.
 - `adr/0062-bounded-ocr-compatibility.md` — superseded bounded-OCR policy retained as historical context.
-- `adr/0063-bounded-external-tool-compatibility.md` — retain exact managed tools while allowing bounded compatible Semgrep and OCR 1.x releases.
+- `adr/0063-bounded-external-tool-compatibility.md` — retain exact managed tools while allowing bounded compatible external-tool releases (review-tool clauses superseded by ADR-0103).
 - `adr/0066-per-package-release-versions.md` — superseded independent package-version policy retained as historical context.
 - `adr/0067-model-agnostic-harness-user-driven-model-config.md` — the harness selects no model or thinking level; `/setup` writes only the user's choices; commit footers record passively.
 - `adr/0069-reload-recovery-for-denial-circuit-breaker.md` — a tripped safety extension recovers through user-invoked `/reload` without replacing the conversation; ADR-0068 still owns window and threshold semantics.
@@ -542,7 +542,7 @@ Pi-era decisions:
 - `adr/0071-explicit-project-learning-architecture.md` — explicitly invoked learning with worktree-local schema-versioned state, a canonical topic graph, validated structured-record boundaries, and launcher-owned mechanics.
 - `adr/0072-native-worktree-and-branch-policy-architecture.md` — worktree guidance separates branch-policy planning from mutation; outside-root changes are exact human-run commands.
 - `adr/0073-safety-compatible-instruction-shell-contract.md` — executable instructions resolve and capture values through separate observable calls with no command substitution, ANSI-C quoting, or parenthesized subshells.
-- `adr/0074-approval-free-harness-operations.md` — use standing OCR consent, atomic approval-free commits with fatal failure recovery, and one-attempt accepted branch finalization.
+- `adr/0074-approval-free-harness-operations.md` — historical consent clauses superseded by ADR-0103; atomic approval-free commits with fatal failure recovery, and one-attempt accepted branch finalization.
 - `adr/0075-exclusive-global-core-package-source.md` — keep exactly one selected Prism Core source active in Pi global settings through atomic installer reconciliation.
 - `adr/0076-bounded-setup-network-authorization.md` — superseded setup-network baseline retained as historical context through ADR-0083.
 - `adr/0077-core-owned-repository-bootstrap-and-root-seed.md` — superseded Git-first repository-bootstrap baseline retained as historical context through ADR-0084.
@@ -581,7 +581,7 @@ Pi-era decisions:
   profiles, immutable Git objects, and complete per-axis byte exposure.
 - `adr/0103-deterministic-review-authority-and-staged-ocr-cutover.md` — bind
   finalization review to criteria and check receipts, introduce review-chain
-  version two, and replace OCR only after a human release/install checkpoint.
+  version two, with installed Core and adapter trust roots.
 - `adr/0104-protocol-only-adapter-compatibility.md` — use bootstrap protocol as
   the sole adapter compatibility discriminator and admit only a first or
   semantically newer stable release.
@@ -590,7 +590,7 @@ Pi-era decisions:
   established project manifest inside the verified automation transaction
   before separate hook activation.
 
-- `adr/0106-verified-markdown-only-ocr-exemption.md` — verify Markdown-only OCR
+- `adr/0106-verified-markdown-only-ocr-exemption.md` — historical Markdown-only
   non-applicability in version-one chains without changing other review gates.
 
 - `adr/0107-isolated-read-only-semgrep-execution.md` — isolate native baseline

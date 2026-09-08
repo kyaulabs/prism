@@ -43,7 +43,7 @@ fi
 
 if ! "$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1; then
 	cat >&2 <<'EOF'
-✗ prism-tool local readiness failed — mandatory Semgrep/OCR check did not pass.
+✗ prism-tool local readiness failed — mandatory Semgrep check did not pass.
   Fix readiness (see 'prism-tool doctor'), then re-run the commit.
 EOF
 	exit 1

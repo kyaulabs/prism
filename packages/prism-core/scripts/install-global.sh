@@ -571,7 +571,7 @@ cat <<EOF
   core is "always running" (ADR-0060).
 
 Next:
-  • Run /setup to grant standing OCR consent and verify live readiness.
+  • Run /setup to configure optional web access and verify installed review readiness.
   • Run 'pi config' to enable/disable individual resources.
   • Inside a PHP project:  pi install -l npm:@kyaulabs/prism-php-web
     (or  pi install -l ./packages/prism-php-web  for local dev).

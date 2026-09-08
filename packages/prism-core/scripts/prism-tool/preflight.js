@@ -1,4 +1,4 @@
-// $KYAULabs: preflight.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: preflight.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -31,9 +31,7 @@ function versionExpectation(component) {
 
 function extractInstalledVersion(component, output) {
     if (!component.versionRequirement) return extractVersion(output);
-    const source = component.id === 'semgrep'
-        ? `^(${STABLE_VERSION_SOURCE})\\s*$`
-        : `^open-code-review v(${STABLE_VERSION_SOURCE})(?=\\s|$)`;
+    const source = `^(${STABLE_VERSION_SOURCE})\\s*$`;
     const pattern = new RegExp(source, 'gm');
     const versions = [...output.matchAll(pattern)].map((match) => match[1]);
     return versions.length === 1 ? versions[0] : null;
@@ -94,26 +92,6 @@ function checkExternalTools({contract, env = process.env, run = runBounded}) {
         });
 }
 
-function testOcrConnectivity({run}) {
-    const result = run('ocr', ['llm', 'test'], {maxBuffer: 1048576, timeout: 30000});
-    if (result.status === 0 && !result.error) {
-        return {
-            id: 'ocr-connectivity',
-            status: 'PASS',
-            message: 'connectivity verified',
-        };
-    }
-    let message = 'malformed';
-    if (Number.isInteger(result.status) && result.status !== 0 && !result.error) message = 'non-zero';
-    if (result.error?.code === 'ENOBUFS') message = 'output-limit';
-    if (result.timedOut) message = 'timeout';
-    return {
-        id: 'ocr-connectivity',
-        status: 'FAIL',
-        message,
-    };
-}
-
-module.exports = {checkExternalTools, resolveExecutable, testOcrConnectivity};
+module.exports = {checkExternalTools, resolveExecutable};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

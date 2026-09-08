@@ -1,4 +1,4 @@
-// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: pre-tool-use.ts kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 import { resolve as resolvePath, normalize } from "node:path";
 import { tmpdir } from "node:os";
@@ -146,7 +146,7 @@ const GIT_INVOCATION_WRAPPERS = new Set([
  * separator, an exec wrapper in command position, or an option/assignment
  * chain hanging off one (sudo -u root git, timeout 10 git, env FOO=1 git).
  * A bare non-wrapper word (echo, man, cat, …) means git is a plain
- * argument and the context is false (OCR findings N3 / round-3 high).
+ * argument and the context is false (review findings N3 / round-3 high).
  */
 function isGitInvocationContext(tokens: string[], k: number): boolean {
     while (k >= 0) {
@@ -163,7 +163,7 @@ function isGitInvocationContext(tokens: string[], k: number): boolean {
             }
             // Wrapper used as a plain word (echo sudo git …) — keep walking
             // back in case it is part of a longer wrapper chain
-            // (sudo -u root env FOO=1 git …) (OCR round 4).
+            // (sudo -u root env FOO=1 git …) (review round 4).
             k--;
             continue;
         }
@@ -202,7 +202,7 @@ function findGitCommandAnywhere(tokens: string[]): { subcmd: string; rest: strin
         if (commandBasename(tokens[i]) !== "git") continue;
         if (i === 0 || isGitInvocationContext(tokens, i - 1)) {
             // Normalize an absolute invocation (/usr/bin/git …) to a bare
-            // head so findGitSubcommand parses it (OCR round 7).
+            // head so findGitSubcommand parses it (review round 7).
             const info = findGitSubcommand([commandBasename(tokens[i]), ...tokens.slice(i + 1)]);
             if (info !== null) return info;
         }
@@ -276,7 +276,7 @@ const SEGMENT_RULES: readonly SegmentRule[] = [rmRfRule, findDeleteRule];
 
 // Per-segment command rules: block-level rules (git force-push /
 // no-verify) run before warn-level rules (DROP, git reset --hard,
-// git push --delete) so a block always beats a warn (OCR round 8).
+// git push --delete) so a block always beats a warn (review round 8).
 const COMMAND_BLOCK_RULES: readonly CommandRule[] = [
     gitForcePushBlock,
     gitNoVerifyBlock,
@@ -310,7 +310,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
         // Per-segment: a command that IS a bare variable reference cannot be
-        // analyzed (echo hi; $cmd, bash -c "$cmd") — fail closed (OCR rounds
+        // analyzed (echo hi; $cmd, bash -c "$cmd") — fail closed (review rounds
         // 4-5). Quote-stripped so "$cmd" forms cannot hide the reference.
         if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))) {
             return {
@@ -330,7 +330,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
             const innerFinding = classifyCommandImpl(innerCmd, opts, depth + 1);
             if (innerFinding !== null) return innerFinding;
             // Fall through: the payload was clean, but trailing operands
-            // after a head wrapper still need the segment rules (OCR
+            // after a head wrapper still need the segment rules (review
             // round 6).
         }
         const wrapped = findShellWrapperPayload(tokens);
@@ -339,7 +339,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
             if (innerFinding !== null) return innerFinding;
             // Fall through: the payload was clean, but the segment's own
             // tokens (e.g. rm operands beside the wrapper) still need the
-            // segment rules (OCR finding C3).
+            // segment rules (review finding C3).
         }
         for (const rule of SEGMENT_RULES) {
             const finding = rule(tokens, ctx);
@@ -348,7 +348,7 @@ function classifyCommandImpl(command: string, opts: ClassifyOptions, depth: numb
     }
     // Pass 2: command rules across all segments — block-level rules
     // (git force-push / no-verify) first, then warn-level, so a git block
-    // beats a git warn in an earlier segment (OCR rounds 7-8).
+    // beats a git warn in an earlier segment (review rounds 7-8).
     for (const segment of splitShellSegments(command)) {
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;

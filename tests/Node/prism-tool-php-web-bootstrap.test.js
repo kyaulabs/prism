@@ -871,12 +871,12 @@ test('renders pinned create-only CI that invokes the shared quality gate', (t) =
     assert.equal(workflow.includes(`prism-core@${ADAPTER_VERSION}`), true);
     assert.equal(workflow.includes(`prism-php-web@${ADAPTER_VERSION}`), true);
     assert.match(workflow, /semgrep>=1\.173\.0,<2\.0\.0/);
-    assert.match(workflow, /open-code-review@>=1\.9\.1 <2\.0\.0/);
+    assert.doesNotMatch(workflow, /open-code-review/);
     assert.match(workflow, /doctor --local-only/);
     assert.match(workflow, /run playwright -- install --with-deps chromium/);
     assert.match(workflow, /4b825dc642cb6eb9a060e54bf8d69288fbee4904/);
     assert.match(workflow, /check-php\.sh --ci --base=/);
-    assert.doesNotMatch(workflow, /npx|vendor\/bin|ocr (?:review|llm test)|persist-credentials: true/);
+    assert.doesNotMatch(workflow, /npx|vendor\/bin|persist-credentials: true/);
 });
 
 test('propagates a supervised Pest failure without invoking a direct PHP server', (t) => {

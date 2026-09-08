@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -22,7 +22,6 @@ function readyExternalEnvironment(directory) {
     fs.mkdirSync(bin, {recursive: true});
     for (const [name, output] of [
         ['semgrep', '1.173.0'],
-        ['ocr', 'open-code-review v1.9.1 linux/amd64'],
     ]) {
         const executable = path.join(bin, name);
         fs.writeFileSync(
@@ -196,13 +195,7 @@ test('rejects undeclared, library, malformed, and policy-bypassing runs', (t) =>
     const invocations = [
         ['run', 'missing', '--'],
         ['run', 'commitlint-config-conventional', '--'],
-        ['run', 'ocr', '--', 'config'],
-        ['run', 'ocr', '--', 'llm', 'test'],
         ['run', 'semgrep', '--', 'login'],
-        ['run', 'ocr', '--code-egress-approved=true', '--', 'review'],
-        ['run', 'ocr', '--', 'review', '--audience', 'agent', '--format', 'json'],
-        ['run', 'ocr', '--code-egress-approved=yes', '--', 'review', '--audience', 'agent', '--format', 'json'],
-        ['run', 'ocr', '--', 'scan', '.'],
         ['run', 'git-cliff', '--version'],
     ];
 
@@ -488,7 +481,7 @@ Promise.resolve(runDeclaredTool(['semgrep', '--', 'scan', '--help'], {
     assert.equal(scanned.stdin, '');
     assert.notEqual(scanned.cwd, directory);
     assert.equal(fs.existsSync(scanned.cwd), false);
-    assert.deepEqual(calls, [['--version'], ['--version']]);
+    assert.deepEqual(calls, [['--version']]);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

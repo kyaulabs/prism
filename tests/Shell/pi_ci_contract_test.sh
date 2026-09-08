@@ -57,16 +57,7 @@ assert_ci_contains '@earendil-works/pi-coding-agent@0.85.1' 'Pi is pinned to 0.8
 echo "── bounded external provisioning ──"
 assert_ci_contains 'SEMGREP_RANGE.*1\.173\.0' 'Semgrep provisioning names the >=1.173.0 lower bound'
 assert_ci_contains 'SEMGREP_RANGE.*2\.0\.0' 'Semgrep provisioning names the <2.0.0 ceiling'
-assert_ci_contains 'open-code-review' 'OCR provisioning names the package'
-assert_ci_contains 'OCR_RANGE.*1\.9\.1' 'OCR provisioning names the >=1.9.1 lower bound'
-assert_ci_contains 'OCR_RANGE.*2\.0\.0' 'OCR provisioning names the <2.0.0 ceiling'
 assert_ci_not_contains 'semgrep==[0-9]' 'Semgrep provisioning does not select a patch release'
-assert_ci_not_contains 'open-code-review@[0-9]+\.[0-9]+\.[0-9]+' 'OCR provisioning does not select a patch release'
-assert_ci_contains '--ignore-scripts' 'OCR npm installation disables lifecycle scripts'
-assert_ci_not_contains 'ocr llm test' 'CI never runs the OCR connectivity test'
-assert_ci_not_contains 'ocr review|ocr scan' 'CI never performs an OCR review'
-assert_ci_not_contains '--ocr-test-approved|--code-egress-approved' 'CI has no retired OCR approval controls'
-assert_ci_not_contains 'prism-tool(\.js)?[[:space:]]+run[[:space:]]+ocr' 'CI has no generic OCR passthrough'
 
 echo "── locked, script-free dependency install ──"
 assert_ci_contains 'composer install[^|]*--no-scripts' 'Composer install disables lifecycle scripts'

@@ -86,9 +86,6 @@ function fakeExternalRun(invocations) {
         if (name === 'semgrep') {
             return {status: 0, stdout: '1.173.0', stderr: '', error: undefined};
         }
-        if (name === 'ocr') {
-            return {status: 0, stdout: 'open-code-review v1.9.1 linux/amd64', stderr: '', error: undefined};
-        }
         if (command === 'php') {
             return {status: 0, stdout: '{"version":"8.5.0","sockets":true}', stderr: '', error: undefined};
         }
@@ -247,9 +244,9 @@ test('packs the core package with every owned resource and executable modes', ()
         'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
         'bootstrap-source',
         'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
-        'catalogue-publication-readiness', 'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
+        'catalogue-publication-readiness', 'cli', 'commit', 'core-toolchain', 'hook',
         'consent', 'contract', 'discovery', 'managed-record', 'markdown',
-        'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
+        'preflight', 'process', 'setup-entry', 'setup-route',
         'web-access-browser', 'web-access-config',
         'supported-adapters', 'template-source', 'template-source-http',
         'template-source-validation',

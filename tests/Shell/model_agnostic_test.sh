@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# $KYAULabs: model_agnostic_test.sh kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+# $KYAULabs: model_agnostic_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # model_agnostic_test.sh — contract test for the model-agnostic harness
 # (ADR-0067). Asserts no living harness surface names, pins, restricts, or
 # prescribes a model or thinking level. Exempt: historical records (adr/,
-# docs/, CHANGELOG.md, NOTICE) and tests/ (OCR fixtures are arbitrary test data).
+# docs/, CHANGELOG.md, NOTICE) and tests/ (review fixtures are arbitrary test data).
 #
 # Limitation (deliberate): the banned-token list is tailored to the known
 # offenders — DeepSeek model IDs, the four pi config keys, and judge/primary

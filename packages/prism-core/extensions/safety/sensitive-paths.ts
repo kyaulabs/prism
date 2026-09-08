@@ -1,4 +1,4 @@
-// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: sensitive-paths.ts kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 import { resolve as resolvePath, normalize, basename } from "node:path";
 import { createRequire } from "node:module";
@@ -50,11 +50,11 @@ export const BARE_VARIABLE_RE = /^\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!
  * A variable reference at the START of a segment in command position:
  * followed by whitespace or end-of-segment (`$cmd -rf x`, `$cmd`), but
  * NOT a path prefix (`$HOME/bin/x` — the shell resolves the path, the
- * command itself is the file). Fail closed on the former (OCR round 8).
+ * command itself is the file). Fail closed on the former (review round 8).
  */
 export const VARIABLE_COMMAND_POSITION_RE = /^(?:""|'')*"?\$(\{[^}]+\}|[A-Za-z_][A-Za-z0-9_]*|[0-9@*#?$!-])"?(?:""|'')*(?=\s|$)/;
 
-/** Strip one layer of surrounding matching quotes (OCR round 5). */
+/** Strip one layer of surrounding matching quotes (review round 5). */
 export function stripSurroundingQuotes(s: string): string {
     const t = s.trim();
     if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) {
@@ -65,7 +65,7 @@ export function stripSurroundingQuotes(s: string): string {
 
 /**
  * Split a command on shell separators (`;` `&` `|` newline) only OUTSIDE
- * quotes, so quoted payloads survive intact (OCR round 6 — the raw
+ * quotes, so quoted payloads survive intact (review round 6 — the raw
  * split mangled `bash -c 'echo hi; $p'` and defeated the per-segment
  * variable guard). Backslash escapes are honored inside double quotes
  * and outside quotes.
@@ -100,13 +100,13 @@ export function splitShellSegments(command: string): string[] {
             continue;
         }
         // A `#` at word start begins a comment: skip to end of line
-        // without splitting on separators inside it (OCR round 7).
+        // without splitting on separators inside it (review round 7).
         if (ch === "#" && (cur === "" || /\s$/.test(cur))) {
             while (i + 1 < command.length && command[i + 1] !== "\n") i++;
             continue;
         }
         // An `&` that is part of a redirection operator (2>&1, &>, >&) is
-        // not a separator (OCR round 8).
+        // not a separator (review round 8).
         if (ch === "&" && (command[i - 1] === ">" || command[i + 1] === ">")) {
             cur += ch;
             continue;
@@ -667,7 +667,7 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
         const tokens = tokenizeCommand(segment);
         if (tokens.length === 0) continue;
         // Per-segment: a command that IS a bare variable reference cannot be
-        // analyzed (echo hi; $p, bash -c "$p") — fail closed (OCR rounds 4-5).
+        // analyzed (echo hi; $p, bash -c "$p") — fail closed (review rounds 4-5).
         if (BARE_VARIABLE_RE.test(stripSurroundingQuotes(segment))
             || VARIABLE_COMMAND_POSITION_RE.test(stripSurroundingQuotes(segment))) {
             return {
@@ -686,7 +686,7 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
             if (match) return match;
             // Fall through: the payload was clean, but trailing operands
             // after a head wrapper (bash -c 'echo ok' ~/.ssh/…) still need
-            // judging (OCR round 6).
+            // judging (review round 6).
         }
         const wrapped = findShellWrapperPayload(tokens);
         if (wrapped !== null) {
@@ -694,7 +694,7 @@ function sensitiveOperandCheckImpl(command: string, opts: SensitivePathOptions, 
             if (match) return match;
             // Fall through: the payload was clean, but the segment's own
             // tokens (deny-floor operands beside the wrapper) still need
-            // judging (OCR finding C3).
+            // judging (review finding C3).
         }
         const trust = setupScriptTrust(tokens, opts, depth);
         if (trust === "untrusted-subcommand") {

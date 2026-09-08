@@ -1,4 +1,4 @@
-// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: commit.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -147,14 +147,7 @@ function resolveAttribution(context, coreRoot) {
     );
     const identity = resultText(identityResult).trim();
     if (!IDENTITY_RE.test(identity)) throw new CommitError(EXIT.READINESS, 'identity resolution failed');
-    const ocrResult = requireSuccess(
-        invoke(context, 'bash', [path.join(coreRoot, 'scripts', 'resolve-ocr-model.sh')]),
-        EXIT.READINESS,
-        'OCR model resolution failed'
-    );
-    const ocrModel = resultText(ocrResult).trim();
-    if (!MODEL_RE.test(ocrModel)) throw new CommitError(EXIT.READINESS, 'OCR model resolution failed');
-    return {identity, modelId, ocrModel};
+    return {identity, modelId};
 }
 
 function readBodyFile(file, repository) {
@@ -189,7 +182,7 @@ function buildMessage(header, parsed, attribution, body = '') {
     if (parsed.refs !== undefined) footers.push(`Refs: #${parsed.refs}`);
     footers.push(
         `Implemented-by: ${attribution.modelId}`,
-        `Tested-by: ${attribution.ocrModel}`,
+        `Tested-by: ${attribution.modelId}`,
         `Signed-off-by: ${attribution.identity}`
     );
     sections.push(footers.join('\n'));
@@ -259,6 +252,7 @@ function runPreCommitProof(context, repository) {
     const result = invoke(context, identity.path, [], {
         cwd: repository,
         env: context.env ?? process.env,
+        timeout: COMMIT_EXECUTION_TIMEOUT_MS,
     });
     if (result.error || result.status !== 0) {
         throw new CommitError(EXIT.TOOL, 'pre-commit proof failed');

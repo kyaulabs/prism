@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_workflow_drift_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: commit_workflow_drift_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 set -euo pipefail
 
@@ -41,7 +41,7 @@ else
 fi
 
 RESOLVER_ROOT="$(fixture resolver)"
-printf '%s\n' 'OCR_MODEL=$(bash "$(prism-tool resolve scripts)/resolve-ocr-model.sh")' \
+printf '%s\n' 'IDENTITY=$(bash "$(prism-tool resolve scripts)/resolve-identity.sh")' \
 	> "$RESOLVER_ROOT/packages/prism-core/prompts/example.md"
 if node "$CHECKER" "$RESOLVER_ROOT" >"$RESOLVER_ROOT/output" 2>&1; then
 	fail "direct attribution resolver recipe was accepted"

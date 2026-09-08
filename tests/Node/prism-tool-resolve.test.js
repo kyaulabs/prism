@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: prism-tool-resolve.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -315,15 +315,11 @@ test('resolves a candidate when all consumer manifests and locks are absent', (t
     configureSourceAdapter(projectRoot);
     const externalBin = path.join(projectRoot, 'bin');
     writeExecutable(path.join(externalBin, 'semgrep'), 'exit 0');
-    writeExecutable(path.join(externalBin, 'ocr'), 'exit 0');
     const consumerFiles = ['composer.json', 'composer.lock', 'package.json', 'package-lock.json'];
     const run = (command, args, options) => {
         const executable = path.basename(command);
         if (executable === 'semgrep') {
             return {status: 0, stdout: '1.173.0', stderr: '', error: undefined};
-        }
-        if (executable === 'ocr') {
-            return {status: 0, stdout: 'open-code-review v1.9.1 linux/amd64', stderr: '', error: undefined};
         }
         if (command === 'composer' && args[0] === 'require') {
             assert.equal(fs.existsSync(path.join(options.cwd, 'composer.json')), true);
@@ -580,15 +576,11 @@ test('approved setup resolve dispatches to the selected adapter and emits JSON',
     }
     const externalBin = path.join(projectRoot, 'bin');
     writeExecutable(path.join(externalBin, 'semgrep'), 'exit 0');
-    writeExecutable(path.join(externalBin, 'ocr'), 'exit 0');
     let advisory = false;
     const run = (command, args, options) => {
         const executable = path.basename(command);
         if (executable === 'semgrep') {
             return {status: 0, stdout: '1.173.0', stderr: '', error: undefined};
-        }
-        if (executable === 'ocr') {
-            return {status: 0, stdout: 'open-code-review v1.9.1 linux/amd64', stderr: '', error: undefined};
         }
         if (command === 'composer' && args[0] === 'update') {
             writeJson(path.join(options.cwd, 'composer.lock'), {packages: []});

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-semgrep.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: prism-tool-semgrep.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -65,7 +65,6 @@ function fixture(t, objectFormat = 'sha1') {
         fs.chmodSync(target, 0o700);
         return target;
     };
-    executable('ocr', "if (process.argv[2] !== '--version') process.exit(97); process.stdout.write('open-code-review v1.9.8 linux/amd64\\n');\n");
     executable('semgrep', `
 const {execFileSync} = require('node:child_process');
 const fs = require('node:fs');

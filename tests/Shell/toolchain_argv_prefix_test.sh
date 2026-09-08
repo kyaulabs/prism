@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_argv_prefix_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: toolchain_argv_prefix_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # toolchain_argv_prefix_test.sh — contract tests for the toolchain
 # argvPrefix mechanism (spec amendment: Pest coverage-driver silent-failure
@@ -121,22 +121,20 @@ fi
 # Positive: the launcher (which injects -d pcov.enabled=1) must be green in
 # the same forced-off environment, on the same focused test file. The
 # launcher gates every run on the core contract's external tools
-# (semgrep/ocr) before dispatching any component — stub them on PATH with
+# (semgrep) before dispatching any component — stub them on PATH with
 # versions read from the contract's own ranges so the smoke always
 # exercises the injection, independent of the host's real tooling and of
 # future range adjustments.
 STUB_DIR="$(mktemp -d)"
 register_temp_dir "$STUB_DIR"
 SEMGREP_STUB_VER="$(node -e 'const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(c.components.find((x) => x.id === "semgrep").versionRequirement.minimum);' "$REPO_ROOT/packages/prism-core/toolchain.json" 2>/dev/null || true)"
-OCR_STUB_VER="$(node -e 'const c = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")); process.stdout.write(c.components.find((x) => x.id === "ocr").versionRequirement.minimum);' "$REPO_ROOT/packages/prism-core/toolchain.json" 2>/dev/null || true)"
-if [ -z "$SEMGREP_STUB_VER" ] || [ -z "$OCR_STUB_VER" ]; then
-	fail "could not read semgrep/ocr version ranges from the core toolchain contract"
+if [ -z "$SEMGREP_STUB_VER" ]; then
+	fail "could not read semgrep version ranges from the core toolchain contract"
 	print_summary "toolchain_argv_prefix"
 	exit $?
 fi
 printf '#!/usr/bin/env bash\nprintf "%s\\n"\n' "$SEMGREP_STUB_VER" > "$STUB_DIR/semgrep"
-printf '#!/usr/bin/env bash\nprintf "open-code-review v%s linux/amd64\\n"\n' "$OCR_STUB_VER" > "$STUB_DIR/ocr"
-chmod +x "$STUB_DIR/semgrep" "$STUB_DIR/ocr"
+chmod +x "$STUB_DIR/semgrep"
 set +e
 SMOKE_OUT=$(cd "$REPO_ROOT" && XDEBUG_MODE=off PATH="$STUB_DIR:$PATH" node "$TOOL_LAUNCHER" run pest -- --coverage tests/Unit/EnvBoolTest.php 2>&1)
 LAUNCHER_RC=$?

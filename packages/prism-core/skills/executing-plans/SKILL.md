@@ -38,6 +38,28 @@ Do not continue with missing, mismatched, zero, or duplicate closing recipes;
 return the plan to `writing-plans`. Finalization cleanup commits do not repeat
 the closing reference.
 
+## Capture approved criteria before implementation
+
+Before the first implementation task, run installed `prism-review doctor --json`.
+Require an eligible installed Core and matching external adapter provider. Never
+substitute checkout authority or install packages automatically.
+
+Retain immutable Git commits and paths for the approved spec and plan. If the
+approved plan is not committed, stage only that plan and create its ordinary
+signed documentation commit through `conventional-commits` before proceeding.
+Do not capture unapproved edits or reconstruct criteria from a later summary.
+
+Record both sources through installed `prism-review criteria record`, supplying
+separate `--source SPEC:COMMIT:PATH` and `--source PLAN:COMMIT:PATH` arguments.
+Replace markers with validated literal full commits and repository-relative
+paths. Retain the successful receipt digest for finalization before making any
+implementation change. Existing conflicting or unsafe criteria state stops;
+never use `criteria none` to bypass missing approved requirements.
+
+Plan approval authorizes this local criteria capture, not installation or an
+additional review attempt. Finalization retains the receipt through artifact
+cleanup and binds deterministic checks and review to it.
+
 ## Inline execution
 
 The single agent executes every task directly, regardless of plan size:

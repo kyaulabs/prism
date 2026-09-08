@@ -378,7 +378,6 @@ jobs:
       - run: composer install --no-progress --no-interaction --no-scripts
       - run: npm ci --ignore-scripts
       - run: python3 -m venv /tmp/semgrep && /tmp/semgrep/bin/pip install 'semgrep>=1.173.0,<2.0.0'
-      - run: npm install -g --ignore-scripts '@alibaba-group/open-code-review@>=1.9.1 <2.0.0'
       - run: npm install -g --ignore-scripts '@earendil-works/pi-coding-agent@0.85.1'
       - run: pi install npm:@kyaulabs/prism-core@${request.adapter.packageVersion}
       - run: pi install -l npm:@kyaulabs/prism-php-web@${request.adapter.packageVersion}

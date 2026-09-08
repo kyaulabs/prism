@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre_commit_index_lint_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+# $KYAULabs: pre_commit_index_lint_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # ── Repro-first tests for pre-commit index-based linting ──────────────────────
 # Bug under test (#77):
@@ -40,7 +40,7 @@ fi
 
 # Route declared tools through the fake prism-tool boundary (Task 8). The fake
 # delegates to the fixture's real linters via the symlinked vendor/node_modules;
-# fake in-range Semgrep/OCR sit on PATH for the mandatory doctor check.
+# fake in-range Semgrep sit on PATH for the mandatory doctor check.
 export PRISM_TOOL="$REPO_ROOT/tests/Shell/fixtures/fake-prism-tool.sh"
 export PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 

@@ -34,15 +34,15 @@ Tools resolve through the `prism-tool` launcher, never from a consumer's
 `node_modules`/`vendor`/PATH. Scope is owned by the package toolchain
 contracts: bundled core tools (commitlint, git-cliff), mandatory external
 prerequisites that Prism verifies but never installs (Semgrep
-`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0` — ADR-0063), and consumer-development
+`>=1.173.0 <2.0.0` — ADR-0063), and consumer-development
 adapter tools (Pest 5/PHPUnit 13 baseline and the frontend toolchain).
 Registry access and consumer mutation remain separate operation-specific
-approvals. `/setup` solely manages independent standing OCR and web-access
-consent. OCR consent covers connectivity and reviewed-code egress through the
-dedicated review operation; web consent covers only bounded `web_search` and
-`fetch_content`. Full `/doctor` validates readiness without granting consent.
-Installation, hooks, and CI use local-only readiness and never establish
-consent (ADR-0074, ADR-0091).
+approvals. `/setup` solely manages standing web-access consent, which covers only bounded
+`web_search` and `fetch_content`. Full `/doctor` validates installed reviewer
+readiness without inference or granting consent. Review uses the stable
+installed `prism-review` authority, never the reviewed checkout. One approved
+attempt authorizes its bounded reviewed-code egress. Installation, hooks, and
+CI use local-only readiness and never establish consent (ADR-0103).
 
 Harness scripts resolve the same way: run `prism-tool resolve scripts` (or
 `prism-tool resolve skills`) in one tool call, retain the returned absolute
@@ -150,9 +150,13 @@ brainstorming / to-spec → prototype (if needed) → architect (if cross-cuttin
 
 Plan approval authorizes the initial finalization path, including cleanup
 commits, target fetch/merge synchronization, unlimited local `/check` runs, one
-four-axis review, and automatic `/pr`. Standing OCR consent remains the sole
-authority for reviewed-code egress. Every additional review attempt requires
+four-axis review, and automatic `/pr`. That one attempt includes bounded reviewed-code egress. Every additional review attempt requires
 fresh explicit approval; `/check` reruns do not.
+
+Before cleanup, preserve immutable approved criteria through the installed reviewer.
+`/check` publishes deterministic exact-attestation receipts. Only version-two
+review receipts satisfy finalization; legacy state never passes preflight.
+Both commit model trailers use the validated active Pi model.
 
 Finalization records one complete initial review across all four axes in a
 bounded chain. After a Blocking repair, a freshly approved review covers only
@@ -361,9 +365,9 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `/research` | Cited research via bounded `web_search` and `fetch_content` tools |
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
-| `/setup` | Interactive project configurator and sole manager of independent standing OCR and web-access consent |
+| `/setup` | Interactive project configurator and sole manager of standing web-access consent |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
-| `/doctor` | Full readiness check — verifies version floors and, with valid standing consent, runs one OCR connectivity test without another prompt |
+| `/doctor` | Full local readiness check — verifies Semgrep, installed reviewer trust, SDK, model metadata, and adapter compatibility without inference |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Aliases: `/ticket`, `/issues`, `/tickets` |

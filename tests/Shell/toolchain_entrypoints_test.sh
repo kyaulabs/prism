@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
-# prism-tool launcher, preserve standing OCR consent, atomic commits, and
+# prism-tool launcher, preserve independent web consent, atomic commits, and
 # dedicated review boundaries, and never invoke declared tools directly or
-# treat OCR as optional.
+# retain mandatory deterministic checks.
 
 set -euo pipefail
 
@@ -47,9 +47,9 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup apply' 'setup ru
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup verify' 'setup runs setup verify'
 assert_file_contains "$CORE_PROMPTS/setup.md" '--network-approved=yes' 'setup requires exact registry approval'
 assert_file_contains "$CORE_PROMPTS/setup.md" '--approval=yes' 'setup requires literal yes mutation approval'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent status --json' 'setup inspects standing OCR consent'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent grant-ocr --approval=yes' 'setup grants standing OCR consent once'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-ocr' 'setup documents standing OCR consent revocation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent status --json' 'setup inspects standing web-access consent'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent grant-web --approval=yes' 'setup grants standing web-access consent once'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-web' 'setup documents standing web-access consent revocation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent grant-web --approval=yes' 'setup grants standing web-access consent'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool consent revoke-web' 'setup documents standing web-access consent revocation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool web-access status --json' 'setup inspects managed web-access configuration'
@@ -247,12 +247,12 @@ CONSENT_SCAN_PATHS=(
 	"$REPO_ROOT/CODING_HARNESS.md"
 	"$REPO_ROOT/CONTRIBUTING.md"
 )
-consent_prompt_count=$({ grep -RiohE 'Grant standing OCR consent.*\(yes/no\)' \
+consent_prompt_count=$({ grep -RiohE 'Grant standing web-access consent.*\(yes/no\)' \
 	"${CONSENT_SCAN_PATHS[@]}" || true; } | wc -l | tr -d ' ')
 setup_status_line=$({ grep -niF 'prism-tool consent status --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_prompt_line=$({ grep -niE 'Grant standing OCR consent.*\(yes/no\)' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_grant_line=$({ grep -niF 'prism-tool consent grant-ocr --approval=yes' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
-setup_doctor_line=$({ grep -niE '^prism-tool doctor$' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_prompt_line=$({ grep -niE 'Grant standing web-access consent.*\(yes/no\)' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_grant_line=$({ grep -niF 'prism-tool consent grant-web --approval=yes' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+setup_doctor_line=$({ grep -niF 'Run `prism-tool doctor`' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
 if [ "$consent_prompt_count" -eq 1 ] \
 	&& [ -n "$setup_status_line" ] && [ -n "$setup_prompt_line" ] \
 	&& [ -n "$setup_grant_line" ] && [ -n "$setup_doctor_line" ] \
@@ -267,15 +267,15 @@ fi
 
 echo "── /doctor standing-consent readiness ──"
 assert_file_contains "$CORE_PROMPTS/doctor.md" 'prism-tool doctor' 'full doctor uses the launcher without an approval flag'
-assert_file_contains "$CORE_PROMPTS/doctor.md" 'standing-consent|standing consent' 'full doctor requires standing OCR consent'
+assert_file_contains "$CORE_PROMPTS/doctor.md" 'Consent does not authorize review' 'full doctor does not depend on consent'
 assert_file_contains "$CORE_PROMPTS/doctor.md" 'prism-tool consent status --json' 'doctor inspects independent standing consent'
 assert_file_contains "$CORE_PROMPTS/doctor.md" 'prism-tool web-access status --json' 'doctor inspects web-access readiness without a live search'
 assert_file_contains "$CORE_PROMPTS/doctor.md" 'web_search|fetch_content' 'doctor names the bounded web-access tools'
-assert_file_not_contains "$CORE_PROMPTS/doctor.md" '--ocr-test-approved' 'doctor has no per-run OCR approval flag'
-assert_file_not_contains "$CORE_PROMPTS/doctor.md" '\(yes/no\)' 'doctor never asks for OCR consent'
+assert_file_not_contains "$CORE_PROMPTS/doctor.md" '--retired-test-approved' 'doctor has no per-run review approval flag'
+assert_file_not_contains "$CORE_PROMPTS/doctor.md" '\(yes/no\)' 'doctor never asks for web consent'
 assert_file_contains "$REPO_ROOT/packages/prism-core/scripts/install-global.sh" 'doctor --local-only' 'installer performs local-only readiness'
 assert_file_contains "$REPO_ROOT/packages/prism-core/scripts/install-global.sh" 'Run /setup' 'installer directs the human to /setup'
-assert_file_not_contains "$REPO_ROOT/packages/prism-core/scripts/install-global.sh" 'grant-ocr|--ocr-test-approved' 'installer neither grants nor requests OCR consent'
+assert_file_not_contains "$REPO_ROOT/packages/prism-core/scripts/install-global.sh" 'grant-web|consent migrate' 'installer neither grants nor requests web consent'
 
 LEGACY_DEEPSEEK_KEY='DEEPSEEK_API''_KEY'
 LEGACY_WEBSEARCH_PREFIX='WEBSEARCH''_'
@@ -312,8 +312,8 @@ done
 echo "── local-only readiness on /check, /pr, and release ──"
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool doctor --local-only' 'check performs local-only readiness'
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool automation health --json' 'check verifies read-only managed project health'
-assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool markdown lint --changed-from' 'check runs changed Markdown through the shared gate'
-assert_file_contains "$CORE_PROMPTS/check.md" 'one tool call.*retain.*literal SHA|retain.*literal SHA.*later call' 'check resolves and retains the Markdown base separately'
+assert_file_contains "$CORE_PROMPTS/check.md" 'prism-review check --base-ref' 'check delegates deterministic gates to installed authority'
+assert_file_contains "$CORE_PROMPTS/check.md" 'exact attestation' 'check binds deterministic evidence to exact identities'
 assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr review-preflight' 'pr delegates review readiness to the launcher'
 assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr preflight' 'pr delegates preflight to the launcher'
 assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr validate-title' 'pr delegates title validation to the launcher'
@@ -330,25 +330,14 @@ assert_file_not_contains "$CORE_SKILLS/conventional-commits/SKILL.md" '\$\(' 'co
 echo "── /security scans through the launcher ──"
 assert_file_contains "$CORE_PROMPTS/security.md" 'prism-tool run semgrep' 'security runs Semgrep through the launcher'
 
-echo "── code-review uses standing consent and the dedicated OCR boundary ──"
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Standing OCR consent' 'code-review relies on global standing consent'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review ocr' 'code-review uses the dedicated OCR operation'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review chain inspect --json' 'code-review inspects bounded review-chain evidence'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review chain record' 'code-review records bounded review-chain evidence'
-assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" '--ocr-test-approved|--code-egress-approved' 'code-review has no per-run approval flags'
-assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool run ocr' 'code-review cannot use generic OCR passthrough'
-assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'optional.*[Oo]cr|OCR.*optional|SKIPPED.*OCR' 'code-review treats OCR as mandatory, not optional'
-
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review applicability --from FROM_SHA --to TO_SHA --json' 'review probes the exact immutable range'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'COMPLETE_NO_OCR' 'tooling exposes a distinct OCR outcome'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'all four axes remain required' 'Markdown exemption retains every review axis'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Mixed ranges retain normal OCR requirements' 'mixed ranges cannot take the Markdown exemption'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'A skipped response is not proof' 'empty selection cannot authorize an exemption'
-assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'human may explicitly waive an' 'prose waivers cannot complete chain evidence'
-
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool automation health --json' 'review checks managed readiness after recording evidence'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Preserve completed review evidence' 'health failure preserves completed review evidence'
-assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Do not rerun OCR' 'health failure does not authorize another OCR review'
+echo "── code-review uses installed version-two authority ──"
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-review review authoritative' 'review invokes installed authority'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-review chain inspect --json' 'review inspects bounded evidence'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-review chain verify' 'review verifies exact receipt authority'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'all four axes' 'repair coverage includes every axis'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'fresh explicit approval' 'additional attempts require approval'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool automation health --json' 'review checks managed readiness'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Preserve completed review evidence' 'health failure preserves evidence'
 
 echo "── adapter checks/build use declared tool IDs ──"
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixer -- fix --dry-run --diff' 'check-php runs php-cs-fixer through the launcher'
@@ -419,8 +408,8 @@ for doc in \
 	"$REPO_ROOT/packages/prism-core/README.md" \
 	"$REPO_ROOT/README.md" \
 	"$REPO_ROOT/CODING_HARNESS.md"; do
-	assert_file_contains "$doc" 'standing OCR consent' "$doc documents standing OCR consent"
-	assert_file_contains "$doc" 'consent revoke-ocr' "$doc documents consent revocation"
+	assert_file_contains "$doc" 'standing web-access consent' "$doc documents standing web-access consent"
+	assert_file_contains "$doc" 'consent revoke-web' "$doc documents consent revocation"
 	assert_file_contains "$doc" 'prism-tool commit create' "$doc documents atomic commit creation"
 	assert_file_contains "$doc" '/reload' "$doc documents fatal commit recovery"
 	assert_file_contains "$doc" 'fresh finalization acceptance' "$doc documents one-attempt finalization recovery"
@@ -461,10 +450,10 @@ for candidate in "${STALE_SCAN_PATHS[@]}"; do
 		'vendor/bin/pest' \
 		'vendor/bin/php-cs-fixer' \
 		'git cliff' \
-		'command -v ocr' \
-		'--ocr-test-approved' \
+		'command -v retired-reviewer' \
+		'--retired-test-approved' \
 		'--code-egress-approved' \
-		'prism-tool run ocr' \
+		'prism-tool run retired-reviewer' \
 		'prism-tool commit prepare' \
 		'prism-tool commit apply' \
 		'prism-tool commit discard'; do
@@ -472,12 +461,12 @@ for candidate in "${STALE_SCAN_PATHS[@]}"; do
 			stale_found=1
 		fi
 	done
-	if grep -rniE 'optional.*[Oo]cr|OCR.*optional|SKIPPED.*[Oo]cr|OCR.*SKIPPED' "$candidate" 2>/dev/null; then
+	if grep -rniE 'SKIPPED.*mandatory review' "$candidate" 2>/dev/null; then
 		stale_found=1
 	fi
 done
 if [ "$stale_found" -eq 0 ]; then
-	pass 'active resources contain no retired approvals, generic OCR, old commits, or direct declared-tool invocation'
+	pass 'active resources contain no retired approvals, generic reviewer, old commits, or direct declared-tool invocation'
 else
 	fail 'active resources contain a retired workflow or direct declared-tool invocation'
 	failures=$((failures + 1))

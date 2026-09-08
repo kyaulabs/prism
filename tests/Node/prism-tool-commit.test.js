@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-commit.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -83,9 +83,6 @@ function makeCommitContext(t, overrides = {}) {
         }
         if (command === 'bash' && path.basename(args[0]) === 'resolve-identity.sh') {
             return completed(0, overrides.identity ?? 'Test User <test@example.com>\n');
-        }
-        if (command === 'bash' && path.basename(args[0]) === 'resolve-ocr-model.sh') {
-            return completed(0, overrides.ocrModel ?? 'review-model\n');
         }
         if (command === 'bash' && path.basename(args[0]) === 'validate-branch-name.sh') {
             return completed(overrides.branchStatus ?? 0);
@@ -291,7 +288,7 @@ test('commit create renders the canonical message and creates one signed commit'
         'fix(toolchain): create signed commits atomically',
         '',
         'Implemented-by: implementation-model',
-        'Tested-by: review-model',
+        'Tested-by: implementation-model',
         'Signed-off-by: Test User <test@example.com>',
         '',
     ].join('\n');
@@ -558,7 +555,7 @@ test('commit create classifies git process failure separately from signing', (t)
     assert.doesNotMatch(result.stderr, /hook/);
 });
 
-test('commit create gives repository hooks the bounded long-running timeout', (t) => {
+test('commit create gives both hook proof and Git the bounded long-running timeout', (t) => {
     const {calls, context, gitDir, observed} = makeCommitContext(t, {
         commitFailure: true,
         commitFailureError: true,
@@ -570,6 +567,8 @@ test('commit create gives repository hooks the bounded long-running timeout', (t
 
     assert.equal(result.status, 5);
     assert.match(result.stderr, /Git commit timed out; manual recovery required/);
+    const proofCall = calls.find(({command}) => path.basename(command) === 'pre-commit');
+    assert.equal(proofCall.options.timeout, 300000);
     const commitCall = calls.find(({command, args}) => command === 'git' && args[0] === 'commit');
     assert.equal(commitCall.options.timeout, 300000);
     assert.equal(fs.existsSync(path.join(gitDir, 'index.lock')), true);

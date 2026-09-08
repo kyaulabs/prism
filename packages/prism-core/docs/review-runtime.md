@@ -1,57 +1,12 @@
-# Review runtime and authority compatibility bridge
+# Review runtime and authority
 
-`prism-review` is Prism Core's bounded, skill-first review runtime. This release
-provides two surfaces:
-
-- ad hoc staged, commit, branch, and path reports remain non-authoritative and
-  write no receipt or finalization state; and
-- a dormant authority compatibility bridge can create immutable criteria,
-  deterministic check, and schema-version-two review receipts when called
-  deliberately from eligible installed packages.
-
-Normal `/check`, `code-review`, finalization, consent, attribution, and release
-workflows do not invoke the bridge. OCR and schema version one remain the normal
-authority for this release.
-
-## Version-one Markdown-only OCR applicability
-
-For an attested version-one segment, run the local probe with its full
-immutable commit IDs:
-
-```text
-prism-tool code-review applicability --from SHA --to SHA --json
-```
-
-The JSON fields are `schemaVersion: 1`, `from`, `to`, and `status`.
-`MARKDOWN_ONLY` proves a non-empty range affecting only `.md` or `.markdown`
-regular Git blobs, matched case-insensitively. Additions, modifications,
-deletions, Markdown-to-Markdown renames, and regular-file mode changes can
-qualify. Both old and new sides count. Mixed paths, code/Markdown renames,
-symlinks, and Gitlinks yield `REQUIRED`; non-Markdown changes retain normal
-OCR requirements.
-
-Exit 0 reports classification, not review completion. Exit 2 rejects the
-grammar, exit 3 rejects local readiness, and exit 4 reports an unproven range.
-Empty diffs, missing objects, malformed or invalid-encoding metadata, output
-over 1 MiB, and Git failure or a 30-second timeout cannot establish an
-exemption. The probe performs no connectivity test, review, or state write.
-
-Tooling may record `COMPLETE_NO_OCR` only after local tooling/style inspection
-completes and exact-range proof succeeds. Recording and authoritative chain
-verification independently repeat that proof. Structural inspection alone
-grants nothing. Other axes, mandatory local Semgrep/OCR readiness, applicable
-external-operation consent, review-attempt approvals, exact identities,
-continuous repairs, and Blocking closure requirements remain unchanged.
-
-PR verification discloses exempt segments as "OCR not applicable: verified
-Markdown-only range" with their exact endpoints. A skipped external response
-remains skipped and is never proof of completion or applicability. Older
-readers fail closed on the new tooling outcome rather than rewriting it as
-ordinary completion.
-
-This policy applies only to the active version-one path. It changes no
-version-two profile, byte-exposure requirement, receipt, authority, or
-publication boundary (ADR-0106).
+The installed `prism-review` engine is Prism's only finalization authority.
+It owns immutable criteria, deterministic check receipts, and version-two
+four-axis review receipts. Ad hoc reports remain non-authoritative.
+The reviewed checkout cannot define its own authority. Legacy state never
+passes PR preflight. One initial review is plan-authorized; every additional
+attempt requires fresh approval, including its provider cost and code egress.
+Standing web consent never authorizes review.
 
 ## Isolated Semgrep scans
 
@@ -143,8 +98,7 @@ resources, profiles, adapter providers, and receipt state. Authentication stays
 
 Restore a verified Core dependency graph or install a Core release tested with
 the SDK when API compatibility fails. Do not point the reviewer at checkout
-code or repair resolution with `NODE_PATH`. No readiness result authorizes OCR
-removal or bypasses the human release, publication, and installation checkpoint.
+code or repair resolution with `NODE_PATH`. No readiness result bypasses human package installation or grants review authority.
 
 ## Package compatibility verification
 
@@ -166,7 +120,7 @@ attempts caught by the SDK. Installed-copy negative cases must report
 
 CI retains only the consumer manifest, generated lock, Core archive, and exact
 version report for replay. These tests do not replace fixed-baseline release
-evidence or authorize OCR cutover. Only the human's post-release, externally
+evidence. Only the human's post-release, externally
 installed consumer doctor result satisfies released-consumer acceptance.
 
 ## Commands and exits
@@ -181,7 +135,7 @@ prism-review review branch --base SHA --head SHA --json
 prism-review review path --path RELATIVE_TRACKED_PATH --json
 ```
 
-The dormant bridge has this closed grammar:
+The authority launcher has this closed grammar:
 
 ```text
 prism-review criteria record --source ROLE:COMMIT:PATH [--source ROLE:COMMIT:PATH ...] --json
@@ -235,9 +189,9 @@ Bridge use requires a release, publication, and installation checkpoint:
 3. install those exact packages outside the target repository; and
 4. call the bridge explicitly from that external installation.
 
-This makes the bridge available for deliberate compatibility work; it does not
-perform the separate cutover. OCR, the version-one review chain, standing OCR
-consent, and existing finalization and attribution rules remain current.
+Normal finalization uses this installed authority. Both ordinary commit model
+trailers derive from validated active `PI_MODEL`; exact review provenance is
+retained in the receipt. Consent schema three contains only `webAccess`.
 
 Humans publish and install packages, push branches, create pull requests, and
 merge. Prism does not perform those operations.
@@ -273,9 +227,8 @@ bounded diagnostic and do not advance the chain. Safe schema-one state is
 review that succeeds. Malformed, symlinked, or otherwise untrusted state is
 `UNSAFE` and is never overwritten automatically.
 
-The dual-read preflight selects one coherent chain: valid schema version one or
-valid schema version two. It reports the selected version and never combines
-evidence between versions. Version-two recovery from `ABSENT` is available only
+Preflight accepts only valid schema version two and never combines evidence
+between versions. Version-two recovery from `ABSENT` is available only
 when exact approved criteria and current PASS check receipts already exist;
 legacy, partial, stale, dirty, Blocking, or unsafe state fails closed. `/pr`
 never chooses criteria and never authorizes repair.
@@ -391,7 +344,4 @@ fake-runner command flag, preload path, or environment-based module override.
 The tests construct no live `ModelRuntime`, make no provider request, and read
 no credential file.
 
-The bridge design and the future authority cutover are specified separately in
-`docs/specs/2026-09-02-prism-review-authority-bridge-spec.md` and
-`docs/specs/2026-09-02-prism-review-authority-cutover-spec.md` in the Prism
-repository.
+ADR-0102 and ADR-0103 define the runtime trust root and authority cutover.

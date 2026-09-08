@@ -171,17 +171,11 @@ Blocking findings stop finalization. Advisory findings do not block `/pr` and
 need no waiver. Suggested findings must be resolved or explicitly handled by
 the active review workflow.
 
-OpenCodeReview (`ocr`) is available only through the dedicated review
-operation. `/setup` solely manages standing OCR consent and separate standing
-web-access consent. Revoke them with `prism-tool consent revoke-ocr` and
-`prism-tool consent revoke-web`. Local installation, hooks, and CI use
-local-only readiness and establish neither consent nor outbound operation.
-
-The packaged [`prism-review` foundation](packages/prism-core/docs/review-runtime.md)
-can run the same four axes as a bounded ad hoc report. Its reports are always
-non-authoritative and do not satisfy finalization or create review-chain state.
-OCR remains the current review authority until the separately specified bridge,
-package release and installation checkpoint, and cutover are complete.
+The installed `prism-review` engine owns exact criteria, deterministic checks,
+and version-two review receipts. Review has one-attempt authorization; further
+attempts require fresh approval. `/setup` manages only standing web-access
+consent (`prism-tool consent revoke-web` revokes it). Doctor performs no live
+inference. Legacy review state never passes preflight.
 
 ## Commands
 
@@ -189,8 +183,8 @@ package release and installation checkpoint, and cutover are complete.
 | --- | --- |
 | `/router` | Select the correct on-ramp |
 | `/prime` | Draft or refresh `CONTEXT.md` |
-| `/setup` | Configure the project and manage independent OCR and web consent |
-| `/doctor` | Run full readiness and one consented OCR connectivity test |
+| `/setup` | Configure the project and manage web-access consent |
+| `/doctor` | Run full readiness and installed reviewer readiness without inference |
 | `/issue` | Create an issue or decompose a spec or plan |
 | `/check` | Run the pre-push gates |
 | `/security` | Run SAST and locked-dependency audits |
@@ -212,7 +206,7 @@ direct fallback. Public content fetching is browser-free.
 
 Declared tools resolve through `prism-tool` according to the Core and adapter
 toolchain contracts. Core bundles commitlint, git-cliff, and
-`markdownlint-cli2`. Semgrep and OCR are mandatory compatible external tools.
+`markdownlint-cli2`. Semgrep is the mandatory compatible external tool.
 The PHP/web adapter owns project-local development tools such as Pest,
 php-cs-fixer, Playwright, Sass, ESLint, Stylelint, and UglifyJS.
 

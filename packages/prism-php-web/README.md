@@ -27,7 +27,7 @@ boundaries.
 
 ## Prerequisites and install
 
-Install Prism Core globally first. Semgrep and OpenCodeReview (`ocr`) remain
+Install Prism Core globally first. Semgrep remains
 Core prerequisites. Consumer development uses PHP 8.5+, Composer, Node.js,
 MariaDB, nginx, and the exact tools declared by this adapter.
 
@@ -152,8 +152,8 @@ profile, policy, skills, and executable bytes agree. The adapter inside the
 reviewed worktree cannot execute as authority or approve itself. Missing,
 mismatched, stale, or malformed provider evidence fails closed.
 
-The bridge remains dormant in this release and does not switch normal
-finalization away from OCR. Ad hoc reports remain non-authoritative. Humans
+The installed reviewer and adapter provider supply normal version-two
+finalization authority. Ad hoc reports remain non-authoritative. Humans
 publish and install the matching Core and adapter packages; Prism does not push,
 create pull requests, or merge. See Core's [Review runtime and authority
 compatibility bridge](https://github.com/kyaulabs/prism/blob/main/packages/prism-core/docs/review-runtime.md).

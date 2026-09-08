@@ -10,7 +10,7 @@ Before contributing, install:
 - Git;
 - Node.js 22.19 or newer and npm;
 - pi;
-- Semgrep and OpenCodeReview (`ocr`) in the compatible ranges shown by
+- Semgrep in the compatible range shown by
   `prism-tool doctor --local-only`;
 - PHP 8.5, Composer, PCOV, and the PHP/web development tools when changing the
   adapter;

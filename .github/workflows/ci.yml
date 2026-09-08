@@ -144,18 +144,6 @@ jobs:
           export PATH="$venv/bin:$PATH"
           semgrep --version
 
-      - name: Provision OCR (compatible range, scripts disabled)
-        # Ephemeral CI environment provisioning only — Prism runtime/setup
-        # verifies but never installs OCR (ADR-0063). CI never runs the OCR
-        # connectivity test or an OCR review; only the local
-        # executable/version check is exercised.
-        env:
-          OCR_RANGE: ">=1.9.1 <2.0.0"
-        run: |
-          set -euo pipefail
-          npm install -g --ignore-scripts "@alibaba-group/open-code-review@${OCR_RANGE}"
-          ocr --version
-
       - name: Mandatory local readiness
         run: node packages/prism-core/scripts/prism-tool.js doctor --local-only
 

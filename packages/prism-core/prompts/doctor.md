@@ -42,18 +42,13 @@ JSON and do not require a shell parsing dependency.
 
 ## 3. Prism resources
 
-Run the contract-owned readiness check without asking an OCR question (never
-install or configure Semgrep/OCR):
-
-```bash
-prism-tool doctor
-```
-
-This performs mandatory Semgrep/OCR version verification (ADR-0063: Semgrep
-`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`) and runs `ocr llm test` only when
-the global standing-consent record is valid. Missing or unsafe consent returns
-NO-GO with `/setup` as the remediation. Never grant, revoke, repair, or remove
-consent from `/doctor`.
+Run `prism-tool doctor`. It verifies mandatory Semgrep compatibility and the
+installed `prism-review doctor --json` readiness contract: trust-root provenance,
+SDK compatibility, model metadata, Core policy, and active adapter provider.
+It makes no live inference request. Authentication failures surface only at an
+authorized review attempt. Never install or configure tools automatically.
+Consent does not authorize review and does not block doctor. Never migrate,
+grant, revoke, or repair consent from `/doctor`.
 
 ```bash
 pi list
@@ -140,14 +135,12 @@ Do not run `web_search`, `fetch_content`, or any live public request from
 
 Report these results separately from mandatory Core readiness:
 
-- OCR consent must be granted for full doctor and OCR review readiness.
 - Missing standing web-access consent is `OPTIONAL_DISABLED`, not a mandatory
   Core failure. Direct the human to `/setup` if they want `web_search` or
   `fetch_content`.
-- An unsafe consent record is mandatory `NO-GO` because OCR consent is not
-  readable, and it also makes web access `WEB_ACCESS_NO-GO`. An unsafe
-  web-access configuration alone is `WEB_ACCESS_NO-GO`. Both require human
-  remediation; never overwrite, chmod, revoke, or remove either record.
+- Unsafe consent or web configuration disables optional web access and requires
+  human remediation, without blocking mandatory Core readiness. Never overwrite,
+  chmod, revoke, or remove either record automatically.
 - An absent web-access configuration is valid: browser auto-detection remains
   enabled, loopback SearXNG is absent, and guarded direct fallback is available
   only after consent.

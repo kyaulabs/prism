@@ -347,6 +347,18 @@ test('records exact criteria sources only through an eligible authority root', a
     assert.doesNotMatch(output.result().stdout, /private|canary/);
 });
 
+test('chain inspection exposes validated receipt data for PR disclosure', async () => {
+    const output = capture();
+    const record = {schemaVersion: 2, findings: [{summary: 'Follow up', classification: 'ADVISORY'}]};
+    const status = await main(['chain', 'inspect', '--json'], {
+        ...output.context, projectRoot: process.cwd(),
+        classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2, record}),
+    });
+    assert.equal(status, EXIT.OK);
+    assert.deepEqual(JSON.parse(output.result().stdout).record, record);
+});
+
 test('dispatches each exact bridge operation with closed results', async (t) => {
     const repositoryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-review-cli-bridge-'));
     fs.writeFileSync(path.join(repositoryRoot, 'closures.json'), JSON.stringify({

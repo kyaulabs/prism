@@ -408,11 +408,14 @@ async function executeBridge(bridge, context, projectRoot, trust) {
         );
         const valid = inspected.state === 'VALID';
         const legacy = inspected.state === 'LEGACY';
-        return bridgeResult(bridge.command, trust, {
-            state: inspected.state,
-            version: valid ? 2 : legacy ? 1 : null,
-            receiptDigest: valid || legacy ? digestJson(inspected.record) : null,
-        });
+        return {
+            ...bridgeResult(bridge.command, trust, {
+                state: inspected.state,
+                version: valid ? 2 : legacy ? 1 : null,
+                receiptDigest: valid || legacy ? digestJson(inspected.record) : null,
+            }),
+            ...(valid ? {record: inspected.record} : {}),
+        };
     }
     if (bridge.operation === 'chain-verify') {
         const identity = bridgeRepositoryIdentity(bridge.baseRef, context, projectRoot);

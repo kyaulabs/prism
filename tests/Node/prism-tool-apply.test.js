@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -1051,19 +1051,10 @@ test('dispatches literal approval as an approved adapter application', (t) => {
     configureSourceAdapter(fixture.projectRoot);
     const externalBin = path.join(fixture.projectRoot, 'external-bin');
     writeExecutable(path.join(externalBin, 'semgrep'), 'exit 0');
-    writeExecutable(path.join(externalBin, 'ocr'), 'exit 0');
     const run = (command, args) => {
         const executable = path.basename(command);
         if (executable === 'semgrep') {
             return {status: 0, stdout: '1.173.0\n', stderr: '', error: undefined};
-        }
-        if (executable === 'ocr') {
-            return {
-                status: 0,
-                stdout: 'open-code-review v1.9.1 linux/amd64\n',
-                stderr: '',
-                error: undefined,
-            };
         }
         if (command === 'composer' && args[0] === 'install') {
             return {status: 1, stdout: 'CANARY-INSTALL-OUTPUT', stderr: '', error: undefined};
@@ -1184,7 +1175,6 @@ test('verifies the installed lock graph, audits, and command versions after appr
     writeConsumerExecutables(fixture.projectRoot);
     const externalBin = path.join(fixture.projectRoot, 'external-bin');
     writeExecutable(path.join(externalBin, 'semgrep'), 'exit 0');
-    writeExecutable(path.join(externalBin, 'ocr'), 'exit 0');
     const executableVersions = new Map(
         adapterContract.components
             .filter(({kind}) => kind === 'command')
@@ -1194,14 +1184,6 @@ test('verifies the installed lock graph, audits, and command versions after appr
         const executable = path.basename(command);
         if (executable === 'semgrep') {
             return {status: 0, stdout: '1.173.0\n', stderr: '', error: undefined};
-        }
-        if (executable === 'ocr') {
-            return {
-                status: 0,
-                stdout: 'open-code-review v1.9.1 linux/amd64\n',
-                stderr: '',
-                error: undefined,
-            };
         }
         if (command === 'composer' && args[0] === 'audit') {
             return {status: 0, stdout: '{"advisories":{}}', stderr: '', error: undefined};

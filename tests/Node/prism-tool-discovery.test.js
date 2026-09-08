@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -134,15 +134,11 @@ test('runs adapter Composer and npm commands from their project while cwd is unr
     const externalBin = path.join(projectRoot, 'external-bin');
     writeExecutable(path.join(externalBin, 'php'), 'exit 0');
     writeExecutable(path.join(externalBin, 'semgrep'), 'exit 0');
-    writeExecutable(path.join(externalBin, 'ocr'), 'exit 0');
     const invocations = [];
     const run = (command, args, options) => {
         const executable = path.basename(command);
         if (executable === 'semgrep') {
             return {status: 0, stdout: '1.173.0', stderr: '', error: undefined};
-        }
-        if (executable === 'ocr') {
-            return {status: 0, stdout: 'open-code-review v1.9.1 linux/amd64', stderr: '', error: undefined};
         }
         invocations.push({command, args, cwd: options.cwd});
         return {status: 0, stdout: 'Pest 5.1.1\n', stderr: '', error: undefined};
@@ -182,7 +178,7 @@ test('fails closed when the argvPrefix command is unavailable', (t) => {
         skills: [path.join(adapterRoot, 'skills')],
     });
     writeExecutable(path.join(projectRoot, 'vendor', 'bin', 'pest'), 'exit 0');
-    // semgrep/ocr stubs satisfy the core readiness gate (in-range versions);
+    // semgrep stubs satisfy the core readiness gate (in-range versions);
     // php is deliberately absent so the prefix check must fail closed
     // before any spawn. The stub dir carries its own node binary so the
     // stubs' node shebangs resolve with PATH limited to the stub dir.
@@ -190,7 +186,6 @@ test('fails closed when the argvPrefix command is unavailable', (t) => {
     fs.mkdirSync(externalBin, {recursive: true});
     fs.symlinkSync(process.execPath, path.join(externalBin, 'node'));
     fs.writeFileSync(path.join(externalBin, 'semgrep'), "#!/usr/bin/env node\nconsole.log('1.174.0')\n", {mode: 0o755});
-    fs.writeFileSync(path.join(externalBin, 'ocr'), "#!/usr/bin/env node\nconsole.log('open-code-review v1.9.2 linux/amd64')\n", {mode: 0o755});
 
     const result = captureWrites(() => main(['run', 'pest', '--', '--version'], {
         projectRoot,
@@ -224,14 +219,10 @@ test('setup inspect discovers the source adapter and emits a read-only JSON repo
     }
     const externalBin = path.join(projectRoot, 'external-bin');
     writeExecutable(path.join(externalBin, 'semgrep'), 'exit 0');
-    writeExecutable(path.join(externalBin, 'ocr'), 'exit 0');
     const run = (command) => {
         const executable = path.basename(command);
         if (executable === 'semgrep') {
             return {status: 0, stdout: '1.173.0', stderr: '', error: undefined};
-        }
-        if (executable === 'ocr') {
-            return {status: 0, stdout: 'open-code-review v1.9.1 linux/amd64', stderr: '', error: undefined};
         }
         if (command === 'php') {
             return {status: 0, stdout: '{"version":"8.5.9","sockets":true}', stderr: '', error: undefined};

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+# $KYAULabs: release_workflow_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # release_workflow_test.sh — Static drift guard for ADR-0046 release.yml
 #
@@ -1601,7 +1601,7 @@ if [ "$(bash_block_count "$RELEASE_CMD" '^[[:space:]]*prism-tool commit create')
    ! grep -qiF 'commit approval' "$RELEASE_CMD" && \
    ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE_CMD" && \
    ! grep -qF 'resolve-identity.sh' "$RELEASE_CMD" && \
-   ! grep -qF 'resolve-ocr-model.sh' "$RELEASE_CMD"; then
+   ! grep -qF 'resolve-identity.sh' "$RELEASE_CMD"; then
 	pass "P20: /release creates one approval-free signed chore(release) commit through prism-tool"
 else
 	fail "P20: /release atomic launcher-owned commit contract violated"

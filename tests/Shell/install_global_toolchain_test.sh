@@ -79,22 +79,7 @@ EOF
 #!/usr/bin/env bash
 printf '%s\n' "${SEMGREP_VERSION:-1.173.0}"
 EOF
-    cat > "$root/bin/ocr" <<'EOF'
-#!/usr/bin/env bash
-if [ -n "${OCR_INVOCATIONS:-}" ]; then
-    printf '%s\n' "$*" >> "$OCR_INVOCATIONS"
-fi
-if [ "${1:-}" = "--version" ]; then
-    printf 'open-code-review v%s linux/amd64\n' "${OCR_VERSION:-1.9.1}"
-    exit 0
-fi
-if [ "${1:-}" = "llm" ] && [ "${2:-}" = "test" ]; then
-    printf 'ok\n'
-    exit "${OCR_TEST_STATUS:-0}"
-fi
-exit 2
-EOF
-    chmod +x "$root/bin/pi" "$root/bin/semgrep" "$root/bin/ocr"
+    chmod +x "$root/bin/pi" "$root/bin/semgrep"
 }
 
 file_mode() {
@@ -113,14 +98,12 @@ register_temp_dir "$T1"
 write_fake_tools "$T1"
 mkdir -p "$T1/home" "$T1/pi-agent" "$T1/bin-dir"
 : > "$T1/pi-invocations"
-: > "$T1/ocr-invocations"
 output=""
 status=0
 output=$(HOME="$T1/home" \
     PI_CODING_AGENT_DIR="$T1/pi-agent" \
     PRISM_BIN_DIR="$T1/bin-dir" \
     PI_INVOCATIONS="$T1/pi-invocations" \
-    OCR_INVOCATIONS="$T1/ocr-invocations" \
     PATH="$T1/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
 
@@ -189,14 +172,13 @@ else
     fail "installer omitted SDK readiness verification"
 fi
 if grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
-    && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
-    && ! grep -qF 'llm test' "$T1/ocr-invocations" \
+    && grep -qFx '  • Run /setup to configure optional web access and verify installed review readiness.' <<< "$output" \
     && grep -qFx "install $REPO_ROOT/packages/prism-core|ignore=unset" "$T1/pi-invocations" \
     && [ "$(wc -l < "$T1/pi-invocations")" -eq 1 ] \
     && [ ! -e "$T1/pi-agent/prism-consent.json" ]; then
     pass "installer stays local-only and directs standing consent to /setup"
 else
-    fail "installer ran live OCR, created consent, or omitted the /setup next action"
+    fail "installer ran live inference, created consent, or omitted the /setup next action"
 fi
 if grep -qF "$T1/bin-dir is not on PATH" <<< "$output"; then
     pass "installer reports an absent launcher directory without editing PATH"
@@ -544,24 +526,21 @@ register_temp_dir "$T3"
 write_fake_tools "$T3"
 mkdir -p "$T3/home" "$T3/pi-agent" "$T3/bin-dir"
 : > "$T3/pi-invocations"
-: > "$T3/ocr-invocations"
 output=""
 status=0
 output=$(HOME="$T3/home" \
     PI_CODING_AGENT_DIR="$T3/pi-agent" \
     PRISM_BIN_DIR="$T3/bin-dir" \
     PI_INVOCATIONS="$T3/pi-invocations" \
-    OCR_INVOCATIONS="$T3/ocr-invocations" \
     PATH="$T3/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
 if [ "$status" -eq 0 ] \
     && grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
-    && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
-    && ! grep -qF 'llm test' "$T3/ocr-invocations" \
+    && grep -qFx '  • Run /setup to configure optional web access and verify installed review readiness.' <<< "$output" \
     && grep -qFx "install $REPO_ROOT/packages/prism-core|ignore=unset" "$T3/pi-invocations" \
     && [ "$(wc -l < "$T3/pi-invocations")" -eq 1 ] \
     && [ ! -e "$T3/pi-agent/prism-consent.json" ]; then
-    pass "installer performs no live OCR or consent mutation"
+    pass "installer performs no live inference or consent mutation"
 else
     fail "installer did not defer consent and live readiness to /setup"
 fi
@@ -578,14 +557,12 @@ register_temp_dir "$T4"
 write_fake_tools "$T4"
 mkdir -p "$T4/home" "$T4/pi-agent" "$T4/bin-dir"
 : > "$T4/pi-invocations"
-: > "$T4/ocr-invocations"
 output=""
 status=0
 output=$(HOME="$T4/home" \
     PI_CODING_AGENT_DIR="$T4/pi-agent" \
     PRISM_BIN_DIR="$T4/bin-dir" \
     PI_INVOCATIONS="$T4/pi-invocations" \
-    OCR_INVOCATIONS="$T4/ocr-invocations" \
     SEMGREP_VERSION='1.172.9' \
     PATH="$T4/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
@@ -593,8 +570,7 @@ if [ "$status" -ne 0 ] \
     && grep -qF 'prism toolchain local readiness failed' <<< "$output" \
     && [ -f "$T4/bin-dir/prism-tool" ] \
     && [ -f "$T4/pi-agent/AGENTS.md" ] \
-    && ! grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
-    && ! grep -qF 'llm test' "$T4/ocr-invocations" \
+    && ! grep -qFx '  • Run /setup to configure optional web access and verify installed review readiness.' <<< "$output" \
     && [ ! -e "$T4/pi-agent/prism-consent.json" ]; then
     pass "failed mandatory readiness retains resources and stops before setup"
 else
@@ -1202,7 +1178,7 @@ register_temp_dir "$T8"
 write_fake_tools "$T8"
 mkdir -p "$T8/home" "$T8/pi-agent" "$T8/bin-dir"
 : > "$T8/pi-invocations"
-invalid_options=('--network-approved=no' '--ocr-test-approved=yes' '--ocr-test-approved=YES' '--unknown')
+invalid_options=('--network-approved=no' '--unknown')
 for invalid_option in "${invalid_options[@]}"; do
     status=0
     HOME="$T8/home" \

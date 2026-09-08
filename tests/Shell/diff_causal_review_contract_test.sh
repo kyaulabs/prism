@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: diff_causal_review_contract_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+# $KYAULabs: diff_causal_review_contract_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 set -euo pipefail
 
@@ -26,7 +26,7 @@ assert_file_not_contains() {
 assert_file_contains "$CODE_REVIEW" 'introduced or materially worsened by the reviewed delta' 'Blocking requires diff causality'
 assert_file_contains "$CODE_REVIEW" 'deterministic reproduction, violated invariant, or direct security or data-loss path' 'Blocking requires concrete evidence'
 assert_file_contains "$CODE_REVIEW" 'record.headSha' 'repair review starts at the prior reviewed HEAD'
-assert_file_contains "$CODE_REVIEW" 'prism-tool code-review chain record' 'review records continuous chain evidence'
+assert_file_contains "$CODE_REVIEW" 'prism-review review repair' 'review records continuous chain evidence'
 assert_file_contains "$RECEIVING" 'If any condition is not established, classify the finding Advisory' 'receiving review fails toward Advisory'
 assert_file_contains "$RECEIVING" 'falsely pass, falsely fail, or omit evidence for a changed acceptance criterion' 'test findings block only when evidence is invalidated'
 assert_file_contains "$STANDARDS" 'Advisory' 'structural smells are advisory'

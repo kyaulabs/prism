@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -37,30 +37,6 @@ function boundedSemgrepContract(versionRequirement = {
             executable: 'semgrep',
             versionArguments: ['--version'],
             argumentPolicy: {mode: 'first-token', allowed: ['scan', 'ci']},
-        }],
-    };
-}
-
-function boundedOcrContract(versionRequirement = {
-    mode: 'range',
-    minimum: '1.9.1',
-    maximumExclusive: '2.0.0',
-}) {
-    return {
-        schemaVersion: 1,
-        package: '@kyaulabs/example',
-        role: 'core',
-        components: [{
-            id: 'ocr',
-            kind: 'command',
-            ecosystem: 'npm',
-            package: '@alibaba-group/open-code-review',
-            versionRequirement,
-            provisioning: 'external',
-            authentication: 'required',
-            executable: 'ocr',
-            versionArguments: ['--version'],
-            argumentPolicy: {mode: 'first-token', allowed: ['review', 'scan']},
         }],
     };
 }
@@ -247,37 +223,27 @@ test('declares the approved bounded external compatibility requirements', () => 
         minimum: '1.173.0',
         maximumExclusive: '2.0.0',
     });
-    assert.equal(components.get('ocr').version, undefined);
-    assert.deepEqual(components.get('ocr').versionRequirement, {
-        mode: 'range',
-        minimum: '1.9.1',
-        maximumExclusive: '2.0.0',
-    });
-    assert.equal(components.get('ocr').executionTimeoutMs, 600000);
-});
-
-test('accepts the bounded OCR external version requirement', () => {
-    assert.doesNotThrow(() => validateContract(boundedOcrContract(), 'fixture.json'));
+    assert.equal(components.get('semgrep').executionTimeoutMs, 600000);
 });
 
 test('accepts the bounded Semgrep external version requirement', () => {
     assert.doesNotThrow(() => validateContract(boundedSemgrepContract(), 'fixture.json'));
 });
 
-test('rejects empty and inverted bounded OCR intervals', () => {
+test('rejects empty and inverted bounded Semgrep intervals', () => {
     for (const versionRequirement of [
         {mode: 'range', minimum: '1.9.1', maximumExclusive: '1.9.1'},
         {mode: 'range', minimum: '2.0.0', maximumExclusive: '1.9.1'},
     ]) {
         assert.throws(
-            () => validateContract(boundedOcrContract(versionRequirement), 'fixture.json'),
+            () => validateContract(boundedSemgrepContract(versionRequirement), 'fixture.json'),
             /version requirement/
         );
     }
 });
 
 test('rejects bounded requirements for undeclared external package identities', () => {
-    const contracts = [boundedSemgrepContract(), boundedOcrContract()];
+    const contracts = [boundedSemgrepContract()];
     for (const contract of contracts) {
         contract.components[0].package = 'other-tool';
         assert.throws(
@@ -288,7 +254,7 @@ test('rejects bounded requirements for undeclared external package identities', 
 });
 
 test('accepts the 15-minute execution timeout ceiling', () => {
-    const contract = boundedOcrContract();
+    const contract = boundedSemgrepContract();
     contract.components[0].executionTimeoutMs = 900000;
 
     assert.doesNotThrow(() => validateContract(contract, 'fixture.json'));
@@ -296,7 +262,7 @@ test('accepts the 15-minute execution timeout ceiling', () => {
 
 test('rejects execution timeouts outside the bounded contract policy', () => {
     for (const executionTimeoutMs of [999, 900001, 1.5, '360000']) {
-        const contract = boundedOcrContract();
+        const contract = boundedSemgrepContract();
         contract.components[0].executionTimeoutMs = executionTimeoutMs;
         assert.throws(
             () => validateContract(contract, 'fixture.json'),
@@ -306,16 +272,16 @@ test('rejects execution timeouts outside the bounded contract policy', () => {
 });
 
 test('requires mutually exclusive valid version policies', () => {
-    const both = boundedOcrContract();
+    const both = boundedSemgrepContract();
     both.components[0].version = '1.9.1';
-    const neither = boundedOcrContract();
+    const neither = boundedSemgrepContract();
     delete neither.components[0].versionRequirement;
-    const prereleaseBoundary = boundedOcrContract({
+    const prereleaseBoundary = boundedSemgrepContract({
         mode: 'range',
         minimum: '1.9.1-beta.1',
         maximumExclusive: '2.0.0',
     });
-    const unknownRangeKey = boundedOcrContract({
+    const unknownRangeKey = boundedSemgrepContract({
         mode: 'range',
         minimum: '1.9.1',
         maximumExclusive: '2.0.0',

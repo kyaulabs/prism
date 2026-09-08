@@ -29,6 +29,16 @@ verify and finalize this work branch."
    contain the immutable URL. Halt without deleting artifacts when this map
    evidence is absent.
 
+## Preserve immutable criteria
+
+Before implementation and before artifact cleanup, approved criteria must be
+preserved. `executing-plans` records the immutable spec and plan before its first
+task. Run installed `prism-review criteria inspect --json` and retain the existing
+valid receipt digest. Missing, conflicting, or unsafe criteria stops finalization;
+never reconstruct requirements after cleanup or use `criteria none --json` as a
+fallback for missing approved sources. A genuinely undeclared workflow must
+have recorded that explicit disposition before implementation.
+
 <!-- finalization-artifact-cleanup -->
 ## Artifact cleanup
 
@@ -64,8 +74,8 @@ SHA revalidation, and automatic preparation-only `/pr`.
 
 If this skill is invoked without an approved-plan handoff, disclose those exact
 effects and ask once for equivalent initial authorization before proceeding.
-Standing OCR consent, not plan approval, authorizes OCR connectivity and
-reviewed-code egress. Neither authorization permits pushing, GitHub mutation,
+The one-attempt review authorization includes provider cost and reviewed-code
+egress. It does not permit pushing, GitHub mutation,
 protected-branch merge, or browser opening.
 
 <!-- finalization-target-sync -->
@@ -127,11 +137,12 @@ After `/check` passes, consume the plan's one initial review authorization and
 run the `code-review` skill for the attested state. Require all four axes:
 tooling/style, Fowler structural smells, requirement coverage, and static security analysis.
 
-When no valid review chain exists, run one complete initial branch review and
-record it. When a valid chain ends at an ancestor of current HEAD, preserve its
+Require a version-two review chain from the installed authority. An absent chain
+selects one complete initial review; safely recognized legacy or stale state
+requires a newly authorized complete initial review. Unsafe state stops. When a valid chain ends at an ancestor of current HEAD, preserve its
 completed initial evidence and review only the continuous repair delta from
 validated `record.headSha` through current HEAD, closure evidence for prior
-Blocking findings, and directly affected tests.
+Blocking findings, and directly affected tests. Every repair runs all four axes.
 
 Continue only when every axis is complete across the chain and no unresolved
 Blocking finding remains. Blocking requires ADR-0080 diff causality, relevance,
@@ -164,7 +175,7 @@ prism-tool automation health --json
 
 Require `GO` with `CURRENT` or `NOT_CONFIGURED`. On failure, stop before `/pr`
 and report the diagnostic without repairing permissions, hooks, or automation.
-Preserve completed review evidence. Do not rerun OCR or any review axis merely
+Preserve completed review evidence. Do not rerun any review axis merely
 because health failed; health is readiness evidence, not review authorization.
 Any repair that changes reviewed identity remains subject to the existing
 attestation and review-chain rules. Both PR preflight routes repeat this check.
@@ -215,11 +226,11 @@ squashing; branch history is the development and evaluation log.
 
 ## Rules
 
-- Preserve this order: artifact cleanup → clean tree → plan-approved
+- Preserve this order: immutable criteria → artifact cleanup → clean tree → plan-approved
   authorization → target/synchronization → attestation → `/check` loop → one
   authorized four-axis review → SHA revalidation → managed health → `/pr`.
-- Plan approval and review-rerun approval are not OCR consent and do not
-  authorize network egress of reviewed code.
+- Initial plan approval and each fresh review approval authorize only that
+  bounded attempt, including reviewed-code egress. Standing web consent does not.
 - Plan approval authorizes unlimited `/check` runs but only one four-axis
   review. Every additional review attempt requires fresh explicit approval.
 - Never auto-waive a finding or incomplete review axis.

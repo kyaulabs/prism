@@ -25,7 +25,7 @@ prism-tool consent revoke-web
 
 Standing consent covers only this extension's loopback SearXNG request, fixed
 keyless search, and guarded public textual fetch. It does not authorize API
-keys, authentication, cookies, uploads, writes, arbitrary browser use, OCR, or
+keys, authentication, cookies, uploads, writes, arbitrary browser use, review, or
 other network tools.
 
 ## Configuration

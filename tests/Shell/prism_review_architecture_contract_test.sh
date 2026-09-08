@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: prism_review_architecture_contract_test.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+# $KYAULabs: prism_review_architecture_contract_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 set -euo pipefail
 
@@ -31,7 +31,7 @@ contains "$ADR_RUNTIME" 'byte exposure' 'runtime ADR names exposure honestly'
 contains "$ADR_RUNTIME" 'four axes' 'runtime ADR keeps four axes'
 contains "$ADR_AUTHORITY" 'Accepted' 'authority ADR accepted'
 contains "$ADR_AUTHORITY" '### Three-stage migration' 'authority ADR requires staged cutover'
-contains "$ADR_AUTHORITY" 'Until cutover lands' 'OCR remains active during foundation'
+contains "$ADR_AUTHORITY" 'Until cutover lands' 'historical foundation checkpoint remains recorded'
 contains "$ADR_RUNTIME" 'separately installed compatible adapter package' 'adapter quality cannot self-approve'
 contains "$CONTEXT" '| Prism reviewer |' 'context defines reviewer'
 contains "$CONTEXT" '| review profile |' 'context defines review profile'
@@ -48,16 +48,16 @@ contains "$RUNTIME" 'RUNNING' 'bridge documents prior PASS invalidation'
 contains "$RUNTIME" 'external adapter package outside' 'bridge documents adapter trust parity'
 contains "$RUNTIME" 'Exact same-HEAD reuse' 'bridge documents no-cost exact reuse'
 contains "$RUNTIME" 'continuous repair' 'bridge documents continuous repair authority'
-contains "$RUNTIME" 'dual-read preflight' 'bridge documents coherent version selection'
+contains "$RUNTIME" 'Preflight accepts only valid schema version two' 'bridge documents coherent version selection'
 contains "$RUNTIME" 'source blobs, transcripts, or command logs' 'bridge prohibits raw evidence retention'
 contains "$RUNTIME" 'Every additional attempt requires fresh' \
     'bridge documents additional-attempt approval'
-contains "$RUNTIME" 'OCR and schema version one remain the normal' \
+contains "$RUNTIME" 'The installed `prism-review` engine is Prism' \
     'bridge preserves release authority'
 contains "$RUNTIME" 'Humans publish and install packages, push branches, create pull requests' \
     'bridge preserves human-only mutations'
 contains "$RUNTIME" 'cannot author authoritative' 'checkout Core has no authority claim'
-contains "$CORE_README" 'dormant authority compatibility bridge' 'Core README identifies dormant bridge'
+contains "$CORE_README" 'version-two review authority' 'Core README identifies installed authority'
 contains "$CORE_README" 'prism-review criteria record --source ROLE:COMMIT:PATH' \
     'Core README exposes immutable criteria command'
 contains "$ADAPTER_README" 'php-web-quality' 'adapter README names quality provider'

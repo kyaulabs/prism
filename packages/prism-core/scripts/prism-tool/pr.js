@@ -1,4 +1,4 @@
-// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -12,7 +12,6 @@ const {
 } = require('../prism-review/review-chain-v2');
 const {REVIEW_STATE} = require('../prism-review/review-state');
 const {runBounded} = require('./process');
-const {verifyReviewChain} = require('./review-chain');
 const {verifyManagedProject} = require('./managed-project');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
@@ -112,14 +111,8 @@ function validateTitle(args, context) {
         process.stderr.write('PR title validation failed: identity could not be resolved\n');
         return EXIT.USAGE;
     }
-    const ocrModel = invoke('bash', [path.join(coreRoot, 'scripts', 'resolve-ocr-model.sh')]);
-    const ocrModelValue = ocrModel.stdout.trim();
-    if (ocrModel.error || ocrModel.status !== 0 || !/^[A-Za-z0-9._-]+$/.test(ocrModelValue)) {
-        process.stderr.write('PR title validation failed: OCR model could not be resolved\n');
-        return EXIT.USAGE;
-    }
     const content = `${title}\n\nImplemented-by: ${modelId}\n` +
-        `Tested-by: ${ocrModelValue}\nSigned-off-by: ${identityValue}\n`;
+        `Tested-by: ${modelId}\nSigned-off-by: ${identityValue}\n`;
     let validationFd;
     let validationCreated = false;
     const removeValidationFile = () => {
@@ -256,7 +249,6 @@ function preflight(context, options = {}) {
     let reviewChainState;
     let reviewChainVersion;
     let advisoryCount;
-    let ocrExemptSegments;
     let v2Recovery;
 
     try {
@@ -268,16 +260,6 @@ function preflight(context, options = {}) {
             reviewChainState = REVIEW_STATE.VALID;
             reviewChainVersion = 2;
             advisoryCount = String(review.advisoryFindings.length);
-        } else if (inspected.state === REVIEW_STATE.LEGACY && inspected.version === 1) {
-            const review = (context.verifyReviewChain ?? verifyReviewChain)(
-                expected, {...context, projectRoot: cwd}
-            );
-            reviewChainState = REVIEW_STATE.VALID;
-            reviewChainVersion = 1;
-            advisoryCount = String(review.advisoryFindings.length);
-            ocrExemptSegments = review.record?.segments.filter(
-                (segment) => segment.axes.tooling === 'COMPLETE_NO_OCR'
-            ).length ?? 0;
         } else if (inspected.state === REVIEW_STATE.ABSENT && allowAbsentReviewChain) {
             const criteriaState = (context.inspectCriteria ?? inspectCriteria)(
                 {...context, projectRoot: cwd}
@@ -285,9 +267,7 @@ function preflight(context, options = {}) {
             const checkState = (context.inspectCheck ?? inspectCheck)(
                 {...context, projectRoot: cwd}
             );
-            if (criteriaState.state === REVIEW_STATE.ABSENT && checkState.state === REVIEW_STATE.ABSENT) {
-                v2Recovery = 'UNDECLARED';
-            } else if (criteriaState.state === REVIEW_STATE.VALID && checkState.state === REVIEW_STATE.VALID) {
+            if (criteriaState.state === REVIEW_STATE.VALID && checkState.state === REVIEW_STATE.VALID) {
                 (context.verifyCriteria ?? verifyCriteria)({branch}, {...context, projectRoot: cwd});
                 (context.verifyCheck ?? verifyCheck)(expected, {...context, projectRoot: cwd});
                 v2Recovery = 'READY';
@@ -327,7 +307,6 @@ function preflight(context, options = {}) {
     if (reviewChainVersion !== undefined) fields.push(['REVIEW_CHAIN_VERSION', String(reviewChainVersion)]);
     if (v2Recovery !== undefined) fields.push(['V2_RECOVERY', v2Recovery]);
     if (advisoryCount !== undefined) fields.push(['ADVISORY_COUNT', advisoryCount]);
-    if (ocrExemptSegments > 0) fields.push(['OCR_EXEMPT_SEGMENTS', String(ocrExemptSegments)]);
     for (const [key, value] of fields) process.stdout.write(`${key}\t${value}\n`);
     return EXIT.OK;
 }

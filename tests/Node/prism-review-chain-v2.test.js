@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-chain-v2.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-review-chain-v2.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -9,10 +9,7 @@ const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const test = require('node:test');
 const {AXES, LIMIT} = require('../../packages/prism-core/scripts/prism-review/constants');
-const {
-    inspectReviewChain: inspectReviewChainV1,
-    recordReviewSegment,
-} = require('../../packages/prism-core/scripts/prism-tool/review-chain');
+
 const {
     inspectReviewChainV2,
     recordReviewAttempt,
@@ -206,7 +203,7 @@ test('distinguishes only missing state from malformed and symlinked state', (t) 
     assert.equal(inspectReviewChainV2(target).state, 'UNSAFE');
 });
 
-test('classifies strict version-one state as LEGACY without changing OCR authority', (t) => {
+test('classifies strict version-one state as LEGACY without accepting legacy authority', (t) => {
     const target = fixture(t);
     recordReviewSegment({
         schemaVersion: 1,
@@ -221,7 +218,6 @@ test('classifies strict version-one state as LEGACY without changing OCR authori
         closures: [],
     }, target);
 
-    assert.equal(inspectReviewChainV1(target).state, 'VALID');
     assert.equal(inspectReviewChainV2(target).state, 'LEGACY');
     assert.equal(inspectReviewChainV2(target).version, 1);
     assert.equal(selectReviewChainVersion(target).version, 1);
@@ -712,5 +708,16 @@ test('records and verifies one complete engine-authored initial review', (t) => 
     assert.deepEqual(verifyReviewChainV2(expectation(target), target).advisoryFindings,
         record.findings);
 });
+
+
+function recordReviewSegment(segment, context) {
+    const directory = path.join(context.projectRoot, '.pi', 'prism-tool', 'code-review');
+    fs.mkdirSync(directory, {recursive: true, mode: 0o700});
+    const file = path.join(directory, 'review-chain.json');
+    const record = {schemaVersion: 1, branch: segment.branch, baseRef: segment.baseRef,
+        baseSha: segment.baseSha, headSha: segment.to, segments: [segment], findings: [], openBlocking: []};
+    fs.writeFileSync(file, JSON.stringify(record), {mode: 0o600});
+    return {path: file};
+}
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
