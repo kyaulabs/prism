@@ -6,6 +6,8 @@ Date: 2026-09-02
 
 Accepted
 
+Partially superseded by ADR-0110 for the host-peer SDK dependency consequence only.
+
 Depends on ADR-0047, ADR-0048, ADR-0055, ADR-0058, ADR-0060, ADR-0067,
 ADR-0070, ADR-0073, ADR-0075, ADR-0080, ADR-0081, and ADR-0091.
 Partially supersedes ADR-0055 only where that record rules out bounded child

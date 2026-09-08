@@ -598,6 +598,9 @@ Pi-era decisions:
 - `adr/0108-public-project-file-permissions.md` — accept safe restrictive public
   runtime modes while retaining canonical creation and exact transaction checks.
 
+- `adr/0110-core-owned-review-sdk-dependency.md` — make the standalone reviewer SDK a Core runtime dependency, with broad declared compatibility and independent capability checks.
+- `adr/0111-native-pi-session-continuity.md` — remove session-handoff capability and use native Pi compaction without weakening workflow or safety gates.
+
 ## When to update this file
 
 - A domain term enters or leaves the current harness.
