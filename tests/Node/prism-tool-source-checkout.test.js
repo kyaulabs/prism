@@ -356,4 +356,41 @@ test('independent clones preserve source-owned inventory across routing and nati
     }
 });
 
+test('rejects root entries or Git identity changed as source inspection begins', (t) => {
+    for (const mutation of ['empty-root-entry', 'source-root-entry', 'source-git-identity']) {
+        const root = mutation === 'empty-root-entry' ? makeTempDir() : fixture(t);
+        if (mutation === 'empty-root-entry') t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+        const retained = makeTempDir();
+        t.after(() => fs.rmSync(retained, {recursive: true, force: true}));
+        const lstat = fs.lstatSync;
+        let rootObservations = 0;
+        let changed = false;
+        let output = '';
+        t.mock.method(fs, 'lstatSync', (file, ...args) => {
+            // The initial two root observations bracket the existing entry/Git
+            // snapshots. Mutate before the added inspection observes its root.
+            if (file === root && ++rootObservations === 3) {
+                changed = true;
+                if (mutation === 'source-git-identity') {
+                    fs.renameSync(path.join(root, '.git'), path.join(retained, 'original-git'));
+                    fs.mkdirSync(path.join(root, '.git'));
+                } else fs.writeFileSync(path.join(root, 'concurrent-user-file'), 'preserve me\n');
+            }
+            return lstat(file, ...args);
+        });
+        t.mock.method(process.stdout, 'write', (chunk) => { output += chunk; return true; });
+
+        const status = main(['setup', 'route', '--json'], {projectRoot: root});
+
+        t.mock.restoreAll();
+        assert.equal(changed, true, mutation);
+        assert.equal(status, 5, mutation);
+        assert.equal(JSON.parse(output).route, 'STOP', mutation);
+        assert.equal(JSON.parse(output).reason, 'INDETERMINATE', mutation);
+        if (mutation !== 'source-git-identity') {
+            assert.equal(fs.readFileSync(path.join(root, 'concurrent-user-file'), 'utf8'), 'preserve me\n');
+        } else assert.equal(fs.existsSync(path.join(retained, 'original-git')), true);
+    }
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
