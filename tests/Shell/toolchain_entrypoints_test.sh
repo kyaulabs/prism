@@ -412,7 +412,7 @@ for doc in \
 	assert_file_contains "$doc" 'consent revoke-web' "$doc documents consent revocation"
 	assert_file_contains "$doc" 'prism-tool commit create' "$doc documents atomic commit creation"
 	assert_file_contains "$doc" '/reload' "$doc documents fatal commit recovery"
-	assert_file_contains "$doc" 'fresh finalization acceptance' "$doc documents one-attempt finalization recovery"
+	assert_file_contains "$doc" 'third and every later attempt' "$doc documents the bounded two-attempt policy"
 done
 assert_file_contains "$REPO_ROOT/CONTRIBUTING.md" 'prism-tool commit create' 'CONTRIBUTING documents atomic signed commits'
 assert_file_contains "$REPO_ROOT/CONTRIBUTING.md" 'finalization acceptance' 'CONTRIBUTING documents automatic finalization'

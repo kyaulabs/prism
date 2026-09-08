@@ -12,6 +12,18 @@ The user explicitly approved proceeding locally despite installed reviewer docto
 - [x] Update regression tests and run local verification.
 - [x] Prepare verified changes for the atomic cutover commit; report installed review as pending.
 
+## Approved review-policy follow-up
+
+After the removal commit, the user approved two automatic review attempts per
+active task, followed by fresh approval for each later attempt. ADR-0112 and
+`packages/prism-core/docs/review-attempt-policy.md` own the amendment. Failures
+count; local checks, valid receipt reuse, repairs, and continuation do not reset
+the budget. Review remains mandatory and the installed-authority checkpoint
+below remains pending. The coordinator instructions and workflow contract tests
+are updated together; no runtime consent service or new dependency was added.
+Verification passed: all seven affected shell contract suites, focused Node
+cutover/package tests, the harness validator, and staged Markdown lint.
+
 ## Local evidence
 
 - Full Node suite: 1,303 tests passed. The subsequently added post-review managed-health regression and focused cutover/PR suite also pass (28 tests).

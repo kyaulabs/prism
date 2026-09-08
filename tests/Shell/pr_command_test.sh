@@ -392,14 +392,14 @@ if [ "$review_probe_line" -lt "$strict_preflight_line" ]; then
 else
 	fail 'review-chain probe does not precede strict preflight'
 fi
-assert_contains "$COMMAND_FILE" 'authorize one complete initial four-axis review' \
-	'pr invocation authorizes one absent-chain review'
+assert_contains "$COMMAND_FILE" "Share the active task's two automatic attempts" \
+	'pr recovery shares the existing two-attempt budget'
 assert_contains "$COMMAND_FILE" 'REVIEW_CHAIN=ABSENT' \
 	'pr recognizes only an absent chain as recoverable'
 assert_contains "$COMMAND_FILE" 'Load `code-review`' \
 	'pr delegates missing-chain review to code-review'
-assert_contains "$COMMAND_FILE" 'repair, migrate legacy state, or authorize a second attempt' \
-	'pr forbids automatic review retries'
+assert_contains "$COMMAND_FILE" 'Never retry blindly or grant two more attempts on re-entry' \
+	'pr prevents unlimited retries and budget resets'
 assert_contains "$COMMAND_FILE" 'Strict `prism-tool pr preflight`' \
 	'pr reruns strict preflight after review'
 assert_contains "$COMMAND_FILE" 'active finalization authorization' \

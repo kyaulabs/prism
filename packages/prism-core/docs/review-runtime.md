@@ -4,8 +4,10 @@ The installed `prism-review` engine is Prism's only finalization authority.
 It owns immutable criteria, deterministic check receipts, and version-two
 four-axis review receipts. Ad hoc reports remain non-authoritative.
 The reviewed checkout cannot define its own authority. Legacy state never
-passes PR preflight. One initial review is plan-authorized; every additional
-attempt requires fresh approval, including its provider cost and code egress.
+passes PR preflight. The active task includes two automatic review attempts with provider cost and
+code egress; the third and every later attempt need fresh explicit approval.
+See [Review attempt policy](review-attempt-policy.md) for counting, continuation,
+and the unchanged mandatory review gate.
 Standing web consent never authorizes review.
 
 ## Isolated Semgrep scans
@@ -223,8 +225,8 @@ Exact same-HEAD reuse returns the valid receipt without another model session.
 It requires every bound Core, adapter, profile, policy, skill, model, snapshot,
 criteria, and check identity to match. Inconclusive attempts publish only a
 bounded diagnostic and do not advance the chain. Safe schema-one state is
-`LEGACY` and can be replaced only by an explicitly authorized `--new-initial`
-review that succeeds. Malformed, symlinked, or otherwise untrusted state is
+`LEGACY` and can be replaced only by a `--new-initial`
+review within the shared attempt budget that succeeds. Malformed, symlinked, or otherwise untrusted state is
 `UNSAFE` and is never overwritten automatically.
 
 Preflight accepts only valid schema version two and never combines evidence
@@ -243,9 +245,11 @@ records use `0600`, bounded no-follow reads, and atomic publication. Receipts
 retain identities, digests, outcomes, exposure, findings, and bounded
 diagnostics—not source blobs, transcripts, or command logs.
 
-One approved attempt includes all four axes and bounded verifier work. Exact
-same-HEAD reuse is not another attempt. Every additional attempt requires fresh
-explicit approval. A review can invoke the active Pi provider and may incur
+One attempt includes all four axes and bounded verifier work. Exact
+same-HEAD reuse is not another attempt. Two attempts run automatically per active
+task; the third and every later attempt require fresh explicit approval. Failed
+or interrupted attempts count; changing commands, HEAD, or sessions does not
+reset the budget. A review can invoke the active Pi provider and may incur
 provider cost.
 
 ## Scope freezing

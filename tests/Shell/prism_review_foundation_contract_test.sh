@@ -13,7 +13,7 @@ contains() {
 contains "$CORE/docs/review-runtime.md" 'only finalization authority' 'installed reviewer owns authority'
 contains "$CORE/docs/review-runtime.md" 'non-authoritative' 'ad hoc review cannot finalize'
 contains "$CORE/skills/code-review/SKILL.md" 'prism-review review authoritative' 'review invokes installed authority'
-contains "$CORE/skills/code-review/SKILL.md" 'Every further attempt needs fresh explicit approval' 'additional inference requires approval'
+contains "$CORE/skills/code-review/SKILL.md" 'third and every later attempt require fresh explicit approval' 'inference beyond two attempts requires approval'
 contains "$CORE/skills/code-review/SKILL.md" 'all four axes' 'repairs retain complete axis coverage'
 contains "$CORE/prompts/check.md" 'prism-review check --base-ref' 'check uses deterministic receipt publisher'
 contains "$CORE/prompts/pr.md" 'REVIEW_CHAIN_VERSION=2' 'PR requires version-two evidence'

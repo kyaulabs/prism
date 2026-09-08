@@ -47,10 +47,10 @@ documentation, and conversation.
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
 | toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
-| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Read-only GitHub repository and tracker metadata is standing-authorized; confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. One explicitly authorized review attempt covers its bounded provider cost and reviewed-code egress. Separately revocable standing web-access consent covers only the web-access extension's bounded loopback search, fixed-origin keyless search, and guarded public textual fetches. Neither grant transfers to other effects. |
+| consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Read-only GitHub repository and tracker metadata is standing-authorized; confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. The active task includes two automatic review attempts with provider cost and reviewed-code egress; the third and every later attempt need fresh approval. Separately revocable standing web-access consent covers only the web-access extension's bounded loopback search, fixed-origin keyless search, and guarded public textual fetches. Neither grant transfers to other effects. |
 | setup attempt | One invocation-scoped `/setup` orchestration with bounded source/package/dependency networking, independently approved project and hook mutation stages, and no standing setup consent after it stops. |
 | standing web-access consent | A global, explicit, persistent, and revocable Prism authorization for the web-access extension's loopback SearXNG search, fixed-origin keyless search, and guarded public textual fetching. It contains no credentials or project data and does not authorize other tools or network effects. |
-| plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
+| plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, required four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Two review attempts run automatically per task; the third and every later attempt need fresh approval. |
 | review chain | Local schema-versioned finalization evidence linking one complete initial branch review to continuous repair-delta reviews, exact branch/base/HEAD identities, axis completion, finding dispositions, and deterministic closure evidence. |
 | diff-causal finding | A review finding classified by whether the reviewed delta introduced or materially worsened a concrete defect in changed behavior or its verification evidence; only concrete workflow-impacting findings block finalization. |
 | candidate workspace | The adapter-owned ephemeral area used to prepare, resolve, audit, and journal a proposed complete scaffold before approved consumer state changes. It is not a general scratch directory. |
@@ -182,8 +182,10 @@ The measured state required before a toolchain entry point proceeds.
 - The global installer performs local readiness only. Full doctor verifies the
   installed review trust root, SDK, model metadata, policy, and adapter without
   inference. It neither depends on consent nor grants review authority.
-- One plan-approved initial review includes bounded reviewed-code egress.
-  Each further attempt requires fresh explicit approval. Version-two criteria,
+- The active task includes two automatic reviews with bounded reviewed-code
+  egress. The third and every later attempt need fresh explicit approval.
+  Failures count; checks, fixes, receipt reuse, and continuation do not reset the
+  budget. Uncertain history requires approval. Version-two criteria,
   check, and review receipts bind exact identities; legacy chains never pass.
 - Consent schema three contains only web access. Only explicit setup migration
   preserves legacy web choice or removes an all-false managed record. Unsafe
@@ -542,14 +544,14 @@ Pi-era decisions:
 - `adr/0071-explicit-project-learning-architecture.md` — explicitly invoked learning with worktree-local schema-versioned state, a canonical topic graph, validated structured-record boundaries, and launcher-owned mechanics.
 - `adr/0072-native-worktree-and-branch-policy-architecture.md` — worktree guidance separates branch-policy planning from mutation; outside-root changes are exact human-run commands.
 - `adr/0073-safety-compatible-instruction-shell-contract.md` — executable instructions resolve and capture values through separate observable calls with no command substitution, ANSI-C quoting, or parenthesized subshells.
-- `adr/0074-approval-free-harness-operations.md` — historical consent clauses superseded by ADR-0103; atomic approval-free commits with fatal failure recovery, and one-attempt accepted branch finalization.
+- `adr/0074-approval-free-harness-operations.md` — historical consent clauses superseded by ADR-0103; atomic approval-free commits with fatal failure recovery, and bounded finalization (attempt policy amended by ADR-0112).
 - `adr/0075-exclusive-global-core-package-source.md` — keep exactly one selected Prism Core source active in Pi global settings through atomic installer reconciliation.
 - `adr/0076-bounded-setup-network-authorization.md` — superseded setup-network baseline retained as historical context through ADR-0083.
 - `adr/0077-core-owned-repository-bootstrap-and-root-seed.md` — superseded Git-first repository-bootstrap baseline retained as historical context through ADR-0084.
 - `adr/0078-packaged-canonical-hook-surface.md` — publish four create-only Core hook wrappers and route policy through stable launcher dispatch.
 - `adr/0079-setup-managed-lockstep-package-releases.md` — install an opt-in Core-owned release capability whose configured npm packages version in lockstep and whose repository Release precedes package-tag reconciliation.
 - `adr/0080-bounded-diff-causal-review-chains.md` — preserve one complete initial review and append repair-delta evidence while blocking finalization only on concrete diff-caused defects.
-- `adr/0081-plan-approved-automatic-finalization.md` — let approved plans continue automatically through cleanup, synchronization, unlimited local checks, one four-axis review, and preparation-only `/pr`; require fresh approval only for additional review attempts.
+- `adr/0081-plan-approved-automatic-finalization.md` — let approved plans continue automatically through cleanup, synchronization, unlimited local checks, one four-axis review, and preparation-only `/pr`; attempt policy amended by ADR-0112.
 - `adr/0082-provider-composed-empty-project-bootstrap.md` — superseded adapter-catalogue rules retained as historical context; its Core-owned provider-composition and durable project-transaction boundaries continue through ADR-0092.
 - `adr/0083-strict-empty-setup-acquisition-authorization.md` — superseded strict-empty adapter-discovery authorization retained as historical context; its remaining invocation-scoped setup-network boundaries continue through ADR-0092.
 - `adr/0084-post-application-repository-bootstrap-and-root-seed.md` — initialize Git only after durable project application and bind the signed root seed to source, provider, metadata, nullable-adapter, plan, and journal evidence.
@@ -599,6 +601,7 @@ Pi-era decisions:
   runtime modes while retaining canonical creation and exact transaction checks.
 
 - `adr/0110-core-owned-review-sdk-dependency.md` — make the standalone reviewer SDK a Core runtime dependency, with broad declared compatibility and independent capability checks.
+- `adr/0112-two-automatic-review-attempts.md` — two automatic attempts per active task, then explicit approval for each later attempt; preserve the count across continuation.
 - `adr/0111-native-pi-session-continuity.md` — remove session-handoff capability and use native Pi compaction without weakening workflow or safety gates.
 
 ## When to update this file

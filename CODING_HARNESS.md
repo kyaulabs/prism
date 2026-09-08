@@ -127,15 +127,16 @@ completion:
 7. Revalidate the branch and review chain.
 8. Invoke preparation-only `/pr`.
 
-One complete initial review starts the bounded chain. After a Blocking repair, a fresh finalization acceptance authorizes review of only the continuous repair delta. Advisory findings remain in the pull request disclosure and do not
+One complete initial review starts the bounded chain. After a Blocking repair, review only the continuous repair delta within the shared two-attempt budget. Advisory findings remain in the pull request disclosure and do not
 block preparation. A base or history change, discontinuity, incomplete axis,
 dirty tree, or mismatched `HEAD` invalidates the chain and requires a new
 complete initial review.
 
-A standalone `/pr` invocation may authorize one complete initial review only
-when deterministic preflight classifies the review chain as absent. Invalid
-review chain evidence continues to fail closed. A failed or second review
-requires fresh explicit approval. `/pr` remains preparation-only.
+Standalone `/pr` recovers only an absent review chain with matching criteria,
+checks, and synchronization evidence. It shares the active task's two automatic
+review attempts; the third and every later attempt require fresh approval for
+one attempt. Failed attempts count and re-entry does not reset the budget.
+Invalid review evidence still fails closed. `/pr` remains preparation-only.
 
 `/pr` prepares a conventional title, a body containing every pull request
 template section, and a human-run `gh pr create` command. It never pushes or
@@ -172,8 +173,8 @@ need no waiver. Suggested findings must be resolved or explicitly handled by
 the active review workflow.
 
 The installed `prism-review` engine owns exact criteria, deterministic checks,
-and version-two review receipts. Review has one-attempt authorization; further
-attempts require fresh approval. `/setup` manages only standing web-access
+and version-two review receipts. Review gets two automatic attempts per active task; the third and every later
+attempt need fresh approval for one attempt. `/setup` manages only standing web-access
 consent (`prism-tool consent revoke-web` revokes it). Doctor performs no live
 inference. Legacy review state never passes preflight.
 

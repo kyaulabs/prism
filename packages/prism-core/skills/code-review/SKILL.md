@@ -27,16 +27,26 @@ For exploratory, non-authoritative review, select one documented command:
 Replace markers with validated literal operands. These reports never satisfy
 finalization authority.
 
+## Review attempt budget
+
+At most two review attempts run automatically within the active task or workflow.
+The third and every later attempt require fresh explicit approval for one attempt.
+Follow `packages/prism-core/docs/review-attempt-policy.md` for counting and
+continuity. This applies to exploratory and authoritative review alike; invoking
+another command does not reset the budget. No separate review permission prompt
+is needed for the first two attempts, including provider cost and reviewed-code
+egress. Review remains mandatory for finalization.
+
 ## Authoritative review
 
 Before cleanup, retain the approved immutable criteria receipt. Require a
 clean synchronized branch, exact branch/HEAD/base attestation, and matching
 PASS check receipt. Run `prism-review chain inspect --json`.
 
-Plan approval authorizes one initial attempt, including provider cost and
-reviewed-code egress. Every further attempt needs fresh explicit approval.
-No standing consent authorizes review. Never retry a failed or Blocking attempt
-automatically. An exact same-HEAD valid receipt may be reused without inference.
+Use the shared attempt budget, not standing consent. A failed, incomplete,
+Blocking, or interrupted attempt consumes a slot. Retry or repair review may run
+automatically only while fewer than two attempts have been used. An exact
+same-HEAD valid receipt may be reused without inference and consumes no slot.
 
 For an absent chain, run once:
 
@@ -45,11 +55,11 @@ prism-review review authoritative --base-ref origin/develop --json
 ```
 
 Use `origin/main` instead for release and hotfix branches. A safely recognized
-legacy or stale chain requires a freshly authorized complete initial review
-using `--new-initial`. Malformed or unsafe state stops for human remediation.
+legacy or stale chain requires a complete initial review using `--new-initial`,
+subject to the same attempt budget. Malformed or unsafe state stops for human remediation.
 
-After Blocking repairs, rerun deterministic checks, obtain fresh approval,
-and provide the closed-schema closure proposal at a validated repository-relative
+After Blocking repairs, rerun deterministic checks, check the shared attempt
+budget, and provide the closed-schema closure proposal at a validated repository-relative
 path to:
 
 ```bash
@@ -59,8 +69,8 @@ prism-review review repair --base-ref origin/develop --closures RELATIVE_PATH --
 The engine selects the continuous repair delta from validated `record.headSha`
 to attested HEAD and runs all four axes. Never
 narrow repair coverage to just the axis that found the defect. Base movement,
-history discontinuity, or incompatible evidence requires a newly approved
-complete initial review rather than a repair.
+history discontinuity, or incompatible evidence requires a complete initial
+review rather than a repair. None resets the attempt count.
 
 ## Evidence and outcome
 

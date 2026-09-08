@@ -57,7 +57,8 @@ implementation change. Existing conflicting or unsafe criteria state stops;
 never use `criteria none` to bypass missing approved requirements.
 
 Plan approval authorizes this local criteria capture, not installation or an
-additional review attempt. Finalization retains the receipt through artifact
+unlimited review loop. Carry the active task's attempt count into finalization:
+two review attempts run automatically; each later attempt needs fresh approval. Finalization retains the receipt through artifact
 cleanup and binds deterministic checks and review to it.
 
 ## Inline execution

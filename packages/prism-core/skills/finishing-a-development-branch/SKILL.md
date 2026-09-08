@@ -1,6 +1,6 @@
 ---
 name: finishing-a-development-branch
-description: Use when a feature branch's implementation is complete. Consumes approved-plan authorization for automatic cleanup, synchronization, unlimited local checks, one four-axis review, revalidation, and preparation-only /pr; additional review attempts require fresh approval.
+description: Finalize an approved work branch with cleanup, synchronization, deterministic checks, and required review. Share the task's two automatic review attempts; ask before the third and every later attempt. PR preparation never publishes.
 derived-from: obra/superpowers (MIT, © Jesse Vincent)
 ---
 
@@ -8,10 +8,11 @@ derived-from: obra/superpowers (MIT, © Jesse Vincent)
 
 Complete a work branch automatically after its approved plan finishes. Plan
 approval authorizes artifact cleanup, synchronization, attestation, unlimited
-local `/check` execution, one four-axis review, revalidation, and
+local `/check` execution, required four-axis review, revalidation, and
 preparation-only `/pr`. Do not introduce a routine pause before initial
-finalization. Every additional four-axis review attempt requires fresh explicit
-approval.
+finalization. Follow `packages/prism-core/docs/review-attempt-policy.md`:
+share the active task's two automatic attempts, then ask before the third and
+every later attempt. Entering finalization does not reset the count.
 
 **Announce at start:** "I'm using the finishing-a-development-branch skill to
 verify and finalize this work branch."
@@ -69,13 +70,13 @@ staged, unstaged, or untracked task artifacts remain.
 When entered automatically from `executing-plans`, continue without another
 question. The approved plan authorizes matching artifact cleanup and its atomic
 commit, `git fetch origin`, a required target merge, exact attestation,
-unlimited local `/check` runs and plan-scoped repairs, one four-axis review,
-SHA revalidation, and automatic preparation-only `/pr`.
+unlimited local `/check` runs and plan-scoped repairs, two automatic review attempts
+shared with the active task, SHA revalidation, and automatic preparation-only `/pr`.
 
 If this skill is invoked without an approved-plan handoff, disclose those exact
 effects and ask once for equivalent initial authorization before proceeding.
-The one-attempt review authorization includes provider cost and reviewed-code
-egress. It does not permit pushing, GitHub mutation,
+The shared review-attempt budget includes provider cost and reviewed-code
+egress without separate permission for the first two attempts. It does not permit pushing, GitHub mutation,
 protected-branch merge, or browser opening.
 
 <!-- finalization-target-sync -->
@@ -133,13 +134,14 @@ through.
 <!-- finalization-code-review -->
 ## Run the authorized four-axis review
 
-After `/check` passes, consume the plan's one initial review authorization and
-run the `code-review` skill for the attested state. Require all four axes:
+After `/check` passes, check the shared attempt count and run the `code-review` skill
+for the attested state. The first two attempts need no review permission prompt;
+the third and every later attempt require fresh explicit approval. Require all four axes:
 tooling/style, Fowler structural smells, requirement coverage, and static security analysis.
 
 Require a version-two review chain from the installed authority. An absent chain
 selects one complete initial review; safely recognized legacy or stale state
-requires a newly authorized complete initial review. Unsafe state stops. When a valid chain ends at an ancestor of current HEAD, preserve its
+requires a complete initial review within the same attempt budget. Unsafe state stops. When a valid chain ends at an ancestor of current HEAD, preserve its
 completed initial evidence and review only the continuous repair delta from
 validated `record.headSha` through current HEAD, closure evidence for prior
 Blocking findings, and directly affected tests. Every repair runs all four axes.
@@ -149,12 +151,14 @@ Blocking finding remains. Blocking requires ADR-0080 diff causality, relevance,
 concrete failure evidence, and changed-workflow impact. Advisory findings remain
 visible for `/pr` disclosure but require no waiver and do not stop finalization.
 
-An incomplete axis or unresolved Blocking finding consumes the authorized
-review attempt. Repair in-scope findings through TDD and atomic commits, rerun
-`/check` as often as needed, then ask exactly once before the next four-axis
-review. Each fresh approval authorizes one chain-selected review attempt only:
-a repair-delta review when the chain remains valid, or a new complete initial
-review when it is invalid. Never ask approval merely to rerun `/check`.
+Every launched review consumes an attempt, including failure, interruption,
+an incomplete axis, or unresolved Blocking findings. Repair in-scope findings
+through TDD and atomic commits and rerun `/check` as needed. If fewer than two
+attempts have been used, run the next review without asking. Otherwise obtain
+fresh explicit approval for one attempt before continuing; decline stops review.
+Each fresh approval authorizes one chain-selected review attempt only:
+a continuous repair-delta review or, when required, a complete initial review.
+Never reset the count after repair or ask approval merely to rerun `/check`.
 
 <!-- finalization-sha-revalidation -->
 ## Revalidate clean tree and SHAs
@@ -162,7 +166,7 @@ review when it is invalid. Never ask approval merely to rerun `/check`.
 Immediately after review, require a clean tree and re-read `BRANCH`, `HEAD_SHA`,
 `BASE_REF`, and `BASE_SHA`. Each value must exactly match the attestation. Any
 commit, merge, fetched base movement, checkout, or working-tree change makes
-the evidence stale and consumes the current review authorization.
+the evidence stale. It does not reset the shared attempt count.
 
 <!-- finalization-managed-health -->
 ## Verify managed project health
@@ -197,21 +201,22 @@ merge, or open a browser.
 
 - A synchronization conflict stops before attestation and routes to
   `resolve-merge-conflicts`. After resolution, resume synchronization and
-  checking; no review reauthorization is needed if no review was consumed.
+  checking under the unchanged shared review-attempt budget.
 - A `/check` failure stays inside the unlimited local check loop when its repair
   is plan-scoped. Hard halt conditions still stop the workflow.
 - An incomplete review axis or unresolved diff-causal Blocking finding consumes
-  the review authorization. Repair, rerun `/check`, then obtain fresh approval
-  before the next chain-selected four-axis review.
+  an attempt. Repair, rerun `/check`, then use the remaining automatic attempt
+  or obtain fresh approval when two or more attempts have already been used.
 - An invalid, stale, discontinuous, or wrong-base review chain requires the
-  next approved review attempt to be a new complete initial review.
+  next attempt to be a complete initial review, without resetting the count.
 - A changed attestation or dirty tree after a successful review stops before
-  `/pr`. Restore a clean, exact state, rerun `/check`, and obtain fresh approval
-  for the required review because the reviewed identity is stale.
+  `/pr`. Restore a clean, exact state, rerun `/check`, and apply the same attempt
+  budget to the required review. Obtain fresh approval only after two attempts.
 
 Never continue directly from a review repair to `/pr`. `/check` may rerun
-without approval, but every review after the plan-authorized initial attempt
-must have its own explicit approval.
+without approval; the third and every later review need their own explicit
+approval. Failed or interrupted attempts count. Uncertain history stops for
+human approval instead of silently granting two more attempts.
 
 ## Post-merge local cleanup
 
@@ -227,12 +232,12 @@ squashing; branch history is the development and evaluation log.
 ## Rules
 
 - Preserve this order: immutable criteria → artifact cleanup → clean tree → plan-approved
-  authorization → target/synchronization → attestation → `/check` loop → one
-  authorized four-axis review → SHA revalidation → managed health → `/pr`.
-- Initial plan approval and each fresh review approval authorize only that
-  bounded attempt, including reviewed-code egress. Standing web consent does not.
-- Plan approval authorizes unlimited `/check` runs but only one four-axis
-  review. Every additional review attempt requires fresh explicit approval.
+  authorization → target/synchronization → attestation → `/check` loop → required
+  four-axis review within the shared budget → SHA revalidation → managed health → `/pr`.
+- The first two attempts include reviewed-code egress without separate review
+  permission. Standing web consent is unrelated.
+- Local checks are unlimited, but reviews are not: two automatic attempts per
+  task, then fresh approval for one attempt at a time. Valid receipt reuse is free.
 - Never auto-waive a finding or incomplete review axis.
 - Never rebase an already-published work branch.
 - Never push, create a pull request, mutate GitHub, or merge a protected branch.
@@ -256,9 +261,9 @@ squashing; branch history is the development and evaluation log.
 
 - *Asking after local check failures* — plan approval authorizes unlimited
   `/check` runs and plan-scoped repairs.
-- *Rerunning review without approval* — plan approval covers the initial
-  four-axis review only. Preserve a valid chain and obtain fresh approval for
-  each repair-delta or replacement initial review.
+- *Resetting the budget during repair* — preserve the attempt count and valid
+  chain across fixes, compaction, `/reload`, and `/pr`. The third and every later
+  attempt need fresh approval, even when the next review is a replacement initial.
 - *Invoking `/pr` with stale SHAs* — revalidation must match all four attested
   values exactly.
 - *Treating `/pr` as publication* — it prepares artifacts only; humans publish

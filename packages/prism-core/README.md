@@ -71,8 +71,8 @@ launchers, and context resources installed for remediation.
 After installation, run `/setup` to manage standing web-access consent, optional
 closed web configuration, and optional Pi session defaults. Revoke web consent
 with `prism-tool consent revoke-web`. Only explicitly approved setup migration
-converts legacy consent to web-only schema three. Review has one-attempt
-authorization, not standing consent. Provider login and model selection remain
+converts legacy consent to web-only schema three. Review has two automatic attempts per active task, then asks before each later
+attempt; it does not use standing consent. Provider login and model selection remain
 Pi operations; Prism does not prescribe them.
 
 Install a stack adapter in the consumer project. For PHP/web:
@@ -367,19 +367,20 @@ A failed, unsafe, ambiguous, or non-exclusive attempt blocks all tools until
 Branch completion uses one finalization acceptance for synchronization,
 attestation, `/check`, all four axes, SHA revalidation, and automatic `/pr`
 preparation. One complete initial review starts the review chain. After a
-Blocking repair, fresh acceptance reviews only the repair delta. Advisory
+Blocking repair, review covers only the repair delta within the shared budget. Advisory
 findings do not block `/pr`. Advisory findings do not block publication or need
 a waiver. Base or history changes, discontinuity, incomplete axes, malformed
 state, or a `HEAD` mismatch require a new complete initial review. Managed health
 runs after review and before PR readiness without discarding completed evidence
 or authorizing another review attempt. A health-only failure does not invalidate
 unchanged reviewed identities; repairs that change those identities follow the
-existing review-chain rules. Any additional review requires fresh finalization acceptance.
+existing review-chain rules. After two attempts, each additional review requires fresh explicit approval.
 
-A standalone `/pr` invocation may authorize one complete initial review only
-when deterministic preflight classifies the review chain as absent. Invalid
-review chain evidence continues to fail closed. A failed or second review
-requires fresh explicit approval. `/pr` remains preparation-only.
+Standalone `/pr` recovers only an absent review chain with matching criteria,
+checks, and synchronization evidence. It shares the active task's two automatic
+review attempts; the third and every later attempt require fresh approval for
+one attempt. Failed attempts count and re-entry does not reset the budget.
+Invalid review evidence still fails closed. `/pr` remains preparation-only.
 
 `/pr` is preparation-only. Humans push branches, create pull requests, and
 merge.

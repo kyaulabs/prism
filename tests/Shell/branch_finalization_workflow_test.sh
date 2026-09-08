@@ -143,10 +143,10 @@ if grep -qF 'approved plan authorizes' <<< "$authorization" \
 	&& grep -qF '`git fetch origin`' <<< "$authorization" \
 	&& grep -qF 'required target merge' <<< "$authorization" \
 	&& grep -qF 'unlimited local `/check` runs' <<< "$authorization" \
-	&& grep -qF 'one four-axis review' <<< "$authorization" \
+	&& grep -qF 'two automatic review attempts' <<< "$authorization" \
 	&& grep -qF 'automatic preparation-only `/pr`' <<< "$authorization" \
 	&& grep -qF 'reviewed-code' <<< "$authorization"; then
-	pass 'plan approval discloses synchronization, unlimited checks, one review, automatic PR preparation, and review boundary'
+	pass 'plan approval discloses synchronization, unlimited checks, two review attempts, automatic PR preparation, and review boundary'
 else
 	fail 'plan-approved finalization disclosure is incomplete'
 fi
@@ -194,9 +194,9 @@ if grep -qF '`code-review` skill' <<< "$review_section" \
 	&& grep -qF 'record.headSha' <<< "$review_section" \
 	&& grep -qF 'no unresolved' <<< "$review_section" \
 	&& grep -qF 'Advisory findings remain' <<< "$review_section" \
-	&& grep -qF "plan's one initial review authorization" <<< "$review_section" \
+	&& grep -qF 'The first two attempts need no review permission prompt' <<< "$review_section" \
 	&& grep -qF 'Each fresh approval authorizes one chain-selected review attempt only' <<< "$review_section"; then
-	pass 'review stage requires all four axes, one initial authorization, continuous chain evidence, and fresh approval for reruns'
+	pass 'review stage requires all four axes, two automatic attempts, continuous chain evidence, and bounded approval'
 else
 	fail 'four-axis review contract is incomplete'
 fi
@@ -223,21 +223,21 @@ else
 fi
 if grep -qF 'incomplete review axis or unresolved diff-causal Blocking finding consumes' <<< "$stop_conditions" \
 	&& grep -qF 'obtain fresh approval' <<< "$stop_conditions"; then
-	pass 'incomplete or Blocking reviews require fresh approval before rerun'
+	pass 'incomplete or Blocking reviews consume the shared attempt budget'
 else
 	fail 'review rerun authorization semantics are incomplete'
 fi
 if grep -qF 'invalid, stale, discontinuous, or wrong-base review chain requires' <<< "$stop_conditions" \
-	&& grep -qF 'new complete initial review' <<< "$stop_conditions"; then
-	pass 'invalid review chains require a newly approved complete initial review'
+	&& grep -qF 'complete initial review, without resetting the count' <<< "$stop_conditions"; then
+	pass 'invalid review chains require a complete initial review without resetting the budget'
 else
 	fail 'invalid review-chain retry semantics are incomplete'
 fi
 if grep -qF 'changed attestation or dirty tree after a successful review stops before' <<< "$stop_conditions" \
 	&& grep -qF 'rerun `/check`' <<< "$stop_conditions" \
 	&& grep -qF 'obtain fresh approval' <<< "$stop_conditions" \
-	&& grep -qF 'reviewed identity is stale' <<< "$stop_conditions"; then
-	pass 'changed attestation stops PR preparation and requires a newly approved review'
+	&& grep -qF 'Obtain fresh approval only after two attempts' <<< "$stop_conditions"; then
+	pass 'changed attestation stops preparation and preserves the two-attempt budget'
 else
 	fail 'changed-attestation retry semantics are incomplete'
 fi

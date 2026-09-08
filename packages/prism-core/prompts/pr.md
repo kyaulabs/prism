@@ -34,10 +34,13 @@ or stale state stops preparation.
 
 A valid exact-HEAD chain is reused without another review. An absent chain
 requires matching immutable criteria, deterministic PASS check evidence,
-synchronization, and exact attestation. Only then does this `/pr` invocation
-authorize one complete initial four-axis review, including reviewed-code egress.
+synchronization, and exact attestation. Only then may `/pr` run a complete initial
+four-axis review under `packages/prism-core/docs/review-attempt-policy.md`.
+Share the active task's two automatic attempts, including reviewed-code egress;
+`/pr` does not reset the count. The third and every later attempt require fresh
+explicit approval for one attempt. Uncertain attempt history stops for approval.
 
-Load `code-review` and invoke the stable installed command once, using the
+Load `code-review` and invoke the stable installed command using the
 validated literal target (`origin/main` for release or hotfix):
 
 ```bash
@@ -47,9 +50,11 @@ prism-review review authoritative --base-ref origin/develop --json
 Require a complete schema-two receipt at the exact attested identities, with
 all axes complete and no open Blocking findings. Advisory findings remain
 visible and require no waiver. Do not select or create criteria, run checks,
-repair, migrate legacy state, or authorize a second attempt from `/pr`.
-Failure consumes this attempt and stops preparation; later review requires
-fresh explicit approval.
+repair, or migrate legacy state from `/pr`. A failed or interrupted attempt
+consumes a slot. Retry only when preflight still reports a safely absent chain
+with exact matching prerequisites and the shared attempt budget permits it.
+Blocking, unsafe, or stale state stops preparation and returns to the existing
+repair workflow. Never retry blindly or grant two more attempts on re-entry.
 
 ## 3. Strict preflight
 
@@ -68,9 +73,10 @@ branch, base, and HEAD before artifact generation continues.
 
 Find the active finalization authorization in the session. Initial finalization
 may be authorized by the approved implementation plan. When pre-review
-preflight reported `REVIEW_CHAIN=ABSENT`, this `/pr` invocation supplies the
-one initial review authorization defined by ADR-0093. Every later four-axis
-review must have its own fresh explicit approval. Accept evidence only from the
+preflight reported `REVIEW_CHAIN=ABSENT`, this `/pr` invocation may recover the
+initial review within the shared budget. The first two attempts run without a
+separate review permission prompt; each later attempt needs fresh approval
+(ADR-0112). Accept evidence only from the
 continuous authorized path, in this order: target derivation and
 synchronization, exact attestation, successful full `/check`, the authorized
 four-axis `code-review`, then clean-tree and SHA revalidation. The attestation
@@ -83,14 +89,15 @@ and do not block preparation.
 
 A conflict, incomplete axis, invalid chain, changed SHA, moved base,
 discontinuous history, or dirty tree stops preparation. Local `/check` may rerun
-without additional approval. An ordinary repair may preserve a valid chain but requires
-fresh explicit approval for the next four-axis review of only the continuous repair delta
-before preparation.
+without additional approval. An ordinary repair may preserve a valid chain but
+requires a four-axis review of only the continuous repair delta before
+preparation. Use the remaining automatic attempt or ask for approval if two or
+more attempts have already been used.
 
 If any authorization, value, ordering step, gate, chain segment, review result,
 or revalidation is absent, ambiguous, partial, stale, or failed, stop before
 generating PR artifacts. Direct the user to complete the missing repair-delta
-evidence and obtain approval when another four-axis review is required.
+evidence and apply the shared attempt budget before another four-axis review.
 
 Inspect normalized version-two receipt evidence for Advisory disclosure:
 

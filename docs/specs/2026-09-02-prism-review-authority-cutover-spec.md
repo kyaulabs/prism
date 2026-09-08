@@ -3,6 +3,12 @@
 **Date:** 2026-09-02
 **Status:** Approved
 
+**Amendment (2026-09-08):** The user replaced this specification's one-attempt
+review approval rule with ADR-0112: two automatic attempts per active task,
+then fresh approval for the third and every later attempt. Failed attempts
+count and continuation does not reset the budget. All other requirements and
+the explicitly deferred installed-authority checkpoint remain unchanged.
+
 ## Problem statement
 
 The runtime foundation and authority bridge can review a separate repository from an installed stable package, but Prism still uses OCR, review-chain version one, agent-authored check evidence, OCR consent, and OCR-derived commit attribution. Keeping both authorities indefinitely would create conflicting readiness, consent, receipt, and finalization rules.

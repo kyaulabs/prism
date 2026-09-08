@@ -102,7 +102,8 @@ and configures post-push rulesets.
 `/setup` solely manages standing web-access consent for bounded `web_search`
 and `fetch_content`. Revoke it with `prism-tool consent revoke-web`. Legacy
 consent stays readable until explicit setup migration preserves its web choice
-in schema three. Review uses one-attempt authorization, not standing consent.
+in schema three. Review uses two automatic attempts per active task, then asks before each later
+attempt; it does not use standing consent.
 
 ## Daily development
 
@@ -222,16 +223,17 @@ secret scanning, RCS headers, commit messages, branch names, protected-branch
 policy, and fast-forward pushes.
 
 Finalization records one complete initial review across tooling, structural,
-requirement, and security axes. A fresh finalization acceptance is required
+requirement, and security axes. The shared two-attempt budget applies
 after repair. The next review covers only the continuous repair delta when the
 review chain remains valid. Advisory findings do not block `/pr`; they remain
 visible for disclosure. Blocking findings, missing axes, a dirty tree, a HEAD
 mismatch, or base or history changes stop preparation.
 
-A standalone `/pr` invocation may authorize one complete initial review only
-when deterministic preflight classifies the review chain as absent. Invalid
-review chain evidence continues to fail closed. A failed or second review
-requires fresh explicit approval. `/pr` remains preparation-only.
+Standalone `/pr` recovers only an absent review chain with matching criteria,
+checks, and synchronization evidence. It shares the active task's two automatic
+review attempts; the third and every later attempt require fresh approval for
+one attempt. Failed attempts count and re-entry does not reset the budget.
+Invalid review evidence still fails closed. `/pr` remains preparation-only.
 
 `/release` authors the release branch and changelog. After the release PR merges,
 CI creates the repository tag and GitHub Release, reconciles package tags, and

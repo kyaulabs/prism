@@ -37,4 +37,4 @@ the blocking diagnostics. Do not claim a full check from focused local tests.
 This command does not run inference, commit, push, install packages, or repair
 failures automatically. During approved finalization, plan-scoped repairs and
 unlimited local check reruns are authorized by the coordinator, not by this
-prompt. Review attempts retain their separate one-attempt authorization.
+prompt. Review uses the shared two-automatic-attempt budget; local checks never reset it.

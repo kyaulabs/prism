@@ -50,7 +50,7 @@ contains "$RUNTIME" 'Exact same-HEAD reuse' 'bridge documents no-cost exact reus
 contains "$RUNTIME" 'continuous repair' 'bridge documents continuous repair authority'
 contains "$RUNTIME" 'Preflight accepts only valid schema version two' 'bridge documents coherent version selection'
 contains "$RUNTIME" 'source blobs, transcripts, or command logs' 'bridge prohibits raw evidence retention'
-contains "$RUNTIME" 'Every additional attempt requires fresh' \
+contains "$RUNTIME" 'the third and every later attempt require fresh' \
     'bridge documents additional-attempt approval'
 contains "$RUNTIME" 'The installed `prism-review` engine is Prism' \
     'bridge preserves release authority'
