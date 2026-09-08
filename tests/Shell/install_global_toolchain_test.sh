@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+# $KYAULabs: install_global_toolchain_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 set -euo pipefail
 
@@ -46,7 +46,31 @@ JSEOF
     cat > "$package_root/scripts/prism-review.js" <<'JSEOF'
 #!/usr/bin/env node
 'use strict';
-process.stdout.write(process.argv[2] === '--version' ? '0.4.3\n' : 'fixture review\n');
+if (process.argv[2] === '--version') {
+    process.stdout.write('0.4.3\n');
+} else if (process.argv[2] === 'sdk' && process.argv[3] === '--json' && process.argv.length === 4) {
+    const mode = process.env.PI_FIXTURE_SDK_REPORT;
+    if (mode) {
+        const report = {schemaVersion: 1, command: 'sdk', status: 'GO',
+            sdk: {packageName: '@earendil-works/pi-coding-agent', version: '0.85.1'}};
+        if (mode === 'command') report.command = 'doctor';
+        if (mode === 'status') report.status = 'NO-GO';
+        if (mode === 'canary') report.PRIVATE_CANARY = 'PRIVATE_CANARY';
+        process.stderr.write('PRIVATE_CANARY');
+        process.stdout.write(mode === 'malformed' ? 'PRIVATE_CANARY' :
+            mode === 'oversized' ? 'PRIVATE_CANARY'.repeat(10000) : JSON.stringify(report));
+        process.exit(0);
+    }
+    const failed = process.env.PI_FIXTURE_SDK_MISSING === '1';
+    process.stdout.write(JSON.stringify(failed
+        ? {schemaVersion: 1, command: 'sdk', status: 'NO-GO', reason: 'SDK_MISSING', remediation: 'Reinstall Core.'}
+        : {schemaVersion: 1, command: 'sdk', status: 'GO', sdk: {packageName: '@earendil-works/pi-coding-agent', version: '0.85.1'}}) + '\n');
+    process.exitCode = failed ? 3 : 0;
+} else if (process.argv[2] === '--fixture-argument') {
+    process.stdout.write('fixture review\n');
+} else {
+    process.exitCode = 2;
+}
 JSEOF
     chmod +x "$package_root/scripts/prism-tool.js" "$package_root/scripts/prism-review.js"
 fi
@@ -158,6 +182,11 @@ if grep -qFx '✓ prism review packaged executable PASS' <<< "$output"; then
     pass "installer verifies the packaged review executable"
 else
     fail "installer omitted packaged review executable verification"
+fi
+if grep -qFx '✓ prism review SDK readiness PASS' <<< "$output"; then
+    pass "installer separately verifies SDK readiness"
+else
+    fail "installer omitted SDK readiness verification"
 fi
 if grep -qFx '✓ prism toolchain local readiness PASS' <<< "$output" \
     && grep -qFx '  • Run /setup to grant standing OCR consent and verify live readiness.' <<< "$output" \
@@ -347,8 +376,14 @@ cat > "$T14/pi-agent/local-core/scripts/prism-review.js" <<'JSEOF'
 #!/usr/bin/env node
 'use strict';
 const {version} = require('../package.json');
-if (process.argv[2] !== '--version') process.exit(2);
-process.stdout.write(`${version}\n`);
+if (process.argv[2] === '--version') {
+    process.stdout.write(`${version}\n`);
+} else if (process.argv[2] === 'sdk' && process.argv[3] === '--json' && process.argv.length === 4) {
+    process.stdout.write(JSON.stringify({schemaVersion: 1, command: 'sdk', status: 'GO',
+        sdk: {packageName: '@earendil-works/pi-coding-agent', version: '0.85.1'}}) + '\n');
+} else {
+    process.exitCode = 2;
+}
 JSEOF
 chmod +x "$T14/pi-agent/local-core/scripts/prism-tool.js" \
     "$T14/pi-agent/local-core/scripts/prism-review.js"
@@ -453,6 +488,55 @@ if grep -qF "exec node '$expected_npm_cli' \"\$@\"" "$npm_launcher" 2>/dev/null 
 else
     fail "npm launchers do not target executable package CLIs"
 fi
+
+echo "── SDK readiness before deployment ──"
+SDK_MISSING_ROOT=$(mktemp -d)
+register_temp_dir "$SDK_MISSING_ROOT"
+write_fake_tools "$SDK_MISSING_ROOT"
+mkdir -p "$SDK_MISSING_ROOT/home" "$SDK_MISSING_ROOT/pi-agent" "$SDK_MISSING_ROOT/bin-dir"
+: > "$SDK_MISSING_ROOT/pi-invocations"
+status=0
+output=$(HOME="$SDK_MISSING_ROOT/home" \
+    PI_CODING_AGENT_DIR="$SDK_MISSING_ROOT/pi-agent" \
+    PRISM_BIN_DIR="$SDK_MISSING_ROOT/bin-dir" \
+    PRISM_CORE_SOURCE='npm:@kyaulabs/prism-core' \
+    PI_INVOCATIONS="$SDK_MISSING_ROOT/pi-invocations" \
+    PI_FIXTURE_SDK_MISSING=1 \
+    PATH="$SDK_MISSING_ROOT/bin:$PATH" \
+    bash "$INSTALLER" --network-approved=yes 2>&1) || status=$?
+if [ "$status" -ne 0 ] && grep -qF 'SDK_MISSING' <<< "$output" \
+    && [ ! -e "$SDK_MISSING_ROOT/bin-dir/prism-review" ] \
+    && [ ! -e "$SDK_MISSING_ROOT/bin-dir/prism-tool" ] \
+    && [ ! -e "$SDK_MISSING_ROOT/pi-agent/AGENTS.md" ]; then
+    pass "missing SDK stops installation before deployment"
+else
+    fail "missing SDK did not stop installation before deployment"
+fi
+
+for sdk_report in malformed command status canary oversized; do
+    SDK_BAD_ROOT=$(mktemp -d)
+    register_temp_dir "$SDK_BAD_ROOT"
+    write_fake_tools "$SDK_BAD_ROOT"
+    mkdir -p "$SDK_BAD_ROOT/home" "$SDK_BAD_ROOT/pi-agent" "$SDK_BAD_ROOT/bin-dir"
+    : > "$SDK_BAD_ROOT/pi-invocations"
+    status=0
+    output=$(HOME="$SDK_BAD_ROOT/home" \
+        PI_CODING_AGENT_DIR="$SDK_BAD_ROOT/pi-agent" \
+        PRISM_BIN_DIR="$SDK_BAD_ROOT/bin-dir" \
+        PRISM_CORE_SOURCE='npm:@kyaulabs/prism-core' \
+        PI_INVOCATIONS="$SDK_BAD_ROOT/pi-invocations" \
+        PI_FIXTURE_SDK_REPORT="$sdk_report" \
+        PATH="$SDK_BAD_ROOT/bin:$PATH" \
+        bash "$INSTALLER" --network-approved=yes 2>&1) || status=$?
+    if [ "$status" -ne 0 ] && grep -qF 'RUNTIME_READINESS_FAILED' <<< "$output" \
+        && ! grep -qF 'PRIVATE_CANARY' <<< "$output" \
+        && [ ! -e "$SDK_BAD_ROOT/bin-dir/prism-review" ] \
+        && [ ! -e "$SDK_BAD_ROOT/bin-dir/prism-tool" ]; then
+        pass "installer rejects $sdk_report SDK output without disclosure or deployment"
+    else
+        fail "installer accepted or disclosed $sdk_report SDK output"
+    fi
+done
 
 echo "── installer defers standing consent and live readiness to setup ──"
 T3=$(mktemp -d)

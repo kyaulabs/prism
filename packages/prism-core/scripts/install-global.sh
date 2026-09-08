@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+# $KYAULabs: install-global.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # install-global.sh — Install @kyaulabs/prism-core globally and deploy its
 # always-on AGENTS.md + APPEND_SYSTEM.md into the pi config directory.
@@ -438,6 +438,42 @@ resolve_core_clis() {
     fi
 }
 
+verify_review_sdk() {
+    local result=""
+    if ! result=$(env -u NODE_OPTIONS -u NODE_PATH node - "$REVIEW_CLI" 2>/dev/null <<'JSEOF'
+const {spawnSync} = require('node:child_process');
+const allowed = new Set(['SDK_MISSING', 'SDK_METADATA_INVALID', 'SDK_PROVENANCE_INVALID',
+    'SDK_VERSION_UNSUPPORTED', 'SDK_API_UNSUPPORTED', 'SDK_LOAD_FAILED', 'RUNTIME_READINESS_FAILED']);
+try {
+    const child = spawnSync(process.execPath, [process.argv[2], 'sdk', '--json'], {
+        encoding: 'utf8', timeout: 10000, maxBuffer: 65536,
+    });
+    if (child.error || ![0, 3].includes(child.status)) throw new Error();
+    const report = JSON.parse(child.stdout);
+    if (report.schemaVersion !== 1 || report.command !== 'sdk') throw new Error();
+    if (report.status === 'GO' && child.status === 0 &&
+        Object.keys(report).sort().join(',') === 'command,schemaVersion,sdk,status' &&
+        report.sdk?.packageName === '@earendil-works/pi-coding-agent' &&
+        Object.keys(report.sdk).sort().join(',') === 'packageName,version' &&
+        typeof report.sdk.version === 'string' && /^[0-9]+\.[0-9]+\.[0-9]+(?:\+[0-9A-Za-z.-]+)?$/.test(report.sdk.version)) {
+        process.exit(0);
+    }
+    if (report.status !== 'NO-GO' || child.status !== 3 ||
+        Object.keys(report).sort().join(',') !== 'command,reason,remediation,schemaVersion,status') throw new Error();
+    process.stdout.write(allowed.has(report.reason) ? report.reason : 'RUNTIME_READINESS_FAILED');
+    process.exit(1);
+} catch {
+    process.stdout.write('RUNTIME_READINESS_FAILED');
+    process.exit(1);
+}
+JSEOF
+    ); then
+        printf '✗ installed prism-review SDK readiness failed: %s\n' "${result:-RUNTIME_READINESS_FAILED}" >&2
+        return 1
+    fi
+    printf '%s\n' '✓ prism review SDK readiness PASS'
+}
+
 verify_review_cli() {
     local expected_version=""
     local review_manifest="$INSTALLED_CORE_ROOT/package.json"
@@ -455,6 +491,7 @@ process.stdout.write(value.version);
         return 1
     fi
     echo "✓ prism review packaged executable PASS"
+    verify_review_sdk || return 1
 }
 
 if [[ "${PRISM_CORE_SOURCE:-}" == npm:* ]]; then

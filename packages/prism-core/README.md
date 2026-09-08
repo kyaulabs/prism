@@ -58,10 +58,16 @@ overwrite an unrelated launcher. Remove the Prism-owned launcher set with:
 bash packages/prism-core/scripts/install-global.sh --uninstall-launcher
 ```
 
-Installation runs `doctor --local-only`, creates neither standing OCR nor
-web-access consent, and makes no live provider or public-web request. A
-readiness failure leaves the package, launcher, and context resources installed
-for remediation.
+Before deploying launchers or context resources, installation verifies the
+packaged review executable and runs `prism-review sdk --json`. SDK failure
+stops deployment and cannot count as installation readiness success; an
+already-downloaded package may remain for remediation. Model, profile, and
+authentication availability are not installer prerequisites.
+
+After deployment, installation runs `prism-tool doctor --local-only`, creates
+neither standing OCR nor web-access consent, and makes no live provider or
+public-web request. Failure at this toolchain check leaves the package,
+launchers, and context resources installed for remediation.
 
 After installation, run `/setup` to manage independent standing OCR and
 web-access consent, optional closed web-access configuration, and optional pi

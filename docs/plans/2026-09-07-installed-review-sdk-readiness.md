@@ -672,12 +672,13 @@ removal or bypasses the human release, publication, and installation checkpoint.
 ```
 
 - [x] Run `node --test tests/Node/prism-review-sdk.test.js tests/Node/prism-review-cli.test.js tests/Node/prism-review-session.test.js`. Fix only regressions within these specified boundaries.
-- [ ] Stage and commit:
+- [x] Stage and commit:
 
 ```bash
 prism-tool commit create --type fix --scope review --subject "report bounded sdk and consumer readiness diagnostics" --refs 535
 ```
 
+Task 3 committed as `15fa371e514d0c00858defb6f0da9ea2984b8859`.
 Task 3 verification: the SDK/CLI/session suite passed 76 tests; the full Node
 suite passed 1,552 tests. Authority regressions also passed. Syntax checks,
 harness validation, Markdown lint, and whitespace checks passed. Added tests
@@ -700,7 +701,7 @@ establish released-consumer readiness or authorize OCR cutover.
 - Consumes: `prism-review sdk --json` from Task 3.
 - Produces: installer failure before launcher deployment when SDK readiness fails; successful output explicitly distinguishes executable, SDK, and existing toolchain checks.
 
-- [ ] **Red: extend the fake npm-installed review executable in the shell test to support exact SDK grammar and a controlled failure.**
+- [x] **Red: extend the fake npm-installed review executable in the shell test to support exact SDK grammar and a controlled failure.**
 
 ```javascript
 if (process.argv[2] === '--version') {
@@ -718,8 +719,8 @@ if (process.argv[2] === '--version') {
 
 Add an npm-source fixture with `PI_FIXTURE_SDK_MISSING=1`, fresh private agent/bin directories, and existing `write_fake_tools`. Invoke the installer with `--network-approved=yes` and the mocked `pi` on PATH. Assert nonzero status, `SDK_MISSING` output, and no new managed review launcher. No real network occurs in this shell test. Also test malformed JSON with exit zero, wrong command/status, and a canary field: installation must fail without echoing that raw canary.
 
-- [ ] Resolve scripts in a separate call, then run the test via `bash tests/Shell/install_global_toolchain_test.sh`. Expect the new missing-SDK scenario to incorrectly succeed before the fix.
-- [ ] **Green: add this complete `verify_review_sdk` shell function immediately before `verify_review_cli`; invoke `verify_review_sdk || return 1` after its existing version verification.** The child-process boundary bounds output during collection, not merely after writing an unbounded temporary file.
+- [x] Resolve scripts in a separate call, then run the test via `bash tests/Shell/install_global_toolchain_test.sh`. Expect the new missing-SDK scenario to incorrectly succeed before the fix.
+- [x] **Green: add this complete `verify_review_sdk` shell function immediately before `verify_review_cli`; invoke `verify_review_sdk || return 1` after its existing version verification.** The child-process boundary bounds output during collection, not merely after writing an unbounded temporary file.
 
 ```bash
 verify_review_sdk() {
@@ -761,14 +762,22 @@ JSEOF
 
 The installer does not repair the dependency graph outside its already-approved package installation operation. Retain lifecycle-script disabling, source exclusivity, existing launcher ownership checks, consent behavior, and toolchain doctor.
 
-- [ ] Update all installer fake-review fixtures that previously returned only `--version` to implement the exact new SDK result. Fixtures testing missing executables, bad versions, symlinks or ownership must still reach their intended rejection first. Add the success message assertion beside the existing executable PASS assertion.
-- [ ] Document that an SDK failure before deployment cannot be reported as installation readiness success; an already-downloaded package may remain for remediation. Model/profile/authentication availability is not an installer prerequisite.
-- [ ] Run `bash tests/Shell/install_global_toolchain_test.sh` and `node --test tests/Node/prism-review-cli.test.js`.
+- [x] Update all installer fake-review fixtures that previously returned only `--version` to implement the exact new SDK result. Fixtures testing missing executables, bad versions, symlinks or ownership must still reach their intended rejection first. Add the success message assertion beside the existing executable PASS assertion.
+- [x] Document that an SDK failure before deployment cannot be reported as installation readiness success; an already-downloaded package may remain for remediation. Model/profile/authentication availability is not an installer prerequisite.
+- [x] Run `bash tests/Shell/install_global_toolchain_test.sh` and `node --test tests/Node/prism-review-cli.test.js`.
 - [ ] Stage and commit:
 
 ```bash
 prism-tool commit create --type fix --scope install --subject "verify reviewer sdk readiness before deployment" --refs 535
 ```
+
+Task 4 verification: the missing-SDK case failed before the installer change,
+then passed. All 56 installer shell assertions, 29 CLI tests, and 1,552 full
+Node tests passed. Malformed, wrong-command, wrong-status, extra-field canary,
+and oversized responses fail without deployment or disclosure. Shell syntax,
+harness validation, Markdown lint, and whitespace checks passed. No PHP
+coverage gate applies. Tests use private fixture installations and fake Pi;
+no global installation, credential read, or registry operation was performed.
 
 ## Task 5: Remove session-handoff capability
 
