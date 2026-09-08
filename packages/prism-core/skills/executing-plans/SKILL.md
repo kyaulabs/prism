@@ -123,20 +123,16 @@ halt and surface the discrepancy — don't improvise.
 
 ## Context management across long plans
 
-The same agent now carries planning, implementation, test output, and review
-context. Manage it proactively rather than waiting for degradation:
+Continue through the approved plan in the current Pi session using native
+compaction. Follow `packages/prism-core/docs/context-management.md`; session
+length and fixed context percentages do not create a stop or approval gate.
 
-- Check context usage after every **3 tasks** and against the thresholds in
-  `packages/prism-core/docs/context-management.md`.
-- At **30–40%**, prepare a focused compaction note and avoid loading unrelated
-  files.
-- At **40%**, compact with a hint:
-  `/compact focus on executing plan <filename>, preserve open task and interfaces, drop completed tasks 1-N`.
-- At **60%** or at the first sign of degraded reasoning, run `/handoff` and
-  start a fresh session. Tell the new session:
-  "Read `docs/handoffs/<filename>` and continue executing the plan."
-- Update the plan's checkbox status (`- [x]`) after each task completes so a
-  compacted or resumed session knows exactly where to pick up.
+Update the plan's checkbox status after each verified task. Preserve the active
+task, interfaces, approval boundaries, latest test evidence, and next unchecked
+step in existing workflow-owned artifacts. After compaction, reload the current
+skill and task and verify repository state before relying on earlier evidence.
+
+Actual halt/re-plan triggers and fatal tool-state recovery remain unchanged.
 
 ## Rules
 
@@ -170,9 +166,8 @@ context. Manage it proactively rather than waiting for degradation:
 - `rcs-header` skill — fix missing RCS headers during code-quality review.
 - `finishing-a-development-branch` skill — automatically consumes the
   successful terminal handoff and plan-approved initial finalization.
-- `packages/prism-core/docs/context-management.md` — context thresholds and
-  compaction.
-- `/handoff` command — save state when context degrades.
+- `packages/prism-core/docs/context-management.md` — native compaction and
+  recovery.
 
 ## Gotchas
 
@@ -191,9 +186,9 @@ causes a preventable mistake.
 - *Pushing through when a task is stuck* — three attempts without green is a
   signal the approach is wrong, not that you need a fourth attempt. Halt and
   re-plan.
-- *Context exhaustion on long plans* — the single agent carries implementation
-  output as well as reviews. Check every three tasks, compact proactively at
-  40%, and use `/handoff` before degradation.
+- *Stopping because a session is long* — keep current plan state accurate and
+  continue with Pi's native compaction; only a defined blocker or approval gate
+  stops execution.
 - *Code-quality fixes deferred to another worker* — header misses, debug
   artifacts, and convention violations are the executing agent's
   responsibility to catch and fix inline.

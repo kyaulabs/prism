@@ -180,6 +180,7 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.equal(packed.files.has('AGENTS.md'), true);
     assert.equal(packed.files.has('APPEND_SYSTEM.md'), true);
+    assert.equal(packed.files.has('prompts/handoff.md'), false);
     assert.equal(packed.files.has('skills/distill/SKILL.md'), true, 'Distill skill packaged');
     assert.equal(
         packed.files.has('skills/distill/references/patterns.md'),

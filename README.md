@@ -157,7 +157,6 @@ or create pull requests.
 | `/improve-architecture` | Report structural improvement opportunities |
 | `/release` | Prepare a release branch, changelog, and human publication steps |
 | `/pr` | Recover an absent initial review chain, then prepare a conventional title, complete body, and human-run `gh pr create` command |
-| `/handoff` | Save bounded continuation context for another session |
 | `/teach` | Explain completed work at the requested level |
 
 Core prompt templates live in `packages/prism-core/prompts/`. The PHP/web

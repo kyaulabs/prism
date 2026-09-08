@@ -198,7 +198,6 @@ package release and installation checkpoint, and cutover are complete.
 | `/improve-architecture` | Report architecture improvement candidates |
 | `/release` | Prepare a release branch and publication instructions |
 | `/pr` | Prepare pull request title, body, and human command |
-| `/handoff` | Save continuation context |
 | `/teach` | Explain completed work |
 
 The PHP/web adapter adds `/check-php`, `/build-assets`, and `/deploy`.

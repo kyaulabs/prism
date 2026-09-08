@@ -765,12 +765,13 @@ The installer does not repair the dependency graph outside its already-approved 
 - [x] Update all installer fake-review fixtures that previously returned only `--version` to implement the exact new SDK result. Fixtures testing missing executables, bad versions, symlinks or ownership must still reach their intended rejection first. Add the success message assertion beside the existing executable PASS assertion.
 - [x] Document that an SDK failure before deployment cannot be reported as installation readiness success; an already-downloaded package may remain for remediation. Model/profile/authentication availability is not an installer prerequisite.
 - [x] Run `bash tests/Shell/install_global_toolchain_test.sh` and `node --test tests/Node/prism-review-cli.test.js`.
-- [ ] Stage and commit:
+- [x] Stage and commit:
 
 ```bash
 prism-tool commit create --type fix --scope install --subject "verify reviewer sdk readiness before deployment" --refs 535
 ```
 
+Task 4 committed as `ce6df53a8716aee983c948c93384806ac8fa8a25`.
 Task 4 verification: the missing-SDK case failed before the installer change,
 then passed. All 56 installer shell assertions, 29 CLI tests, and 1,552 full
 Node tests passed. Malformed, wrong-command, wrong-status, extra-field canary,
@@ -794,7 +795,7 @@ no global installation, credential read, or registry operation was performed.
 - Consumes: Pi native automatic compaction and human `/compact` control.
 - Produces: no packaged `/handoff` command; no active instruction to write session-handoff documents; unchanged pipeline transitions and blocker gates.
 
-- [ ] **Red: create the complete contract test below with the usual source header/modeline.**
+- [x] **Red: create the complete contract test below with the usual source header/modeline.**
 
 ```javascript
 'use strict';
@@ -833,9 +834,9 @@ test('context guidance uses native compaction and preserves safety recovery', ()
 
 Add `assert.equal(packed.files.has('prompts/handoff.md'), false)` in the existing Core archive test, which inspects the actual packed resource inventory.
 
-- [ ] Run `node --test tests/Node/native-session-continuity.test.js tests/Node/toolchain-packaging.test.js`; expect the prompt and guidance assertions to fail.
-- [ ] **Green: delete only the packaged handoff prompt and its three active command-table rows.** Do not delete a global installed copy or user documents.
-- [ ] Replace `packages/prism-core/docs/context-management.md` with this complete maintained guide:
+- [x] Run `node --test tests/Node/native-session-continuity.test.js tests/Node/toolchain-packaging.test.js`; expect the prompt and guidance assertions to fail.
+- [x] **Green: delete only the packaged handoff prompt and its three active command-table rows.** Do not delete a global installed copy or user documents.
+- [x] Replace `packages/prism-core/docs/context-management.md` with this complete maintained guide:
 
 ```markdown
 # Context management
@@ -929,13 +930,23 @@ unresolved external blockers still stop unsafe progress.
 
 Preserve the surrounding continuous-frontier and skill-transition rules.
 
-- [ ] Search active package/docs surfaces for `/handoff`, `docs/handoffs`, and recommendations to write a handoff. Inspect each result rather than blanket-deleting the word. Historical ADRs/changelogs and normal skill transitions are excluded from removal. If another active reference is discovered, add its exact path to this task before editing and report that narrow plan correction.
-- [ ] Run `node --test tests/Node/native-session-continuity.test.js tests/Node/toolchain-packaging.test.js`, `bash tests/Shell/wayfinder_workflow_contract_test.sh`, and the resolved harness validator. Preserve existing attribution and frontmatter.
+- [x] Search active package/docs surfaces for `/handoff`, `docs/handoffs`, and recommendations to write a handoff. Inspect each result rather than blanket-deleting the word. Historical ADRs/changelogs and normal skill transitions are excluded from removal. If another active reference is discovered, add its exact path to this task before editing and report that narrow plan correction.
+- [x] Run `node --test tests/Node/native-session-continuity.test.js tests/Node/toolchain-packaging.test.js`, `bash tests/Shell/wayfinder_workflow_contract_test.sh`, and the resolved harness validator. Preserve existing attribution and frontmatter.
 - [ ] Stage and commit:
 
 ```bash
 prism-tool commit create --type refactor --scope workflow --subject "remove handoff capability in favor of native pi compaction" --refs 535
 ```
+
+Task 5 verification: prompt-removal and active-guidance assertions each went
+Red before their changes. The seven active files share one table-driven test
+rather than seven separately registered tests, preserving one behavior per TDD
+slice; assertions and file scope are unchanged. All 23 focused continuity and
+packaging tests, 45 Wayfinder workflow assertions, and 1,555 full Node tests
+passed. The actual archive excludes the retired prompt. Harness validation
+passed after staging its deletion; its Git-index inventory could not read an
+unstaged deleted file. Markdown lint and whitespace checks passed. No historical
+ADR body, changelog, global installed resource, or user artifact was changed.
 
 ## Task 6: Exercise installed SDKs in package smoke and compatibility CI
 

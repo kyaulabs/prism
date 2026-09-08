@@ -168,8 +168,9 @@ the issue description and codebase evidence — multiple independent subsystems,
 or unknowns that cannot be expressed as sharp questions. Do not decompose the
 work or continue to Step 8. Load `wayfinder` and
 continue in the current session when context remains reliable.
-Start a new session only for explicit user preference, material context
-degradation requiring `/handoff`, a fatal tool state, or an external blocker.
+Use Pi's native compaction for long sessions. A session change is the human's
+choice; fatal tool states and unresolved external blockers retain their normal
+recovery or stop behavior, not a session-handoff document requirement.
 
 ### 8. Plan
 

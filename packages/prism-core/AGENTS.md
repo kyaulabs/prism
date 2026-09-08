@@ -361,7 +361,6 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `/research` | Cited research via bounded `web_search` and `fetch_content` tools |
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
-| `/handoff` | Compact current conversation into a handoff document for another session |
 | `/setup` | Interactive project configurator and sole manager of independent standing OCR and web-access consent |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
