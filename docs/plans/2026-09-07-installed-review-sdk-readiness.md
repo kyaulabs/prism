@@ -61,7 +61,7 @@ The installed Core 0.6.0 SDK lookup failed. A guarded isolated doctor probe twic
 - `adr/0111-native-pi-session-continuity.md` — remove session-handoff capability and use native Pi compaction without weakening workflow or safety gates.
 ```
 
-- [ ] Stage the two new ADRs, status-only edits to ADR-0055/0102, `CONTEXT.md`, the approved specification, and this plan. Commit before source changes:
+- [x] Stage the two new ADRs, status-only edits to ADR-0055/0102, `CONTEXT.md`, the approved specification, and this plan. Commit before source changes:
 
 ```bash
 prism-tool commit create --type docs --scope review --subject "record sdk readiness and native session continuity design" --refs 535
@@ -81,7 +81,7 @@ prism-tool commit create --type docs --scope review --subject "record sdk readin
 - Consumes: npm package dependencies/peers and existing import scanner stdout contract.
 - Produces: SDK runtime and peer declarations with the same range; extension imports require peers, standalone review imports require dependencies. Scanner still exits zero and reports violations through stdout.
 
-- [ ] **Red: replace the old peer-only packaging expectation with this complete behavior test.**
+- [x] **Red: replace the old peer-only packaging expectation with this complete behavior test.**
 
 ```javascript
 test('Core supplies its standalone SDK even when peer installation is disabled', () => {
@@ -116,9 +116,9 @@ for (const [surface, declarations, accepted] of [
 }
 ```
 
-- [ ] Run `node --test tests/Node/check-peer-deps.test.js tests/Node/toolchain-packaging.test.js`. Expect the runtime dependency and standalone scanner tests to fail meaningfully.
-- [ ] **Green: add the SDK runtime dependency with the exact range above; retain the peer with that range.** Change root development SDK pin to `0.85.1`.
-- [ ] In `check-peer-deps.js`, give each scan root its own declaration field:
+- [x] Run `node --test tests/Node/check-peer-deps.test.js tests/Node/toolchain-packaging.test.js`. Expect the runtime dependency and standalone scanner tests to fail meaningfully.
+- [x] **Green: add the SDK runtime dependency with the exact range above; retain the peer with that range.** Change root development SDK pin to `0.85.1`.
+- [x] In `check-peer-deps.js`, give each scan root its own declaration field:
 
 ```javascript
 const scanRoots = [
@@ -140,7 +140,7 @@ for (const core of imported) {
 
 Remove the old final global peer loop. Rename the existing standalone test and assert `/dependencies/` instead of `/peerDependencies/`. Retain all malformed-input, scan-error and extension-peer tests. Update the header explanation to describe the two scopes.
 
-- [ ] Update `NPM.md`'s peer explanation and missing-import troubleshooting with this text:
+- [x] Update `NPM.md`'s peer explanation and missing-import troubleshooting with this text:
 
 ```markdown
 Core's extensions declare Pi as a host peer. The standalone reviewer also
@@ -154,13 +154,36 @@ Reinstall a verified Core release through the supported installer rather than
 adding checkout paths or `NODE_PATH` to the process.
 ```
 
-- [ ] Regenerate only affected lockfile graph entries with lifecycle scripts disabled. Run root `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`, then `pnpm import`; compare both locks against the root manifest, then populate the approved graph with `npm ci --ignore-scripts --no-audit --no-fund`. Use task-private package-manager HOME/config/cache; no user credential/config inheritance. If `pnpm` or a dependency is unavailable, report the prerequisite rather than install an unapproved tool.
-- [ ] Rerun both focused test files; inspect lockfile diffs for unrelated upgrades. Revert only task-caused unrelated resolution changes by regenerating from the original lock, not by editing integrity records manually.
+- [x] Regenerate only affected lockfile graph entries with lifecycle scripts disabled. Run root `npm install --package-lock-only --ignore-scripts --no-audit --no-fund`, then `pnpm import`; compare both locks against the root manifest, then populate the approved graph with `npm ci --ignore-scripts --no-audit --no-fund`. Use task-private package-manager HOME/config/cache; no user credential/config inheritance. If `pnpm` or a dependency is unavailable, report the prerequisite rather than install an unapproved tool.
+- [x] Rerun both focused test files; inspect lockfile diffs for unrelated upgrades. Revert only task-caused unrelated resolution changes by regenerating from the original lock, not by editing integrity records manually.
 - [ ] Stage this task's files and commit:
 
 ```bash
 prism-tool commit create --type fix --scope review --subject "supply the standalone pi sdk as a runtime dependency" --refs 535
 ```
+
+### Task 1 execution evidence
+
+Preparation committed as `59bce780c66c131885ca323b30f4cdfa1eb61983` on
+`fix/kyau-a116-installed-review-sdk-readiness`. Metadata, scanner, and root-pin
+regressions each failed meaningfully before their changes. The focused Node
+files now pass 32 tests. npm lock generation, pnpm import, and root npm ci
+completed with lifecycle scripts disabled and private package-manager state.
+Existing non-SDK npm versions stayed unchanged; SDK dependencies were updated
+and hoisted from the former nested graph.
+
+The first full Node run reported 1517 tests: 1280 pass, 237 fail. The
+checkout's `packages/prism-core/config/automation/back-merge.yml` and
+`packages/prism-core/config/release.yml` had mode `0600`; packaged-resource
+validation requires exact `0644`. An isolated fixture confirmed the mismatch.
+The human approved restoring only these two local modes without content
+changes. This local-permission repair is an approved addition to Task 1's
+paths, not a validation-policy change.
+
+After that repair, the focused managed-hooks reproduction and all 1517 Node
+tests pass. The changed npm lock audits clean at every severity. Harness
+validation, source syntax, and whitespace checks pass; no PHP coverage gate
+applies to this task's changed files. Task 1 is verified; its commit follows.
 
 ## Task 2: Add a bounded SDK readiness boundary
 

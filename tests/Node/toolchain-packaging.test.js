@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -96,17 +96,26 @@ function fakeExternalRun(invocations) {
     };
 }
 
-test('declares the bounded review executable and Pi SDK peer', () => {
+test('Core supplies its standalone SDK even when peer installation is disabled', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(CORE_PKG, 'package.json'), 'utf8'));
+    const sdk = '@earendil-works/pi-coding-agent';
 
+    assert.equal(manifest.dependencies[sdk], '>=0.84.1 <=5.0.0');
+    assert.equal(manifest.peerDependencies[sdk], '>=0.84.1 <=5.0.0');
     assert.deepEqual(manifest.bin, {
         'prism-review': 'scripts/prism-review.js',
         'prism-tool': 'scripts/prism-tool.js',
     });
-    assert.equal(
-        manifest.peerDependencies['@earendil-works/pi-coding-agent'],
-        '>=0.84.1 <0.85.0'
-    );
+});
+
+test('pins the development SDK baseline in the manifest and npm lock', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+    const sdk = '@earendil-works/pi-coding-agent';
+
+    assert.equal(manifest.devDependencies[sdk], '0.85.1');
+    assert.equal(lock.packages[''].devDependencies[sdk], '0.85.1');
+    assert.equal(lock.packages[`node_modules/${sdk}`].version, '0.85.1');
 });
 
 test('keeps review private state ignored with only its work directory recursively removable', () => {
