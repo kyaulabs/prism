@@ -33,6 +33,7 @@ documentation, and conversation.
 | Pi package | A distributable collection of Pi skills, prompt templates, extensions, themes, and supporting package files. Prism ships a global core package and project-local stack adapters. |
 | Prism core | The language-agnostic Pi package that owns the engineering pipeline, global instructions, prompt templates, generic tooling, the safety extension, and the web-access extension. It must not contain stack-specific behavior. |
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
+| source checkout | An independent clone or fork of the Prism development repository recognized through bounded structural evidence. Setup preserves its repository-owned automation and uses existing source validation; recognition grants no consumer or global mutation authority. |
 | active adapter | The project-local stack adapter selected by established-project evidence or explicitly from the supported-adapter catalogue during strict-empty setup. Core workflows delegate stack-specific operations when an adapter is present. |
 | Prism reviewer | The Core-owned `prism-review` executable and skill policy that run bounded four-axis review from a pre-existing installed trust root. It begins as a non-authoritative foundation and becomes finalization authority only after the staged cutover in ADR-0103. |
 | review profile | A closed package-owned declaration of review skills, axis lenses, deterministic path triggers, and fixed non-text exemptions. An adapter may append lenses but cannot replace Core policy or supply executable review commands. |
@@ -286,6 +287,10 @@ The opt-in Core-owned release lifecycle for repositories publishing npm packages
   and CI hold no npm credentials and never run `npm publish`.
 
 ### Automation Desired State
+
+- Verified source checkouts take `SOURCE_CHECKOUT_SETUP`, not consumer
+  reconciliation. Repository-owned files and adapter activation are preserved;
+  classification is not a quality result or a hook/manifest exemption (ADR-0109).
 
 The setup-managed repository automation selected from validated Core and active-adapter providers.
 

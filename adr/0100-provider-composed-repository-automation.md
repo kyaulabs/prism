@@ -6,6 +6,9 @@ Date: 2026-09-01
 
 Accepted
 
+Partially superseded by ADR-0109 for source-checkout setup applicability only.
+The development repository preserves its repository-owned automation.
+
 Partially superseded by ADR-0108 for public runtime-mode equality only.
 Canonical creation modes, package-resource checks, ownership, content, and
 transaction protections remain unchanged.
