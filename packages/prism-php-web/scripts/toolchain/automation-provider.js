@@ -1,4 +1,4 @@
-// $KYAULabs: automation-provider.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: automation-provider.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -9,6 +9,7 @@ const {
     AUTOMATION_OUTPUTS,
     renderAutomationOutput,
 } = require('./bootstrap-scaffold');
+const {ManagedFileError, requireManagedMode} = require('./managed-file');
 
 function packageVersion(packageRoot) {
     const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
@@ -110,6 +111,22 @@ function prepareAutomation({packageRoot, candidateRoot, contract}) {
     });
 }
 
+function sameOutputFile(left, right) {
+    return ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']
+        .every((field) => left[field] === right[field]);
+}
+
+function readOutputContents(descriptor, expectedSize) {
+    const buffer = Buffer.alloc(expectedSize + 1);
+    let offset = 0;
+    while (offset < buffer.length) {
+        const count = fs.readSync(descriptor, buffer, offset, buffer.length - offset, offset);
+        if (count === 0) break;
+        offset += count;
+    }
+    return buffer.subarray(0, offset);
+}
+
 function verifyAutomation({packageRoot, projectRoot, candidateRoot, contract}) {
     try {
         const root = fs.realpathSync(projectRoot ?? candidateRoot);
@@ -125,10 +142,32 @@ function verifyAutomation({packageRoot, projectRoot, candidateRoot, contract}) {
             if (
                 stat.isSymbolicLink() ||
                 !stat.isFile() ||
-                (stat.mode & 0o777) !== expected.mode ||
-                !fs.readFileSync(filePath).equals(expected.contents)
+                fs.realpathSync(filePath) !== filePath ||
+                typeof fs.constants.O_NOFOLLOW !== 'number' ||
+                (projectRoot == null && (stat.mode & 0o7777) !== expected.mode)
             ) {
                 throw new Error('PHP/web automation output changed');
+            }
+            if (projectRoot != null) {
+                if (typeof process.getuid !== 'function' || stat.uid !== process.getuid()) {
+                    throw new ManagedFileError('MANAGED_OWNER',
+                        `managed file ownership is invalid: ${outputPath}`);
+                }
+                requireManagedMode(stat.mode, expected.mode, outputPath);
+            }
+            const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+            try {
+                const held = fs.fstatSync(descriptor);
+                if (!sameOutputFile(stat, held)) throw new Error('PHP/web automation output changed');
+                const contents = readOutputContents(descriptor, expected.contents.length);
+                if (!contents.equals(expected.contents) ||
+                    !sameOutputFile(held, fs.fstatSync(descriptor)) ||
+                    !sameOutputFile(held, fs.lstatSync(filePath)) ||
+                    fs.realpathSync(filePath) !== filePath) {
+                    throw new Error('PHP/web automation output changed');
+                }
+            } finally {
+                fs.closeSync(descriptor);
             }
         }
         return Object.freeze({
@@ -139,13 +178,14 @@ function verifyAutomation({packageRoot, projectRoot, candidateRoot, contract}) {
                 message: 'PHP/web quality automation inventory verified',
             })]),
         });
-    } catch {
+    } catch (error) {
         return Object.freeze({
             status: 'NO-GO',
             checks: Object.freeze([Object.freeze({
                 id: 'php-web-quality-inventory',
                 status: 'FAIL',
-                message: 'PHP/web quality automation inventory verification failed',
+                message: error instanceof ManagedFileError ? error.message
+                    : 'PHP/web quality automation inventory verification failed',
             })]),
         });
     }

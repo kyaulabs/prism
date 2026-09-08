@@ -21,15 +21,21 @@ prism-tool setup route --json
 
 Treat the result as untrusted structured data. Require exactly schema version
 `2`, command `setup route`, status `GO` or `NO-GO`, one disposition from
-`STRICT_EMPTY`, `ESTABLISHED`, or `CONFLICT`, automation applicability
-`STRICT_EMPTY`, `ESTABLISHED`, `SCAFFOLD_ONLY`, or `null`, source `null`, one
-known route, one known reason, one canonical absolute project root, and the
-closed checks shape. `CONFLICT` requires null applicability. `STRICT_EMPTY`
-requires matching applicability. A project whose canonical root owns an
-existing Git repository requires `ESTABLISHED`; a non-Git scaffold or a project
-inside a containing worktree requires `SCAFFOLD_ONLY`. Any unknown schema, field, disposition, applicability, source,
-route, reason, status, or additional key fails closed and stops setup.
+`STRICT_EMPTY`, `ESTABLISHED`, `SOURCE_CHECKOUT`, or `CONFLICT`, automation
+applicability `STRICT_EMPTY`, `ESTABLISHED`, `SCAFFOLD_ONLY`,
+`SOURCE_CHECKOUT`, or `null`, source `null`, one known route, one known reason,
+one canonical absolute project root, and the closed checks shape. `CONFLICT`
+requires null applicability. `STRICT_EMPTY` requires matching applicability.
+`SOURCE_CHECKOUT` requires matching applicability, route
+`SOURCE_CHECKOUT_SETUP`, reason `PRISM_SOURCE_CHECKOUT`, status `GO`, and a
+passing setup-entry check. Other root-owned Git repositories require
+`ESTABLISHED`; a non-Git scaffold or a project inside a containing worktree
+requires `SCAFFOLD_ONLY`. Any unknown schema, field, disposition, applicability,
+source, route, reason, status, or additional key fails closed and stops setup.
 
+- `SOURCE_CHECKOUT` with route `SOURCE_CHECKOUT_SETUP`: continue only at
+  **Source checkout setup** below. Do not select a bootstrap source or enter
+  consumer reconciliation. Route GO proves applicability, not setup success.
 - `ESTABLISHED` with route `ESTABLISHED_SETUP`: inspect retained empty-project
   continuity before package-release inspection, adapter discovery, readiness,
   or any established-project mutation:
@@ -409,58 +415,137 @@ remote. Report the exact root commit and one bounded publication handoff.
 Human next actions: create/configure the hosted repository; add the remote; push `develop`; configure post-push rulesets. These are instructions only;
 setup executes no hosted or Git publication command.
 
+## Source checkout setup
+
+Run this section only for verified `SOURCE_CHECKOUT_SETUP`. Recognition supports
+independent clones and forks, not linked worktrees, and grants no package,
+credential, remote, repair, or review authority. Before any source-specific
+execution, rerun `prism-tool setup route --json` and require the same closed
+source result and canonical root; changed identity stops without consumer
+fallback.
+
+First inspect retained bootstrap continuity, before global or project effects:
+
+```bash
+prism-tool setup project status --json
+```
+
+Require schema version `1`, command `setup project status`, the same canonical
+root, the closed checks shape, status `GO`, disposition `NO_ACTIVE_BOOTSTRAP`,
+and null data. Any active, ambiguous, or recovery-required state stops source
+setup. Preserve the returned retained state and report its blocking condition
+and one existing recovery action. Never adopt, delete, replay, or recover an
+unrelated bootstrap attempt as source setup; never inspect its private files
+directly.
+
+Preserve repository-owned workflows, hooks, coverage shims, package and project
+manifests, lockfiles, release files, and `.pi/settings.json`. Do not gather
+consumer metadata or invoke consumer automation inspect/plan/apply/verify,
+package-release reconciliation, adapter scaffolding/dependency provisioning,
+or canonical hook reconciliation. Do not change `core.hooksPath`, normalize
+files, or use pre-commit as a read-only validator: it can rewrite and restage.
+
+Continue through shared stages 1–4 and optional stages 9–10 under their existing
+independent approvals. Source recognition authorizes neither global installation
+nor consent grants nor remote effects. Stages 5–8 take their explicit source
+branches below, preserving disk-backed adapter activation rather than installing
+or rewriting it. Finish only through source validation in stage 11.
+
 ## Established repository automation
 
 Run this section only for route applicability `ESTABLISHED` after confirming
 that no empty-project bootstrap attempt is active. It performs no package or
 adapter acquisition, dependency update, registry access, network access,
-GitHub mutation, commit, or push. The active adapter must already be trusted by
-project-local Pi evidence. A missing, ambiguous, or incomplete provider makes
-automation `NO-GO`; report it without loading arbitrary project code.
+GitHub mutation, commit, or push. `SOURCE_CHECKOUT` must skip this entire consumer
+section and preserve repository-owned automation.
 
 Use this fixed order. Do not skip planning on a current or repeat invocation:
 
-1. Inspect trusted baseline and active-adapter providers without mutation:
+1. Run local readiness before project metadata or automation inspection:
+
+   ```bash
+   prism-tool doctor --local-only
+   ```
+
+   A failure stops established setup. Do not install a prerequisite or turn a
+   failed check into a warning.
+
+2. Verify the requested composition and inspect the base metadata fields with
+   exactly one matching command:
+
+   ```bash
+   prism-tool setup project metadata --source=established --adapter=core-only --json
+   prism-tool setup project metadata --source=established --adapter=active --json
+   ```
+
+   Use `core-only` only when project-local discovery proves that no adapter is
+   present. Report that result as `CORE_ONLY`; report one exact validated
+   adapter as `ADAPTER`. Invalid, malformed, ambiguous, escaping, symlinked, or
+   incomplete adapter evidence is not absence and must never become
+   `CORE_ONLY`. Require the closed metadata report, the canonical project root,
+   source `ESTABLISHED`, the selected nullable adapter identity, and one passing
+   check. Do not gather values yet.
+
+3. Inspect the trusted Core baseline and optional active-adapter provider
+   without mutation:
 
    ```bash
    prism-tool automation inspect --json
    ```
 
-   Require the closed schema, status `GO`, disposition `CREATE`, `CURRENT`, or
-   `MIGRATE`, exact Core back-merge and adapter quality providers,
-   non-overlapping outputs, ownership classifications, and passing checks.
-   `CONFLICT` or provider failure is `NO-GO`: preserve every project file and
+   Require report schema version `2`, composition `CORE_ONLY` or `ADAPTER`,
+   status `GO`, disposition `CREATE`, `CURRENT`, or `MIGRATE`, non-overlapping
+   outputs, bounded ownership classifications, and passing checks. `CORE_ONLY`
+   must contain no adapter provider or adapter execution. `CONFLICT`, null
+   composition, or provider failure is `NO-GO`: preserve every project file and
    stop repository automation without attempting hooks.
 
-2. Ask the only repository-automation capability question:
+4. Ask the only repository-automation capability question:
 
    ```text
    Enable repository release management? (yes/no)
    ```
 
-   Accept only literal `yes`, then ask for and confirm one
-   `OWNER/REPOSITORY` coordinate. Validate the coordinate through the
-   automation command; do not infer it from a remote or contact GitHub. A
-   literal `no` omits only the Core repository-release provider and never
-   removes an existing file.
+   A literal `yes` requires one confirmed `OWNER/REPOSITORY` coordinate and
+   capability `release-management`; literal `no` selects no capability. Do not
+   infer the coordinate from a remote or contact GitHub. Run metadata inspection
+   again with `--capabilities=release-management` only when release management
+   was selected. Gather each declared field in report order. The release
+   repository in the metadata must equal the automation control exactly.
 
-3. Produce the immutable plan with the validated control:
+5. Create `.pi/prism-tool/` as a private directory, create
+   `.pi/prism-tool/established-metadata.json` at mode `0600`, and write the
+   validated compact JSON through Pi's file tool. This project-local inert metadata payload is not shell source. It contains only schema version `1`,
+   `displayName`, `summary`, and selected `capabilityMetadata`. Do not pass a
+   value as a command option, interpolate it into shell syntax, or infer
+   metadata from repository files.
+
+6. Produce one immutable transaction plan with the literal payload path and
+   matching release control:
 
    ```bash
-   prism-tool automation plan --json
-   prism-tool automation plan --release-repository=OWNER/REPOSITORY --json
+   prism-tool automation plan --metadata=.pi/prism-tool/established-metadata.json --json
+   prism-tool automation plan --metadata=.pi/prism-tool/established-metadata.json --release-repository=OWNER/REPOSITORY --json
    ```
 
-   Run exactly one matching command. Require a project-local plan beneath
-   `.pi/prism-tool/automation/`, a lowercase SHA-256 digest, the same Git
-   precondition and provider set, and complete output dispositions. Display the
-   whole report and diff before asking:
+   Require `PLAN_READY`, the same `CORE_ONLY` or `ADAPTER` composition, a
+   project-local plan beneath `.pi/prism-tool/automation/`, a lowercase SHA-256
+   digest, the same Git precondition and provider identities, and complete
+   output dispositions. The plan must include `.prism/project.json` under the
+   Core project-manifest provider. Valid schema-one Blank and Template manifests
+   remain schema one unless their own metadata is being changed; a new
+   established manifest uses schema two and source
+   `{"mode":"ESTABLISHED","evidence":null}`.
+
+   Once the successful plan has retained the normalized metadata, remove only
+   the transient metadata payload. Display the complete report and diff, then
+   ask:
 
    ```text
    Apply the complete displayed repository automation plan? (yes/no)
    ```
 
-4. Only literal `yes` authorizes the exact planned mutation:
+7. Only literal `yes` authorizes the exact planned mutation:
 
    ```bash
    prism-tool automation apply --plan=/validated/project-local/plan.json --approval=yes --json
@@ -469,7 +554,8 @@ Use this fixed order. Do not skip planning on a current or repeat invocation:
    A decline writes no provider output. On apply failure, report the retained
    transaction evidence and recovery action; do not reconcile hooks.
 
-5. Verify every provider with the same repository-release control:
+8. Verify the manifest and every applicable provider with the same release
+   control:
 
    ```bash
    prism-tool automation verify --json
@@ -477,10 +563,10 @@ Use this fixed order. Do not skip planning on a current or repeat invocation:
    ```
 
    Run exactly one matching command. Continue only for status `GO`, disposition
-   `CURRENT`, exact canonical bytes and modes, and passing Core and adapter
-   checks.
+   `CURRENT`, the same composition, exact canonical bytes and modes, and passing
+   Core and optional adapter checks.
 
-6. Display the canonical four-hook reconciliation boundary and ask:
+9. Offer hook activation only after manifest and provider verification pass. Display the canonical four-hook reconciliation boundary and ask:
 
    ```text
    Activate the displayed canonical Git hooks? (yes/no)
@@ -495,14 +581,21 @@ Use this fixed order. Do not skip planning on a current or repeat invocation:
    Require `GO`, `CURRENT`, the exact `pre-commit`, `commit-msg`,
    `prepare-commit-msg`, and `pre-push` inventory, no unowned collision, no
    unresolved obsolete managed hook, and effective repository-local
-   `core.hooksPath`. The reconciliation report is the hook verification. A
-   decline or failed check leaves final repository automation incomplete.
+   `core.hooksPath`. The command revalidates the strict manifest, composition,
+   and all automation providers before writing hooks. A null-adapter manifest
+   takes the Core-only hook path and loads no adapter.
 
-7. Report automation `GO` only after provider verification and hook
-   verification both pass. Distinguish applied, current, declined, conflict,
-   and recovery-required state. Then continue at **1. Pre-flight**. OCR consent
-   and bounded-web consent remain independent later stages and never authorize
-   repository automation.
+10. Run the post-setup hook proof:
+
+    ```bash
+    prism-tool hook pre-commit
+    ```
+
+    Report automation `GO` only after automation verification, hook
+    reconciliation, and this proof all pass. Distinguish applied, current,
+    declined, conflict, and recovery-required state. Then continue at
+    **1. Pre-flight**. OCR consent and bounded-web consent remain independent
+    later stages and never authorize repository automation.
 
 Strict-empty setup follows the same applicability rules inside its complete
 bootstrap plan: Core back-merge, active-adapter quality automation, optional
@@ -681,7 +774,11 @@ to paste a key and do not write it to a project file.
 
 ## 5. Managed npm package releases
 
-Inspect this Core-owned capability before any project stack detection. The
+For `SOURCE_CHECKOUT`, skip this entire stage and preserve repository-owned
+release configuration. Report consumer package-release reconciliation as not
+applicable; do not inspect, plan, apply, verify, migrate, or enable it here.
+
+For other applicable routes, inspect this Core-owned capability before any project stack detection. The
 operation is local and read-only:
 
 ```bash
@@ -754,6 +851,17 @@ checks and recovery data without inventing a repair path.
 
 ## 6. Detect and offer the project adapter
 
+For `SOURCE_CHECKOUT`, preserve existing disk-backed project-local activation;
+skip adapter installation and the consumer detection block below. Use preflight
+`pi list` and the current session's resources to confirm the source Core and
+PHP/web adapter are active from the checkout, including `php-web-stack` and
+`/check-php`. Missing, invalid, ambiguous, or inactive source adapter evidence is
+FAIL, never implicit Core-only success. Stop with human remediation; do not
+rewrite `.pi/settings.json`, install a package, or resolve a scaffold. The
+existing adapter check must also successfully load its declared toolchain.
+
+For other applicable routes:
+
 Inspect project-local evidence only:
 
 ```bash
@@ -784,7 +892,12 @@ work. Do not guess or install an unrelated adapter.
 
 ## 7. Provision the declared adapter toolchain
 
-After the adapter is installed, discover it and inspect the consumer project
+For `SOURCE_CHECKOUT`, skip this entire stage and preserve manifests, lockfiles,
+dependencies, and source configuration. Use the existing source checks in stage
+11, not consumer setup inspect/resolve/apply/verify. Missing dependencies require
+human remediation, not registry approval or automatic provisioning here.
+
+For other applicable routes, after the adapter is installed, discover it and inspect the consumer project
 without mutation:
 
 ```bash
@@ -825,6 +938,11 @@ Keep every approval one question per turn and never infer one approval from
 another.
 
 ## 8. Git hooks
+
+For `SOURCE_CHECKOUT`, preserve repository-owned hooks and their activation;
+skip canonical reconciliation, hook installation, and hook proof execution.
+Report preserved, not canonically current. Do not change `core.hooksPath` or
+invoke pre-commit merely to validate source setup.
 
 Applicable established repositories reconcile and verify hooks in
 **Established repository automation**. Strict-empty projects reconcile and
@@ -887,19 +1005,54 @@ If `gh` is missing or unauthenticated, report the local remediation
 
 ## 11. Validate and report
 
-In a Prism source checkout, run:
+For `SOURCE_CHECKOUT`, revalidate immediately before source validation:
+
+```bash
+prism-tool setup route --json
+```
+
+Require the same closed `SOURCE_CHECKOUT_SETUP` result and canonical root.
+Then expand and run `/check`, including its actual active-adapter gate. Preserve
+its clean-tree and branch requirements; source recognition is no exemption.
+Do not auto-fix a failed check or substitute consumer scaffold verification.
+Missing tools, missing or invalid adapter activation, any failed quality gate,
+or changed source identity makes setup `NO-GO` with one human remediation.
+
+Resolve the source harness scripts separately:
 
 ```bash
 prism-tool resolve scripts
 ```
 
-Retain the returned absolute directory, then run:
+Require a successful absolute result, retain it as inert data, then render that
+literal path in a separate invocation:
 
 ```bash
 bash /absolute/resolved/scripts/validate-harness.sh
 ```
 
-Then report:
+A missing validator or nonzero exit is FAIL, not SKIPPED or a warning. Do not
+mask its exit status. Before final source success, rerun
+`prism-tool setup route --json`:
+
+```bash
+prism-tool setup route --json
+```
+
+Require the same closed source result and canonical root again. Changed,
+conflicting, or unknown identity stops without consumer fallback or repair.
+Source setup is GO only when bootstrap continuity was clear, applicable shared
+readiness and consent checks passed, disk-backed adapter activation was valid,
+`/check` and harness validation passed, and final identity revalidation passed.
+Otherwise report `NO-GO`; never infer validation success from route GO.
+
+For other routes, retain their existing applicable validation and reporting;
+source-only checks are SKIPPED with the reason.
+
+Report source-owned automation, package-release files, and hooks as preserved,
+and consumer reconciliation as not applicable. Preserved is not a claim that
+canonical consumer automation or hooks are current. Report actual source
+quality and harness results independently. Then report:
 
 ```text
 Component             Scope           Status
@@ -908,16 +1061,19 @@ prism-core            global          installed / missing
 AGENTS.md bootstrap   global          deployed / Stage 5 pending
 DeepSeek primary      global          known / missing
 DeepSeek judge        global          known / missing
-repository automation project         applied / current / declined / conflict / recovery required / unavailable
-package releases      project         enabled / current / declined / conflict / no candidates
-stack adapter         project-local   installed / declined / not detected
-Git hooks             project         current / declined / conflict / unavailable
+repository automation project         preserved / applied / current / declined / conflict / recovery required / unavailable
+consumer reconciliation project       not applicable / applied / declined / conflict
+package releases      project         preserved / enabled / current / declined / conflict / no candidates
+stack adapter         project-local   source-active / installed / declined / missing / invalid / not detected
+Git hooks             project         preserved / current / declined / conflict / unavailable
 OCR consent           global          granted / declined / unsafe
 web consent           global          granted / declined / unsafe
 web config            global          absent / configured / unsafe
 browser search        global          available FAMILY / disabled / optional unavailable
 loopback SearXNG      global          configured / optional absent
+source quality        source checkout PASS / FAIL / not run
 harness validation    source checkout PASS / FAIL / SKIPPED
+source identity       source checkout revalidated / conflict / not applicable
 ```
 
 End with the single next action that remains, if any.

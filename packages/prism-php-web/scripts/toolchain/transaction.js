@@ -1,4 +1,4 @@
-// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/08/25 -0700 Exp $
+// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {normalizeComposerAudit, normalizeNpmAudit} = require('./audit');
 const {resolveTool} = require('./project');
+const {ManagedFileError, isSafeManagedMode, requireManagedMode} = require('./managed-file');
 const {
     readCanonicalVisualReviewFiles,
     VISUAL_REVIEW_FILES,
@@ -23,6 +24,7 @@ const COMMAND_OPTIONS = Object.freeze({maxBuffer: 1048576, timeout: 300000});
 const DEFAULT_PACKAGE_ROOT = path.resolve(__dirname, '../..');
 
 class InvalidPlanError extends Error {}
+class ObsoletePlanError extends InvalidPlanError {}
 class PostApplyError extends Error {
     constructor(retry) {
         super('post-apply operation failed');
@@ -40,6 +42,25 @@ function hasExactKeys(value, keys) {
         Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 }
 
+function visualObservation(stat, digest) {
+    return {
+        dev: stat.dev, ino: stat.ino, uid: stat.uid, gid: stat.gid, size: stat.size,
+        mode: stat.mode & 0o7777, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, sha256: digest,
+    };
+}
+
+function sameVisualObservation(left, right) {
+    return Object.keys(left).every((field) => left[field] === right[field]);
+}
+
+function validVisualObservation(value, canonical) {
+    return hasExactKeys(value, ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs', 'sha256']) &&
+        ['dev', 'ino', 'uid', 'gid', 'size'].every((field) => Number.isSafeInteger(value[field]) && value[field] >= 0) &&
+        ['mtimeMs', 'ctimeMs'].every((field) => Number.isFinite(value[field]) && value[field] >= 0) &&
+        Number.isInteger(value.mode) && value.mode >= 0 && value.mode <= 0o7777 &&
+        isSafeManagedMode(value.mode, canonical.mode) && value.sha256 === canonical.sha256;
+}
+
 function validatePlan(plan, contract, canonicalProject, canonicalFiles) {
     if (!hasExactKeys(plan, [
         'schemaVersion',
@@ -51,8 +72,11 @@ function validatePlan(plan, contract, canonicalProject, canonicalFiles) {
         'audit',
         'browserTargets',
     ])) throw new InvalidPlanError('candidate plan schema is invalid');
+    if (plan.schemaVersion === 1) {
+        throw new ObsoletePlanError('candidate plan version is obsolete; regenerate the plan');
+    }
     if (
-        plan.schemaVersion !== 1 ||
+        plan.schemaVersion !== 2 ||
         plan.adapter !== contract.package ||
         plan.projectRoot !== canonicalProject ||
         !hasExactKeys(plan.original, CONSUMER_FILES) ||
@@ -75,12 +99,13 @@ function validatePlan(plan, contract, canonicalProject, canonicalFiles) {
         const record = plan.scaffold[name];
         const canonical = canonicalFiles.get(name);
         if (
-            !hasExactKeys(record, ['disposition', 'original', 'candidate', 'mode']) ||
+            !hasExactKeys(record, ['disposition', 'original', 'candidate', 'mode', 'observed']) ||
             !['CREATE', 'PRESERVE'].includes(record.disposition) ||
             record.candidate !== canonical.sha256 ||
             record.mode !== canonical.mode ||
-            (record.disposition === 'CREATE' && record.original !== 'absent') ||
-            (record.disposition === 'PRESERVE' && record.original !== canonical.sha256)
+            (record.disposition === 'CREATE' && (record.original !== 'absent' || record.observed !== null)) ||
+            (record.disposition === 'PRESERVE' &&
+                (record.original !== canonical.sha256 || !validVisualObservation(record.observed, canonical)))
         ) {
             throw new InvalidPlanError('candidate scaffold plan is invalid');
         }
@@ -303,6 +328,51 @@ function cleanupOwnedWorkspace(projectRoot, adapter) {
     }
 }
 
+function assertVisualFile(stat, name, canonical) {
+    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('managed visual review file is invalid');
+    if (typeof process.getuid !== 'function' || stat.uid !== process.getuid()) {
+        throw new ManagedFileError('MANAGED_OWNER', `managed file ownership is invalid: ${name}`);
+    }
+    requireManagedMode(stat.mode, canonical.mode, name);
+    if (stat.size !== canonical.content.length) {
+        throw new Error('managed visual review file conflicts with canonical content');
+    }
+}
+
+function readVisualObservation(projectRoot, name, canonical, initial) {
+    const filePath = path.join(projectRoot, name);
+    assertVisualFile(initial, name, canonical);
+    if (fs.realpathSync(filePath) !== filePath || typeof fs.constants.O_NOFOLLOW !== 'number') {
+        throw new Error('managed visual review file is invalid');
+    }
+    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        const held = fs.fstatSync(descriptor);
+        assertVisualFile(held, name, canonical);
+        const identity = visualObservation(held, '');
+        if (!sameVisualObservation(identity, visualObservation(initial, ''))) {
+            throw new Error('managed visual review file changed');
+        }
+        const buffer = Buffer.alloc(canonical.content.length + 1);
+        let offset = 0;
+        while (offset < buffer.length) {
+            const count = fs.readSync(descriptor, buffer, offset, buffer.length - offset, offset);
+            if (count === 0) break;
+            offset += count;
+        }
+        const digest = crypto.createHash('sha256').update(buffer.subarray(0, offset)).digest('hex');
+        if (digest !== canonical.sha256 ||
+            !sameVisualObservation(identity, visualObservation(fs.fstatSync(descriptor), '')) ||
+            !sameVisualObservation(identity, visualObservation(fs.lstatSync(filePath), '')) ||
+            fs.realpathSync(filePath) !== filePath) {
+            throw new Error('managed visual review file changed');
+        }
+        return visualObservation(held, digest);
+    } finally {
+        fs.closeSync(descriptor);
+    }
+}
+
 function stageVisualReviewFiles({packageRoot, projectRoot, candidateRoot}) {
     const canonicalFiles = readCanonicalVisualReviewFiles(packageRoot);
     const scaffold = {};
@@ -317,15 +387,9 @@ function stageVisualReviewFiles({packageRoot, projectRoot, candidateRoot}) {
         }
         let disposition = 'CREATE';
         let original = 'absent';
+        let observed = null;
         if (stat !== undefined) {
-            if (
-                stat.isSymbolicLink() ||
-                !stat.isFile() ||
-                (stat.mode & 0o777) !== canonical.mode ||
-                digestFile(projectPath) !== canonical.sha256
-            ) {
-                throw new Error('managed visual review file conflicts with canonical content');
-            }
+            observed = readVisualObservation(projectRoot, name, canonical, stat);
             disposition = 'PRESERVE';
             original = canonical.sha256;
         }
@@ -337,6 +401,7 @@ function stageVisualReviewFiles({packageRoot, projectRoot, candidateRoot}) {
             original,
             candidate: canonical.sha256,
             mode: canonical.mode,
+            observed,
         };
     }
     return scaffold;
@@ -388,8 +453,9 @@ function validateScaffoldCandidateFiles({canonicalProject, candidateRoot, canoni
             currentStat === undefined ||
             currentStat.isSymbolicLink() ||
             !currentStat.isFile() ||
-            (currentStat.mode & 0o777) !== record.mode ||
-            digestFile(currentPath) !== record.original
+            !sameVisualObservation(record.observed, visualObservation(currentStat, record.original)) ||
+            !sameVisualObservation(record.observed,
+                readVisualObservation(canonicalProject, name, canonicalFiles.get(name), currentStat))
         ) {
             throw new StalePlanError('candidate plan is stale');
         }
@@ -405,6 +471,32 @@ function validateScaffoldCandidateFiles({canonicalProject, candidateRoot, canoni
         }
     }
     return createNames;
+}
+
+function readCandidatePlan(filePath, initial) {
+    if (typeof fs.constants.O_NOFOLLOW !== 'number' || fs.realpathSync(filePath) !== filePath) {
+        throw new InvalidPlanError('candidate plan is invalid');
+    }
+    const same = (stat) => ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']
+        .every((field) => stat[field] === initial[field]);
+    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    try {
+        if (!same(fs.fstatSync(descriptor))) throw new InvalidPlanError('candidate plan changed');
+        const buffer = Buffer.alloc(initial.size + 1);
+        let offset = 0;
+        while (offset < buffer.length) {
+            const count = fs.readSync(descriptor, buffer, offset, buffer.length - offset, offset);
+            if (count === 0) break;
+            offset += count;
+        }
+        if (offset !== initial.size || !same(fs.fstatSync(descriptor)) ||
+            !same(fs.lstatSync(filePath)) || fs.realpathSync(filePath) !== filePath) {
+            throw new InvalidPlanError('candidate plan changed');
+        }
+        return JSON.parse(buffer.subarray(0, offset).toString('utf8'));
+    } finally {
+        fs.closeSync(descriptor);
+    }
 }
 
 function applyCandidate({
@@ -426,12 +518,14 @@ function applyCandidate({
             throw new InvalidPlanError('candidate plan path is invalid');
         }
         const planStat = fs.lstatSync(expectedPlan);
-        if (planStat.isSymbolicLink() || !planStat.isFile() || planStat.size > 1048576) {
+        if (planStat.isSymbolicLink() || !planStat.isFile() || planStat.size > 1048576 ||
+            (planStat.mode & 0o7777) !== 0o600 ||
+            typeof process.getuid !== 'function' || planStat.uid !== process.getuid()) {
             throw new InvalidPlanError('candidate plan is invalid');
         }
         let parsedPlan;
         try {
-            parsedPlan = JSON.parse(fs.readFileSync(expectedPlan, 'utf8'));
+            parsedPlan = readCandidatePlan(expectedPlan, planStat);
         } catch {
             throw new InvalidPlanError('candidate plan is invalid');
         }
@@ -490,7 +584,8 @@ function applyCandidate({
         if (error instanceof PostApplyError) data.retry = error.retry;
         return {
             status: 'NO-GO',
-            checks: [{id: 'candidate-application', status: 'FAIL', message: 'candidate application failed'}],
+            checks: [{id: 'candidate-application', status: 'FAIL',
+                message: error instanceof ObsoletePlanError ? error.message : 'candidate application failed'}],
             data,
         };
     }
@@ -637,7 +732,7 @@ function resolveCandidate({contract, packageRoot = DEFAULT_PACKAGE_ROOT, project
             stage = 'candidate-validation';
         }
         const plan = {
-            schemaVersion: 1,
+            schemaVersion: 2,
             adapter: contract.package,
             projectRoot: canonicalProject,
             original,
@@ -655,13 +750,14 @@ function resolveCandidate({contract, packageRoot = DEFAULT_PACKAGE_ROOT, project
             checks: [{id: 'candidate-audit', status: 'PASS', message: 'zero advisories'}],
             data: {planPath, diff},
         };
-    } catch {
+    } catch (error) {
         if (workspace) {
             recoverWorkspace({projectRoot: canonicalProject, adapter: contract.package});
         }
         return {
             status: 'NO-GO',
-            checks: [{id: 'candidate-resolution', status: 'FAIL', message: 'candidate resolution failed'}],
+            checks: [{id: 'candidate-resolution', status: 'FAIL',
+                message: error instanceof ManagedFileError ? error.message : 'candidate resolution failed'}],
             data: {reason: 'tool failure', stage},
         };
     }

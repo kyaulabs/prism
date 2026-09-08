@@ -1,4 +1,4 @@
-// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: package-release.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -12,11 +12,12 @@ const PACKAGE_NAME = /^(?:@[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\/)?[a-z0-9](?:[a-z0
 const RELEASE_VERSION = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-(?:(?:0|[1-9][0-9]*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+)(?:\.(?:0|[1-9][0-9]*|(?=[0-9A-Za-z-]*[A-Za-z-])[0-9A-Za-z-]+))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const MAX_JSON_BYTES = 1048576;
 const MANAGED_BY = '@kyaulabs/prism-core';
-const RELEASE_SCHEMA_VERSION = 2;
+const RELEASE_SCHEMA_VERSION = 3;
+const LEGACY_RELEASE_SCHEMA_VERSION = 2;
 const CONFIG_PATH = '.prism/release.json';
 const WORKFLOW_PATH = '.github/workflows/release.yml';
 const WORKFLOW_MARKER = '# prism-managed: @kyaulabs/prism-core';
-const WORKFLOW_SCHEMA_MARKER = '# prism-release-schema: 3';
+const WORKFLOW_SCHEMA_MARKER = '# prism-release-schema: 4';
 const LEGACY_WORKFLOW_SHA256 = 'dd4cd0fdf362e4243117e620c906a7bfe42b8b52c011759a2a6ea8f1850f0ef6';
 const OPERATION_ROOT = path.join('.pi', 'prism-tool', 'package-release');
 const OPERATION_MARKER = '.prism-package-release.json';
@@ -245,20 +246,22 @@ function validateConfiguredPackages({projectRoot, packagePaths}) {
     );
 }
 
-function validateAdapterReleases({projectRoot, records, value}) {
+function validateAdapterReleases({projectRoot, records, value, legacy = false}) {
     if (!Array.isArray(value) || value.length > 64) {
         throw new Error('adapter release declarations are invalid');
     }
     const packages = new Map(records.map((record) => [record.path, record]));
     const declaredPackages = new Set();
     const identifiers = new Set();
+    const expectedKeys = legacy
+        ? 'bootstrapProtocol,coreRange,displayName,id,package,status'
+        : 'bootstrapProtocol,displayName,id,package,status';
     return value.map((entry) => {
         if (
             entry === null ||
             typeof entry !== 'object' ||
             Array.isArray(entry) ||
-            Object.keys(entry).sort().join(',') !==
-                'bootstrapProtocol,coreRange,displayName,id,package,status' ||
+            Object.keys(entry).sort().join(',') !== expectedKeys ||
             !packages.has(entry.package) ||
             declaredPackages.has(entry.package) ||
             typeof entry.id !== 'string' ||
@@ -269,8 +272,10 @@ function validateAdapterReleases({projectRoot, records, value}) {
             entry.displayName.length > 120 ||
             entry.displayName !== entry.displayName.trim() ||
             hasControl(entry.displayName) ||
-            typeof entry.coreRange !== 'string' ||
-            semver.validRange(entry.coreRange) !== entry.coreRange ||
+            (legacy && (
+                typeof entry.coreRange !== 'string' ||
+                semver.validRange(entry.coreRange) !== entry.coreRange
+            )) ||
             !Number.isSafeInteger(entry.bootstrapProtocol) ||
             entry.bootstrapProtocol <= 0 ||
             !['ACTIVE', 'REVOKED'].includes(entry.status)
@@ -291,7 +296,13 @@ function validateAdapterReleases({projectRoot, records, value}) {
         }
         declaredPackages.add(entry.package);
         identifiers.add(entry.id);
-        return {...entry};
+        return {
+            package: entry.package,
+            id: entry.id,
+            displayName: entry.displayName,
+            bootstrapProtocol: entry.bootstrapProtocol,
+            status: entry.status,
+        };
     });
 }
 
@@ -305,16 +316,22 @@ function loadReleaseConfiguration({projectRoot, allowLegacy = false}) {
         'release configuration'
     );
     const keys = Object.keys(value).sort();
-    let kind;
-    let adapterReleases = [];
-    if (
-        keys.join(',') ===
-            'adapterReleases,managedBy,packages,schemaVersion,versionPolicy' &&
-        value.schemaVersion === RELEASE_SCHEMA_VERSION &&
+    const managedRoot =
+        keys.join(',') === 'adapterReleases,managedBy,packages,schemaVersion,versionPolicy' &&
         value.managedBy === MANAGED_BY &&
-        value.versionPolicy === 'lockstep'
-    ) {
+        value.versionPolicy === 'lockstep';
+    let kind;
+    let legacyDeclarations = false;
+    let adapterReleases = [];
+    if (managedRoot && value.schemaVersion === RELEASE_SCHEMA_VERSION) {
         kind = 'MANAGED';
+    } else if (
+        allowLegacy &&
+        managedRoot &&
+        value.schemaVersion === LEGACY_RELEASE_SCHEMA_VERSION
+    ) {
+        kind = 'LEGACY';
+        legacyDeclarations = true;
     } else if (
         allowLegacy &&
         keys.join(',') === 'managedBy,packages,schemaVersion,versionPolicy' &&
@@ -329,11 +346,12 @@ function loadReleaseConfiguration({projectRoot, allowLegacy = false}) {
         throw new Error('release configuration schema is invalid');
     }
     const records = validateConfiguredPackages({projectRoot, packagePaths: value.packages});
-    if (kind === 'MANAGED') {
+    if (kind === 'MANAGED' || legacyDeclarations) {
         adapterReleases = validateAdapterReleases({
             projectRoot,
             records,
             value: value.adapterReleases,
+            legacy: legacyDeclarations,
         });
     }
     return {
@@ -457,7 +475,7 @@ function inspectReleaseCapability({
             disposition: 'MIGRATE',
             candidates,
             configuredPackages: configuration.packages,
-            adapterReleases: [],
+            adapterReleases: configuration.adapterReleases,
             checks: [
                 {id: 'package-release-ownership', status: 'PASS', message: 'legacy package metadata can be migrated'},
             ],

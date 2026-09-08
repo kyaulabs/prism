@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-adapter.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-adapter.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -79,7 +79,7 @@ function signedSelectionContext(context) {
     const coreRoot = context.coreRoot;
     const manifest = JSON.parse(fs.readFileSync(path.join(coreRoot, 'package.json'), 'utf8'));
     const catalogue = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         catalogueId: 'kyaulabs/prism-adapters',
         sequence: 7,
         issuedAt: '2026-08-27T00:00:00Z',
@@ -90,7 +90,6 @@ function signedSelectionContext(context) {
             packageName: '@kyaulabs/prism-php-web',
             releases: [{
                 version: manifest.version,
-                coreRange: manifest.version,
                 bootstrapProtocol: 1,
                 integrity: ADAPTER_INTEGRITY,
                 publishedAt: '2026-08-26T00:00:00Z',
@@ -212,7 +211,7 @@ function provisionContext(t, options = {}) {
     t.after(() => fs.rmSync(cacheRoot, {recursive: true, force: true}));
     writeCorePackage(coreRoot, '1.4.0');
     const catalogue = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         catalogueId: 'kyaulabs/prism-adapters',
         sequence: 7,
         issuedAt: '2026-08-27T00:00:00Z',
@@ -223,7 +222,6 @@ function provisionContext(t, options = {}) {
             packageName: '@kyaulabs/prism-php-web',
             releases: [{
                 version: '1.8.2',
-                coreRange: '^1.3.0',
                 bootstrapProtocol: 1,
                 integrity: ADAPTER_INTEGRITY,
                 publishedAt: '2026-08-26T00:00:00Z',

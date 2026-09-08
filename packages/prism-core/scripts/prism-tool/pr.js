@@ -1,4 +1,4 @@
-// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -13,6 +13,7 @@ const {
 const {REVIEW_STATE} = require('../prism-review/review-state');
 const {runBounded} = require('./process');
 const {verifyReviewChain} = require('./review-chain');
+const {verifyManagedProject} = require('./managed-project');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
 const SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
@@ -255,6 +256,7 @@ function preflight(context, options = {}) {
     let reviewChainState;
     let reviewChainVersion;
     let advisoryCount;
+    let ocrExemptSegments;
     let v2Recovery;
 
     try {
@@ -273,6 +275,9 @@ function preflight(context, options = {}) {
             reviewChainState = REVIEW_STATE.VALID;
             reviewChainVersion = 1;
             advisoryCount = String(review.advisoryFindings.length);
+            ocrExemptSegments = review.record?.segments.filter(
+                (segment) => segment.axes.tooling === 'COMPLETE_NO_OCR'
+            ).length ?? 0;
         } else if (inspected.state === REVIEW_STATE.ABSENT && allowAbsentReviewChain) {
             const criteriaState = (context.inspectCriteria ?? inspectCriteria)(
                 {...context, projectRoot: cwd}
@@ -299,6 +304,15 @@ function preflight(context, options = {}) {
         return failure('review chain is incomplete, stale, or has unresolved Blocking findings');
     }
 
+    try {
+        const health = verifyManagedProject({projectRoot: cwd, coreRoot});
+        if (health.status !== 'GO') {
+            return failure(`managed project health failed: ${health.checks.find(({status}) => status === 'FAIL').message}`);
+        }
+    } catch {
+        return failure('managed project health could not be verified');
+    }
+
     const fields = [
         ['BRANCH', branch],
         ['TARGET_BRANCH', targetBranch],
@@ -313,6 +327,7 @@ function preflight(context, options = {}) {
     if (reviewChainVersion !== undefined) fields.push(['REVIEW_CHAIN_VERSION', String(reviewChainVersion)]);
     if (v2Recovery !== undefined) fields.push(['V2_RECOVERY', v2Recovery]);
     if (advisoryCount !== undefined) fields.push(['ADVISORY_COUNT', advisoryCount]);
+    if (ocrExemptSegments > 0) fields.push(['OCR_EXEMPT_SEGMENTS', String(ocrExemptSegments)]);
     for (const [key, value] of fields) process.stdout.write(`${key}\t${value}\n`);
     return EXIT.OK;
 }

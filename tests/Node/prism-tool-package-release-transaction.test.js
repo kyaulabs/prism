@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-package-release-transaction.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -18,7 +18,7 @@ const {
 const {makeTempDir, writeJson, writePackageJson} = require('./helpers');
 
 const CANONICAL_WORKFLOW = `# prism-managed: @kyaulabs/prism-core
-# prism-release-schema: 3
+# prism-release-schema: 4
 name: Release
 `;
 
@@ -58,7 +58,7 @@ function makeFixture(t, {workflow = true} = {}) {
 
 function installManagedConfiguration(projectRoot, packages = ['.'], adapterReleases = []) {
     writeJson(path.join(projectRoot, '.prism', 'release.json'), {
-        schemaVersion: 2,
+        schemaVersion: 3,
         managedBy: '@kyaulabs/prism-core',
         versionPolicy: 'lockstep',
         packages,
@@ -147,7 +147,7 @@ test('migrates legacy package metadata without owning the workflow', (t) => {
     assert.deepEqual(
         JSON.parse(fs.readFileSync(path.join(fixture.projectRoot, '.prism', 'release.json'))),
         {
-            schemaVersion: 2,
+            schemaVersion: 3,
             managedBy: '@kyaulabs/prism-core',
             versionPolicy: 'lockstep',
             packages: ['.'],
@@ -167,7 +167,7 @@ test('rejects an outdated or unowned workflow dependency', (t) => {
     assert.equal(fs.readFileSync(workflowPath, 'utf8'), `${CANONICAL_WORKFLOW}# drift\n`);
 });
 
-test('preserves adapter declarations while adding packages', (t) => {
+test('migrates schema two adapter declarations while adding packages', (t) => {
     const fixture = makeFixture(t);
     writePackageJson(fixture.projectRoot, '.', {
         name: 'fixture-root',
@@ -179,15 +179,20 @@ test('preserves adapter declarations while adding packages', (t) => {
         version: '1.2.3',
         prism: {adapter: true, bootstrapProtocol: 1},
     });
-    const declaration = {
-        package: 'packages/adapter',
-        id: 'fixture-adapter',
-        displayName: 'Fixture adapter',
-        coreRange: '>=1.2.3 <2.0.0',
-        bootstrapProtocol: 1,
-        status: 'ACTIVE',
-    };
-    installManagedConfiguration(fixture.projectRoot, ['.', 'packages/adapter'], [declaration]);
+    writeJson(path.join(fixture.projectRoot, '.prism', 'release.json'), {
+        schemaVersion: 2,
+        managedBy: '@kyaulabs/prism-core',
+        versionPolicy: 'lockstep',
+        packages: ['.', 'packages/adapter'],
+        adapterReleases: [{
+            package: 'packages/adapter',
+            id: 'fixture-adapter',
+            displayName: 'Fixture adapter',
+            coreRange: '>=1.2.3 <2.0.0',
+            bootstrapProtocol: 1,
+            status: 'ACTIVE',
+        }],
+    });
     writePackageJson(fixture.projectRoot, 'packages/extra', {
         name: '@fixture/extra',
         version: '1.2.3',
@@ -198,11 +203,17 @@ test('preserves adapter declarations while adding packages', (t) => {
     assert.deepEqual(
         JSON.parse(fs.readFileSync(path.join(fixture.projectRoot, '.prism', 'release.json'))),
         {
-            schemaVersion: 2,
+            schemaVersion: 3,
             managedBy: '@kyaulabs/prism-core',
             versionPolicy: 'lockstep',
             packages: ['.', 'packages/adapter', 'packages/extra'],
-            adapterReleases: [declaration],
+            adapterReleases: [{
+                package: 'packages/adapter',
+                id: 'fixture-adapter',
+                displayName: 'Fixture adapter',
+                bootstrapProtocol: 1,
+                status: 'ACTIVE',
+            }],
         }
     );
 });
@@ -218,7 +229,6 @@ test('fails closed when package reconciliation would orphan a declaration', (t) 
         package: 'packages/adapter',
         id: 'fixture-adapter',
         displayName: 'Fixture adapter',
-        coreRange: '>=1.2.3 <2.0.0',
         bootstrapProtocol: 1,
         status: 'ACTIVE',
     }]);

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -10,6 +10,12 @@ const test = require('node:test');
 const yaml = require('js-yaml');
 const {makeTempDir} = require('./helpers');
 const {validateProviderReport} = require('../../packages/prism-core/scripts/prism-tool/bootstrap-composer');
+const {renderCoreAutomationProvider} = require('../../packages/prism-core/scripts/prism-tool/automation-providers');
+const {verifyAutomation} = require('../../packages/prism-core/scripts/prism-tool/automation');
+const {renderProjectManifest} = require('../../packages/prism-core/scripts/prism-tool/project-manifest');
+const {applyManagedHooks, verifyManagedHooks} = require('../../packages/prism-core/scripts/prism-tool/managed-hooks');
+const {hookCommand} = require('../../packages/prism-core/scripts/prism-tool/hook');
+const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
 const {
     loadTrustedAdapterProviderDescriptor,
     loadTrustedProviderRegistry,
@@ -509,6 +515,306 @@ test('shares quality automation bytes between established and bootstrap provider
             true,
             output.path
         );
+    }
+});
+
+test('verifies installed adapter automation at safe restrictive modes without writes', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    const rendered = handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+    for (const [dataMode, executableMode] of [[0o600, 0o700], [0o640, 0o750], [0o400, 0o500]]) {
+        const before = new Map(rendered.outputs.map((output) => {
+            fs.chmodSync(output.candidatePath, output.path.endsWith('.sh') ? executableMode : dataMode);
+            return [output.path, fs.lstatSync(output.candidatePath)];
+        }));
+
+        assert.equal(handler.verifyAutomation({projectRoot, contract: CONTRACT}).status, 'GO');
+
+        for (const output of rendered.outputs) {
+            const after = fs.lstatSync(output.candidatePath);
+            for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+                assert.equal(after[field], before.get(output.path)[field], `${output.path}: ${field}`);
+            }
+        }
+    }
+});
+
+test('reports unsafe adapter runtime modes before reading or running the managed file', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+    for (const [relative, modes, required, allowed] of [
+        ['.github/workflows/ci.yml', [[0o664, '0664'], [0o755, '0755'], [0o4644, '4644'], [0o200, '0200']], '0400', '0644'],
+        ['.github/scripts/check-php.sh', [[0o777, '0777'], [0o4755, '4755'], [0o600, '0600'], [0o100, '0100']], '0500', '0755'],
+    ]) {
+        const file = path.join(projectRoot, relative);
+        for (const [mode, observed] of modes) {
+            fs.chmodSync(file, mode);
+            const message = `managed file permissions are invalid: ${relative} (observed ${observed}; requires ${required} within ${allowed})`;
+            const open = t.mock.method(fs, 'openSync');
+
+            const result = handler.verifyAutomation({projectRoot, contract: CONTRACT});
+
+            assert.equal(result.status, 'NO-GO');
+            assert.equal(result.checks[0].message, message);
+            assert.equal(open.mock.calls.some((call) => call.arguments[0] === file), false);
+            if (relative.endsWith('.sh')) {
+                let executed = false;
+                assert.throws(() => handler.runBootstrapQuality({
+                    projectRoot, contract: CONTRACT, run() { executed = true; },
+                }), {code: 'MANAGED_MODE', message});
+                assert.equal(executed, false);
+            }
+            assert.equal(fs.lstatSync(file).mode & 0o7777, mode);
+            t.mock.restoreAll();
+        }
+        fs.chmodSync(file, relative.endsWith('.sh') ? 0o755 : 0o644);
+    }
+});
+
+test('rejects another owner before reading or running adapter-managed automation', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+    const file = path.join(projectRoot, '.github/scripts/check-php.sh');
+    const lstat = fs.lstatSync;
+    t.mock.method(fs, 'lstatSync', (target, ...args) => {
+        const stat = lstat(target, ...args);
+        if (target === file) stat.uid = process.getuid() + 1;
+        return stat;
+    });
+    const open = t.mock.method(fs, 'openSync');
+    const message = 'managed file ownership is invalid: .github/scripts/check-php.sh';
+
+    const verified = handler.verifyAutomation({projectRoot, contract: CONTRACT});
+
+    assert.equal(verified.status, 'NO-GO');
+    assert.equal(verified.checks[0].message, message);
+    assert.equal(open.mock.calls.some((call) => call.arguments[0] === file), false);
+    let executed = false;
+    assert.throws(() => handler.runBootstrapQuality({
+        projectRoot, contract: CONTRACT, run() { executed = true; },
+    }), {code: 'MANAGED_OWNER', message});
+    assert.equal(executed, false);
+});
+
+test('rejects adapter automation behind a symlinked parent without reading or running it', (t) => {
+    const projectRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+    const github = path.join(projectRoot, '.github');
+    const moved = path.join(outside, '.github');
+    fs.renameSync(github, moved);
+    fs.symlinkSync(moved, github);
+    const open = t.mock.method(fs, 'openSync');
+
+    assert.equal(handler.verifyAutomation({projectRoot, contract: CONTRACT}).status, 'NO-GO');
+    assert.equal(open.mock.calls.some((call) => typeof call.arguments[0] === 'string' &&
+        call.arguments[0].startsWith(`${github}/`)), false);
+    let executed = false;
+    assert.throws(() => handler.runBootstrapQuality({
+        projectRoot, contract: CONTRACT, run() { executed = true; },
+    }), /quality script is invalid/);
+    assert.equal(executed, false);
+});
+
+test('does not read a symlink substituted while opening adapter automation', (t) => {
+    const projectRoot = makeTempDir();
+    const outside = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    t.after(() => fs.rmSync(outside, {recursive: true, force: true}));
+    handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+    const file = path.join(projectRoot, '.github/scripts/check-php.sh');
+    const canary = path.join(outside, 'private-fixture.txt');
+    fs.writeFileSync(canary, fs.readFileSync(file), {mode: 0o600});
+    const inode = fs.lstatSync(canary).ino;
+    const open = fs.openSync;
+    const read = fs.readSync;
+    let substituted = false;
+    let readCanary = false;
+    t.mock.method(fs, 'openSync', (target, ...args) => {
+        if (target === file && !substituted) {
+            substituted = true;
+            fs.renameSync(file, `${file}.original`);
+            fs.symlinkSync(canary, file);
+        }
+        return open(target, ...args);
+    });
+    t.mock.method(fs, 'readSync', (descriptor, ...args) => {
+        if (fs.fstatSync(descriptor).ino === inode) readCanary = true;
+        return read(descriptor, ...args);
+    });
+
+    assert.equal(handler.verifyAutomation({projectRoot, contract: CONTRACT}).status, 'NO-GO');
+    assert.equal(substituted, true);
+    assert.equal(readCanary, false);
+    assert.equal(fs.lstatSync(file).isSymbolicLink(), true);
+});
+
+test('rejects adapter automation identity drift before accepting managed bytes', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+    const inode = fs.lstatSync(path.join(projectRoot, '.github/scripts/check-php.sh')).ino;
+    const fstat = fs.fstatSync;
+    const read = fs.readSync;
+    for (const phase of ['open', 'after-read']) {
+        for (const field of ['dev', 'ino', 'uid', 'gid', 'mode', 'size', 'mtimeMs', 'ctimeMs']) {
+            let readOutput = false;
+            t.mock.method(fs, 'fstatSync', (descriptor, ...args) => {
+                const stat = fstat(descriptor, ...args);
+                if (stat.ino === inode && (phase === 'open' || readOutput)) stat[field] += 1;
+                return stat;
+            });
+            t.mock.method(fs, 'readSync', (descriptor, ...args) => {
+                if (fstat(descriptor).ino === inode) readOutput = true;
+                return read(descriptor, ...args);
+            });
+
+            const result = handler.verifyAutomation({projectRoot, contract: CONTRACT});
+            assert.equal(result.status, 'NO-GO', `${phase}: ${field}`);
+            assert.equal(result.checks[0].id, 'php-web-quality-inventory');
+            if (phase === 'open') assert.equal(readOutput, false, field);
+            t.mock.restoreAll();
+        }
+    }
+});
+
+test('bounds adapter automation reads when a managed output grows', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+    const file = path.join(projectRoot, '.github/scripts/check-php.sh');
+    const {ino: inode, size} = fs.lstatSync(file);
+    const readFile = fs.readFileSync;
+    const read = fs.readSync;
+    let unbounded = false;
+    let bytesRead = 0;
+    t.mock.method(fs, 'readFileSync', (target, ...args) => {
+        if (typeof target === 'number' && fs.fstatSync(target).ino === inode) {
+            unbounded = true;
+            return Buffer.alloc(size + 1);
+        }
+        return readFile(target, ...args);
+    });
+    t.mock.method(fs, 'readSync', (descriptor, buffer, offset, length, position) => {
+        if (fs.fstatSync(descriptor).ino !== inode) return read(descriptor, buffer, offset, length, position);
+        bytesRead += length;
+        buffer.fill(0x78, offset, offset + length);
+        return length;
+    });
+
+    assert.equal(handler.verifyAutomation({projectRoot, contract: CONTRACT}).status, 'NO-GO');
+    assert.equal(unbounded, false);
+    assert.equal(bytesRead > 0 && bytesRead <= size + 1, true);
+});
+
+test('retains exact adapter automation candidate modes and unchanged declarations', (t) => {
+    const candidateRoot = makeTempDir();
+    t.after(() => fs.rmSync(candidateRoot, {recursive: true, force: true}));
+    const report = handler.prepareAutomation({candidateRoot, contract: CONTRACT});
+    assert.equal(handler.verifyAutomation({candidateRoot, contract: CONTRACT}).status, 'GO');
+    for (const output of report.outputs) {
+        const canonical = output.path.endsWith('.sh') ? 0o755 : 0o644;
+        assert.equal(output.mode, canonical);
+        for (const mode of output.path.endsWith('.sh') ? [0o700, 0o750, 0o4755] : [0o600, 0o640, 0o4644]) {
+            fs.chmodSync(output.candidatePath, mode);
+            assert.equal(handler.verifyAutomation({candidateRoot, contract: CONTRACT}).status, 'NO-GO');
+            assert.equal(fs.lstatSync(output.candidatePath).mode & 0o7777, mode);
+        }
+        fs.chmodSync(output.candidatePath, canonical);
+    }
+    assert.equal(handler.verifyAutomation({candidateRoot, contract: CONTRACT}).status, 'GO');
+});
+
+test('keeps adapter-selected hooks usable after native Git recreation under ordinary umasks', (t) => {
+    const coreRoot = path.resolve(__dirname, '../../packages/prism-core');
+    const hooks = ['pre-commit', 'pre-push', 'commit-msg', 'prepare-commit-msg'];
+    for (const [mask, dataMode, executableMode] of [
+        ['0022', 0o644, 0o755], ['0027', 0o640, 0o750], ['0077', 0o600, 0o700],
+    ]) {
+        for (const operation of ['checkout', 'switch', 'fast-forward']) {
+            const projectRoot = makeTempDir();
+            t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+            const env = {
+                PATH: process.env.PATH, HOME: projectRoot, LC_ALL: 'C',
+                GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0',
+                GIT_AUTHOR_DATE: '2026-09-06T12:00:00Z', GIT_COMMITTER_DATE: '2026-09-06T12:00:00Z',
+            };
+            const git = (args, umask = '0022') => execFileSync('bash', [
+                '-c', 'umask "$1"; shift; exec git "$@"', 'fixture-git', umask, ...args,
+            ], {cwd: projectRoot, env, encoding: 'utf8', timeout: 15000, stdio: 'pipe'});
+            const commit = (subject) => git(['-c', 'core.hooksPath=/dev/null',
+                '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', subject]);
+            git(['init', '-b', 'feat/tester-abcd-empty']);
+            git(['config', 'user.name', 'Test User']);
+            git(['config', 'user.email', 'test@example.com']);
+            commit('empty fixture');
+            fs.mkdirSync(path.join(projectRoot, '.pi'));
+            fs.writeFileSync(path.join(projectRoot, '.pi/settings.json'), JSON.stringify({
+                skills: [path.join(ADAPTER_ROOT, 'skills')],
+            }));
+            fs.mkdirSync(path.join(projectRoot, '.prism'));
+            fs.writeFileSync(path.join(projectRoot, '.prism/project.json'), renderProjectManifest({
+                schemaVersion: 2, source: {mode: 'ESTABLISHED', evidence: null}, capabilities: [],
+                metadata: {schemaVersion: 1, displayName: 'Adapter Fixture', summary: 'Git recreation fixture.'},
+                coreVersion: require('../../packages/prism-core/package.json').version,
+                adapter: {id: CONTRACT.package, packageName: CONTRACT.package,
+                    packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
+            }));
+            renderCoreAutomationProvider({coreRoot, candidateRoot: projectRoot});
+            const rendered = handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+            assert.equal(applyManagedHooks({projectRoot, coreRoot, env, approval: 'yes'}).status, 'GO');
+            const files = ['.pi/settings.json', '.prism/project.json', '.github/workflows/back-merge.yml',
+                ...rendered.outputs.map((output) => output.path), ...hooks.map((name) => `.github/hooks/${name}`)];
+            git(['switch', '-c', 'feat/tester-abcd-complete']);
+            git(['add', '--', ...files]);
+            commit('managed fixture');
+            const head = git(['rev-parse', 'HEAD']).trim();
+            git(['switch', 'feat/tester-abcd-empty']);
+            assert.equal(files.every((relative) => !fs.existsSync(path.join(projectRoot, relative))), true);
+            const args = operation === 'checkout' ? ['checkout', head, '--', ...files]
+                : operation === 'switch' ? ['switch', 'feat/tester-abcd-complete']
+                    : ['merge', '--ff-only', 'feat/tester-abcd-complete'];
+            git(args, mask);
+            const before = new Map(files.map((relative) => {
+                const file = path.join(projectRoot, relative);
+                const stat = fs.lstatSync(file);
+                assert.equal(stat.mode & 0o7777,
+                    relative.startsWith('.github/hooks/') || relative.endsWith('.sh') ? executableMode : dataMode,
+                    `${operation} ${mask}: ${relative}`);
+                return [relative, {stat, contents: fs.readFileSync(file)}];
+            }));
+            const index = fs.readFileSync(path.join(projectRoot, '.git/index'));
+            assert.equal(verifyAutomation({projectRoot, coreRoot}).status, 'GO');
+            assert.equal(handler.verifyAutomation({projectRoot, contract: CONTRACT}).status, 'GO');
+            assert.equal(verifyManagedHooks({projectRoot, coreRoot, env}).status, 'GO');
+            const quality = [];
+            const context = {
+                projectRoot, coreRoot, env,
+                hookRun(command, args, options) {
+                    if (command === 'git') return runBounded(command, args, {...options, env});
+                    quality.push({command, args});
+                    return {status: 0, stdout: '', stderr: ''};
+                },
+                input: `refs/heads/feat/tester-abcd-empty ${head} refs/heads/feat/tester-abcd-empty ${'0'.repeat(40)}\n`,
+            };
+            assert.equal(hookCommand(['pre-commit'], context), 0, `${operation} ${mask}`);
+            assert.equal(hookCommand(['pre-push', 'origin', 'fixture'], context), 0, `${operation} ${mask}`);
+            assert.deepEqual(quality.filter(({command}) => command === path.join(projectRoot, '.github/scripts/check-php.sh'))
+                .map(({args}) => args), [['--local'], ['--local']]);
+            assert.deepEqual(fs.readFileSync(path.join(projectRoot, '.git/index')), index);
+            for (const relative of files) {
+                const file = path.join(projectRoot, relative);
+                const after = fs.lstatSync(file);
+                assert.deepEqual(fs.readFileSync(file), before.get(relative).contents);
+                for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+                    assert.equal(after[field], before.get(relative).stat[field], `${relative}: ${field}`);
+                }
+            }
+        }
     }
 });
 
@@ -1067,6 +1373,36 @@ test('rejects unknown scaffold manifest fields', (t) => {
             adapter: {id: 'php-web', packageName: CONTRACT.package, packageVersion: ADAPTER_VERSION, bootstrapProtocol: 1},
         },
     }), /manifest/);
+});
+
+test('runs the shared quality gate at safe restrictive modes without changing it', (t) => {
+    const projectRoot = makeTempDir();
+    t.after(() => fs.rmSync(projectRoot, {recursive: true, force: true}));
+    handler.prepareAutomation({candidateRoot: projectRoot, contract: CONTRACT});
+    const scriptPath = path.join(projectRoot, '.github/scripts/check-php.sh');
+    const contents = fs.readFileSync(scriptPath);
+    for (const mode of [0o700, 0o750, 0o500]) {
+        fs.chmodSync(scriptPath, mode);
+        const before = fs.lstatSync(scriptPath);
+        const calls = [];
+
+        const result = handler.runBootstrapQuality({
+            projectRoot,
+            contract: CONTRACT,
+            run(command, args, options) {
+                calls.push({command, args, cwd: options.cwd});
+                return {status: 0, stdout: '', stderr: ''};
+            },
+        });
+
+        assert.equal(result.status, 'GO');
+        assert.deepEqual(calls, [{command: scriptPath, args: ['--local'], cwd: projectRoot}]);
+        assert.deepEqual(fs.readFileSync(scriptPath), contents);
+        const after = fs.lstatSync(scriptPath);
+        for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+            assert.equal(after[field], before[field], field);
+        }
+    }
 });
 
 test('runs the generated shared quality gate through the adapter handler', (t) => {

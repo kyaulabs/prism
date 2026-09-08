@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -459,6 +459,36 @@ test('forwards bounded stdin and arguments as inert data', async (t) => {
         args: [payload],
         input: 'staged content\n',
     });
+});
+
+test('does not consume stdin or use the generic runner for isolated Semgrep probes', (t) => {
+    const directory = makeTempDir();
+    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+    const env = readyExternalEnvironment(directory);
+    fs.writeFileSync(path.join(directory, 'external-bin', 'semgrep'), `#!${process.execPath}
+if (process.argv[2] === '--version') { process.stdout.write('1.173.0\\n'); process.exit(0); }
+process.stdout.write(JSON.stringify({cwd: process.cwd(), args: process.argv.slice(2), stdin: require('node:fs').readFileSync(0, 'utf8')}));
+`);
+    const program = `
+const {runDeclaredTool} = require(${JSON.stringify(path.join(root, 'packages/prism-core/scripts/prism-tool/cli.js'))});
+const {runBounded} = require(${JSON.stringify(path.join(root, 'packages/prism-core/scripts/prism-tool/process.js'))});
+const calls = [];
+Promise.resolve(runDeclaredTool(['semgrep', '--', 'scan', '--help'], {
+    projectRoot: process.cwd(), env: process.env, input: 'must not be consumed', inputLimit: 1,
+    run: (command, args, options) => { calls.push(args); return runBounded(command, args, options); },
+})).then(status => { process.stdout.write('\\n' + JSON.stringify(calls)); process.exitCode = status; });
+`;
+    const result = spawnSync(process.execPath, ['-e', program], {
+        cwd: directory, env, input: '', encoding: 'utf8', timeout: 30000,
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const [scanned, calls] = result.stdout.trim().split('\n').map((line) => JSON.parse(line));
+    assert.deepEqual(scanned.args, ['scan', '--help']);
+    assert.equal(scanned.stdin, '');
+    assert.notEqual(scanned.cwd, directory);
+    assert.equal(fs.existsSync(scanned.cwd), false);
+    assert.deepEqual(calls, [['--version'], ['--version']]);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

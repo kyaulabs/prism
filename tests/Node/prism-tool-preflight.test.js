@@ -1,8 +1,9 @@
-// $KYAULabs: prism-tool-preflight.test.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: prism-tool-preflight.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
 const assert = require('node:assert/strict');
+const {execFileSync, spawnSync} = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -560,37 +561,38 @@ test('generic OCR execution is unavailable for every former approval form', asyn
     }
 });
 
-test('Semgrep local scan runs without login or network approval', async (t) => {
+test('Semgrep local scan runs without login or network approval', (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
+    const projectRoot = path.join(directory, 'project');
+    fs.mkdirSync(projectRoot, {mode: 0o700});
+    fs.writeFileSync(path.join(projectRoot, 'rules.yml'), 'rules:\n  - id: fixture\n    languages: [javascript]\n    message: fixture\n    severity: WARNING\n    pattern: dangerous(...)\n', {mode: 0o600});
+    const env = {
+        PATH: `${directory}${path.delimiter}${process.env.PATH}`, HOME: directory,
+        GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    };
+    const git = (...args) => execFileSync('git', args, {cwd: projectRoot, env, timeout: 15000, stdio: 'pipe'});
+    git('init', '--quiet', '-b', 'fixture');
+    git('add', '--', 'rules.yml');
+    git('-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', '-c', 'user.name=Test User',
+        '-c', 'user.email=test@example.com', 'commit', '--quiet', '-m', 'committed local rule fixture');
     const invocation = path.join(directory, 'semgrep-run');
-    writeExecutable(
-        directory,
-        'semgrep',
-        `if (process.argv[2] === '--version') {\n\tprocess.stdout.write('1.173.0\\n');\n} else {\n\trequire('node:fs').writeFileSync(${JSON.stringify(invocation)}, JSON.stringify(process.argv.slice(2)));\n}\n`
-    );
-    writeExecutable(directory, 'ocr', "process.stdout.write('open-code-review v1.9.1 linux/amd64\\n');\n");
+    writeExecutable(directory, 'semgrep', `
+if (process.argv[2] === '--version') { process.stdout.write('1.173.0\\n'); process.exit(0); }
+if (process.argv[2] !== 'scan') process.exit(97);
+require('node:fs').appendFileSync(${JSON.stringify(invocation)}, JSON.stringify({args: process.argv.slice(2), cwd: process.cwd()}));
+`);
+    writeExecutable(directory, 'ocr', "if (process.argv[2] !== '--version') process.exit(97); process.stdout.write('open-code-review v1.9.1 linux/amd64\\n');\n");
 
-    const result = await captureWrites(() => main([
-        'run',
-        'semgrep',
-        '--',
-        'scan',
-        '--config',
-        'packages/prism-core/config/semgrep',
-    ], {
-        coreRoot,
-        env: {PATH: directory},
-        run: runBounded,
-        input: '',
-    }));
+    const result = spawnSync(process.execPath, [
+        path.join(coreRoot, 'scripts', 'prism-tool.js'), 'run', 'semgrep', '--', 'scan', '--config', 'rules.yml',
+    ], {cwd: projectRoot, env, input: '', encoding: 'utf8', timeout: 30000});
 
-    assert.equal(result.status, 0);
-    assert.deepEqual(JSON.parse(fs.readFileSync(invocation, 'utf8')), [
-        'scan',
-        '--config',
-        'packages/prism-core/config/semgrep',
-    ]);
+    assert.equal(result.status, 0, result.stderr);
+    const scanned = JSON.parse(fs.readFileSync(invocation, 'utf8'));
+    assert.deepEqual(scanned.args, ['scan', '--config', './rules.yml']);
+    assert.notEqual(scanned.cwd, projectRoot);
+    assert.equal(fs.existsSync(scanned.cwd), false);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -153,11 +153,27 @@ Immediately after review, require a clean tree and re-read `BRANCH`, `HEAD_SHA`,
 commit, merge, fetched base movement, checkout, or working-tree change makes
 the evidence stale and consumes the current review authorization.
 
+<!-- finalization-managed-health -->
+## Verify managed project health
+
+After review and SHA revalidation, run the read-only readiness check:
+
+```bash
+prism-tool automation health --json
+```
+
+Require `GO` with `CURRENT` or `NOT_CONFIGURED`. On failure, stop before `/pr`
+and report the diagnostic without repairing permissions, hooks, or automation.
+Preserve completed review evidence. Do not rerun OCR or any review axis merely
+because health failed; health is readiness evidence, not review authorization.
+Any repair that changes reviewed identity remains subject to the existing
+attestation and review-chain rules. Both PR preflight routes repeat this check.
+
 <!-- finalization-pr -->
 ## Invoke PR preparation automatically
 
 When and only when synchronization, attestation, `/check`, all four review
-axes, and revalidation pass, invoke `/pr` automatically without another menu
+axes, revalidation, and managed health pass, invoke `/pr` automatically without another menu
 or approval pause. `/pr` validates the attested finalization evidence, prepares
 the conventional title and complete body, and displays retained artifact paths plus
 a human-run GitHub CLI block. `/pr` remains preparation-only; the human alone
@@ -201,7 +217,7 @@ squashing; branch history is the development and evaluation log.
 
 - Preserve this order: artifact cleanup → clean tree → plan-approved
   authorization → target/synchronization → attestation → `/check` loop → one
-  authorized four-axis review → SHA revalidation → `/pr`.
+  authorized four-axis review → SHA revalidation → managed health → `/pr`.
 - Plan approval and review-rerun approval are not OCR consent and do not
   authorize network egress of reviewed code.
 - Plan approval authorizes unlimited `/check` runs but only one four-axis

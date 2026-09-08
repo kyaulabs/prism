@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-orchestration.test.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-orchestration.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -12,9 +12,6 @@ const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
 
 const ATTEMPT_ID = '12345678-1234-4123-8123-123456789abc';
 const CORE_SOURCE_ROOT = path.resolve(__dirname, '../../packages/prism-core');
-const CORE_VERSION = JSON.parse(
-    fs.readFileSync(path.join(CORE_SOURCE_ROOT, 'package.json'), 'utf8')
-).version;
 const ADAPTER_ROOT = path.resolve(__dirname, '../../packages/prism-php-web');
 const ADAPTER_VERSION = JSON.parse(
     fs.readFileSync(path.join(ADAPTER_ROOT, 'package.json'), 'utf8')
@@ -59,7 +56,7 @@ function createSignedAdapterFixture() {
         fs.chmodSync(path.join(coreRoot, 'config', 'bootstrap', 'hooks', hook), 0o755);
     }
     const catalogue = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         catalogueId: 'kyaulabs/prism-adapters',
         sequence: 7,
         issuedAt: '2026-08-27T00:00:00Z',
@@ -70,7 +67,6 @@ function createSignedAdapterFixture() {
             packageName: '@kyaulabs/prism-php-web',
             releases: [{
                 version: ADAPTER_VERSION,
-                coreRange: CORE_VERSION,
                 bootstrapProtocol: 1,
                 integrity: ADAPTER_INTEGRITY,
                 publishedAt: '2026-08-26T00:00:00Z',

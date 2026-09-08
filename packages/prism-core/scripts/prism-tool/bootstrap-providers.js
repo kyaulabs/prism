@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: bootstrap-providers.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -8,6 +8,7 @@ const path = require('node:path');
 const {validateNormalizedProjectMetadata} = require('./bootstrap-metadata');
 const {validateBootstrapSource} = require('./bootstrap-source');
 const {canonicalManagedHooks} = require('./managed-hooks');
+const {renderProjectManifest} = require('./project-manifest');
 
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const MAX_RESOURCE_BYTES = 1048576;
@@ -461,27 +462,6 @@ function writeCandidate(candidateRoot, relativePath, contents, mode) {
     }
 }
 
-function projectManifest(source, capabilities, metadata, coreVersion, adapter) {
-    return Buffer.from(`${JSON.stringify({
-        schemaVersion: 1,
-        source,
-        capabilities,
-        project: {
-            displayName: metadata.displayName,
-            summary: metadata.summary,
-        },
-        ...(capabilities.length === 0 ? {} : {
-            capabilityMetadata: metadata.capabilityMetadata,
-        }),
-        adapter,
-        compatibility: {
-            corePackage: '@kyaulabs/prism-core',
-            coreVersion,
-            providerProtocol: 1,
-        },
-    }, null, 2)}\n`, 'utf8');
-}
-
 function projectReadme(metadata, capabilities) {
     const links = {
         licensing: ['- [License](LICENSE)'],
@@ -573,13 +553,14 @@ function renderCoreBaseline({coreRoot, candidateRoot, request}) {
     const registry = loadTrustedProviderRegistry({coreRoot: canonicalCore});
     const provider = registry.providers[0];
     const contents = new Map([
-        ['.prism/project.json', projectManifest(
-            request.source,
-            request.capabilities,
-            request.metadata,
-            provider.packageVersion,
-            request.adapter
-        )],
+        ['.prism/project.json', renderProjectManifest({
+            schemaVersion: 1,
+            source: request.source,
+            capabilities: request.capabilities,
+            metadata: request.metadata,
+            coreVersion: provider.packageVersion,
+            adapter: request.adapter,
+        })],
         ['README.md', projectReadme(request.metadata, request.capabilities)],
         ['commitlint.config.cjs', readRegular(
             path.join(canonicalCore, 'config', 'commitlint.config.cjs'),

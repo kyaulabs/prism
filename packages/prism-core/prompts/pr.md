@@ -31,6 +31,10 @@ Retain every tab-delimited field as validated inert context. Accept only
 `V2_RECOVERY=UNDECLARED` or `V2_RECOVERY=READY`. Any other state, partial
 field set, or command failure stops preparation.
 
+For valid version-one chains only, a positive `OCR_EXEMPT_SEGMENTS` field
+may be present. Match it to the exempt ranges in that same verified chain;
+no other version or state may supply this field.
+
 ## 2. Recover an absent review chain
 
 When `REVIEW_CHAIN=VALID`, do not run another review and continue to strict
@@ -48,6 +52,12 @@ reviewed-code egress. Load the `code-review` skill and run one complete initial
 review over the exact attested BASE_SHA through HEAD_SHA range. Require all four
 axes to complete, record the schema-one initial review-chain segment, and leave
 no unresolved diff-causal Blocking finding.
+
+A verified tooling `COMPLETE_NO_OCR` satisfies only the external OCR portion
+for that Markdown-only segment. It does not waive local readiness, local
+tooling/style inspection, or another axis. Use the `code-review` skill's
+exact-range applicability probe; do not rerun OCR merely for an empty
+selection. Keep version-two recovery unchanged.
 
 When `V2_RECOVERY=READY`, consume this invocation's one review attempt through
 the stable installed bridge command:
@@ -220,7 +230,13 @@ List changed ADR paths and actions. Write "No ADR changes" when none changed.
 
 ## ✅ Verification
 Report only exact successful `/check` and complete four-axis review-chain
-evidence ending at the attested HEAD. List Advisory findings separately as
+evidence ending at the attested HEAD. For a verified version-one chain with
+`OCR_EXEMPT_SEGMENTS`, disclose each exempt segment as
+"OCR not applicable: verified Markdown-only range" with its exact `from` and
+`to` commit IDs, separately from completed local axes and any earlier external
+OCR review. Never describe an exempt segment as a completed external OCR review.
+Preflight failure still stops artifact generation, and a valid exemption
+grants no additional review attempt. List Advisory findings separately as
 non-blocking observations and inert follow-up issue recommendations.
 
 ## 🏗️ Architect Conditions (if applicable)

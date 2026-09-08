@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "managedBy": "@kyaulabs/prism-core",
   "versionPolicy": "lockstep",
   "packages": [
@@ -11,7 +11,6 @@
       "package": "packages/prism-php-web",
       "id": "php-web",
       "displayName": "PHP/web",
-      "coreRange": ">=0.4.1 <0.5.0",
       "bootstrapProtocol": 1,
       "status": "ACTIVE"
     }

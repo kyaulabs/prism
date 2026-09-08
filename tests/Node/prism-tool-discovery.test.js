@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-tool-discovery.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -659,6 +659,10 @@ test('rejects an adapter component ID that collides with the core contract', (t)
 
     assert.throws(
         () => discoverAdapter({projectRoot, piDir}),
+        /adapter component collides with core component commitlint/
+    );
+    assert.throws(
+        () => discoverOptionalAdapter({projectRoot, piDir}),
         /adapter component collides with core component commitlint/
     );
 });

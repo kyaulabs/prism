@@ -1,4 +1,4 @@
-// $KYAULabs: helpers.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: helpers.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -71,7 +71,7 @@ function createSignedAdapterSelection({
         }],
     };
     const catalogue = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         catalogueId: 'kyaulabs/prism-adapters',
         sequence: 7,
         issuedAt: '2026-08-27T00:00:00Z',
@@ -82,7 +82,6 @@ function createSignedAdapterSelection({
             packageName: adapterManifest.name,
             releases: [{
                 version: adapterManifest.version,
-                coreRange: coreVersion,
                 bootstrapProtocol: 1,
                 integrity,
                 publishedAt: '2026-08-26T00:00:00Z',

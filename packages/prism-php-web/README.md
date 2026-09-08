@@ -55,7 +55,10 @@ not replace application architecture or rewrite conflicting project files.
 
 When absent, setup creates canonical `visual_review.mjs`,
 `visual_review.spec.mjs`, and `visual_review.example.json` files. It preserves
-byte-identical canonical files and fails on conflicting paths.
+byte-identical canonical files and fails on conflicting paths. Safe restrictive
+modes such as `0640`, `0600`, and `0400` are preserved without rewriting; new
+files still use `0644`. Ownership, no-symlink, bounded-read, and identity checks
+remain enforced. Obsolete private candidate plans must be regenerated.
 
 ## Blank and Template project bootstrap
 
@@ -97,6 +100,16 @@ The shared quality gate is `/check`. Core checks language-independent policy,
 including changed Markdown, then delegates to `/check-php` for PHP style,
 SCSS, JavaScript, tests, and changed-file coverage. Changed PHP files require at
 least 80% line coverage.
+
+Managed bootstrap and automation readers likewise accept owner-readable data
+within `0644` and owner-readable/executable wrappers within `0755`. Unsafe bits
+and content drift remain failures. Core's `prism-tool automation health --json`
+checks the selected adapter composition and automation without repair.
+
+Semgrep rule-pack tests copy only fixed public rules and fixtures into a private
+committed repository and scan through Core's isolated launcher. Missing tools,
+scanner failures, malformed output, and cleanup failures cannot pass negative
+assertions; both successful results and failures are cached for the test run.
 
 Generated assets are outputs. Edit `cdn/sass/` and `cdn/js/`, then use the
 adapter build command; never edit `cdn/css/*.min.css` or

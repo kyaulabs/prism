@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -7,13 +7,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
     applyAutomation,
+    automationFailure,
     inspectAutomation,
     planAutomation,
     verifyAutomation,
 } = require('./automation');
 const {MAX_EXECUTION_TIMEOUT_MS} = require('./contract');
 const {loadCoreContract, resolveBundledComponent} = require('./core-toolchain');
-const {discoverAdapter, loadAdapterHandler} = require('./discovery');
+const {
+    discoverAdapter,
+    discoverOptionalAutomationAdapter,
+    loadAdapterHandler,
+} = require('./discovery');
 const {inspectSetupRoute} = require('./setup-route');
 const {normalizeProjectMetadata} = require('./bootstrap-metadata');
 const {
@@ -53,10 +58,12 @@ const {
 } = require('./bootstrap-adapter');
 const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
+const {runIsolatedSemgrep} = require('./semgrep');
 const {prCommand} = require('./pr');
 const {serverCommand} = require('./server');
 const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
+const {verifyManagedProject} = require('./managed-project');
 const {markdownCommand} = require('./markdown');
 const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
 const {webAccessCommand} = require('./web-access-config');
@@ -1021,6 +1028,7 @@ function setup(args, context) {
         const sourceName = sources.length === 1 ? sources[0].slice('--source='.length) : '';
         const adapterName = adapters.length === 1 ? adapters[0].slice('--adapter='.length) : '';
         const coreOnly = adapterName === 'core-only';
+        const established = sourceName === 'established';
         let capabilities;
         try {
             capabilities = normalizeCapabilitySelection(
@@ -1031,11 +1039,13 @@ function setup(args, context) {
         }
         if (
             sources.length !== 1 ||
-            !['blank', 'template'].includes(sourceName) ||
+            !['blank', 'template', 'established'].includes(sourceName) ||
             adapters.length !== 1 ||
             adapterName.length === 0 ||
-            (coreOnly && attempts.length !== 0) ||
-            (!coreOnly && (
+            (established && !['core-only', 'active'].includes(adapterName)) ||
+            (established && attempts.length !== 0) ||
+            (!established && coreOnly && attempts.length !== 0) ||
+            (!established && !coreOnly && (
                 attempts.length !== 1 ||
                 !BOOTSTRAP_ATTEMPT_ID.test(attempts[0].slice('--attempt='.length))
             )) ||
@@ -1051,8 +1061,8 @@ function setup(args, context) {
             )
         ) {
             process.stderr.write(
-                'usage: prism-tool setup project metadata --source=template|blank ' +
-                '--adapter=core-only|PACKAGE [--attempt=UUID] ' +
+                'usage: prism-tool setup project metadata --source=template|blank|established ' +
+                '--adapter=core-only|active|PACKAGE [--attempt=UUID] ' +
                 '[--capabilities=CSV] [--json]\n'
             );
             return EXIT.USAGE;
@@ -1060,7 +1070,35 @@ function setup(args, context) {
         const requestedRoot = context.projectRoot ?? context.cwd ?? process.cwd();
         let projectRoot;
         let adapter = null;
-        if (coreOnly) {
+        if (established) {
+            try {
+                projectRoot = fs.realpathSync(requestedRoot);
+                const piPath = path.join(projectRoot, '.pi');
+                const piStat = fs.lstatSync(piPath);
+                const piRoot = fs.realpathSync(piPath);
+                if (piStat.isSymbolicLink() || !piStat.isDirectory() ||
+                    path.dirname(piRoot) !== projectRoot) {
+                    throw new Error('established project state is invalid');
+                }
+                const selected = discoverOptionalAutomationAdapter({projectRoot});
+                if ((coreOnly && selected !== null) || (!coreOnly && selected === null)) {
+                    throw new Error('established adapter selection is invalid');
+                }
+                if (selected !== null) {
+                    adapter = {
+                        id: selected.registration.packageName,
+                        packageName: selected.registration.packageName,
+                        packageVersion: selected.registration.packageVersion,
+                        bootstrapProtocol: selected.registration.bootstrapProtocol,
+                    };
+                }
+            } catch {
+                process.stderr.write(
+                    'prism-tool: project metadata requires valid established adapter state\n'
+                );
+                return EXIT.TRANSACTION;
+            }
+        } else if (coreOnly) {
             const route = inspectSetupRoute({
                 projectRoot: requestedRoot,
                 source: sourceName.toUpperCase(),
@@ -1749,6 +1787,21 @@ function runDeclaredTool(args, context) {
         process.stderr.write(`prism-tool: command ${argv[0]} required for tool ${component.id} is unavailable\n`);
         return EXIT.READINESS;
     }
+    if (component.id === 'semgrep') {
+        return runIsolatedSemgrep({
+            projectRoot, executable, args: toolArgs, env,
+            timeoutMs: context.timeout ?? parsed.timeoutMs ?? defaultTimeoutMs,
+            maxBuffer: context.maxBuffer,
+        }).then((result) => {
+            if (result.error) {
+                process.stderr.write(`prism-tool: ${result.error.message}\n`);
+                return EXIT.TOOL;
+            }
+            if (result.stdout) process.stdout.write(result.stdout);
+            if (result.stderr) process.stderr.write(result.stderr);
+            return result.status === 0 ? EXIT.OK : EXIT.TOOL;
+        });
+    }
     let input;
     try {
         input = readBoundedStdin(context);
@@ -1819,22 +1872,37 @@ function automationCommand(args, context) {
         return EXIT.USAGE;
     }
     let result;
-    if (['inspect', 'plan', 'verify'].includes(operation)) {
+    if (operation === 'health') {
+        if (controls.some((argument) => argument !== '--json')) {
+            process.stderr.write('usage: prism-tool automation health [--json]\n');
+            return EXIT.USAGE;
+        }
+        result = verifyManagedProject(roots);
+    } else if (['inspect', 'plan', 'verify'].includes(operation)) {
         const releaseControls = controls.filter((argument) =>
             argument.startsWith('--release-repository=')
         );
+        const metadataControls = controls.filter((argument) =>
+            argument.startsWith('--metadata=')
+        );
         if (
             releaseControls.length > 1 ||
+            metadataControls.length > 1 ||
+            (operation !== 'plan' && metadataControls.length !== 0) ||
+            metadataControls.some((argument) => argument.length === '--metadata='.length) ||
             releaseControls.some((argument) =>
                 argument.length === '--release-repository='.length
             ) ||
             controls.some((argument) =>
-                argument !== '--json' && !argument.startsWith('--release-repository=')
+                argument !== '--json' &&
+                !argument.startsWith('--release-repository=') &&
+                !argument.startsWith('--metadata=')
             )
         ) {
             process.stderr.write(
                 `usage: prism-tool automation ${operation} ` +
-                '[--release-repository=OWNER/REPOSITORY] [--json]\n'
+                '[--release-repository=OWNER/REPOSITORY] ' +
+                `${operation === 'plan' ? '[--metadata=PATH] ' : ''}[--json]\n`
             );
             return EXIT.USAGE;
         }
@@ -1843,22 +1911,16 @@ function automationCommand(args, context) {
             releaseRepository: releaseControls.length === 0
                 ? null
                 : releaseControls[0].slice('--release-repository='.length),
+            metadataPath: metadataControls.length === 0
+                ? null
+                : metadataControls[0].slice('--metadata='.length),
         };
         try {
             if (operation === 'inspect') result = inspectAutomation(options);
             else if (operation === 'plan') result = planAutomation(options);
             else result = verifyAutomation(options);
-        } catch {
-            result = {
-                status: 'NO-GO',
-                disposition: 'CONFLICT',
-                providers: [],
-                checks: [{
-                    id: `automation-${operation}`,
-                    status: 'FAIL',
-                    message: `automation ${operation} failed`,
-                }],
-            };
+        } catch (error) {
+            result = automationFailure(operation, error);
         }
     } else if (operation === 'apply') {
         const approvals = controls.filter((argument) => argument.startsWith('--approval='));
@@ -1883,23 +1945,14 @@ function automationCommand(args, context) {
         }
         try {
             result = applyAutomation({...roots, planPath: plans[0].slice('--plan='.length)});
-        } catch {
-            result = {
-                status: 'NO-GO',
-                disposition: 'CONFLICT',
-                providers: [],
-                checks: [{
-                    id: 'automation-apply',
-                    status: 'FAIL',
-                    message: 'automation apply failed',
-                }],
-            };
+        } catch (error) {
+            result = automationFailure(operation, error);
         }
     } else {
         process.stderr.write('usage: prism-tool automation inspect|plan|apply|verify [controls]\n');
         return EXIT.USAGE;
     }
-    const report = {schemaVersion: 1, command: `automation ${operation}`, ...result};
+    const report = {schemaVersion: 2, command: `automation ${operation}`, ...result};
     if (json) process.stdout.write(`${JSON.stringify(report)}\n`);
     else process.stdout.write(`${report.status}\n`);
     return result.status === 'GO' ? EXIT.OK : EXIT.TRANSACTION;

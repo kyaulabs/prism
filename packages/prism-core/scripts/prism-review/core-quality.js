@@ -1,4 +1,4 @@
-// $KYAULabs: core-quality.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: core-quality.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -11,6 +11,7 @@ const {loadCoreContract} = require('../prism-tool/core-toolchain');
 const {loadAdapterHandler} = require('../prism-tool/discovery');
 const {checkExternalTools, resolveExecutable} = require('../prism-tool/preflight');
 const {runBounded} = require('../prism-tool/process');
+const {runIsolatedSemgrep} = require('../prism-tool/semgrep');
 const {runValidatedServer} = require('../prism-tool/server');
 const {
     loadAdditionalSensitivePaths,
@@ -134,9 +135,10 @@ function defaultExecute(request, context) {
         if (readiness.length !== 1 || readiness[0].status !== 'PASS') {
             throw new Error('Semgrep readiness failed');
         }
-        command = executable('semgrep', env);
-        args = executionCommand.slice(1);
-        commandTools = [{id: 'semgrep', version: readiness[0].actual}];
+        return runIsolatedSemgrep({
+            projectRoot, executable: executable('semgrep', env), args: executionCommand.slice(1), env,
+            timeoutMs: context.timeout ?? 300000, maxBuffer: OUTPUT_LIMIT,
+        }).then((result) => ({...result, tools: [{id: 'semgrep', version: readiness[0].actual}], artifacts: []}));
     } else {
         command = executable(executionCommand[0], env);
         args = executionCommand.slice(1);

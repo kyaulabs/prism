@@ -33,6 +33,7 @@ documentation, and conversation.
 | Pi package | A distributable collection of Pi skills, prompt templates, extensions, themes, and supporting package files. Prism ships a global core package and project-local stack adapters. |
 | Prism core | The language-agnostic Pi package that owns the engineering pipeline, global instructions, prompt templates, generic tooling, the safety extension, and the web-access extension. It must not contain stack-specific behavior. |
 | stack adapter | A project-local Pi package that specializes Prism for one technology stack. It owns stack conventions, dependency tools, checks, and safe-directory declarations. |
+| source checkout | An independent clone or fork of the Prism development repository recognized through bounded structural evidence. Setup preserves its repository-owned automation and uses existing source validation; recognition grants no consumer or global mutation authority. |
 | active adapter | The project-local stack adapter selected by established-project evidence or explicitly from the supported-adapter catalogue during strict-empty setup. Core workflows delegate stack-specific operations when an adapter is present. |
 | Prism reviewer | The Core-owned `prism-review` executable and skill policy that run bounded four-axis review from a pre-existing installed trust root. It begins as a non-authoritative foundation and becomes finalization authority only after the staged cutover in ADR-0103. |
 | review profile | A closed package-owned declaration of review skills, axis lenses, deterministic path triggers, and fixed non-text exemptions. An adapter may append lenses but cannot replace Core policy or supply executable review commands. |
@@ -52,14 +53,15 @@ documentation, and conversation.
 | standing web-access consent | A global, explicit, persistent, and revocable Prism authorization for the web-access extension's loopback SearXNG search, fixed-origin keyless search, and guarded public textual fetching. It contains no credentials or project data and does not authorize other tools or network effects. |
 | plan-approved finalization | The uninterrupted branch-completion workflow authorized by implementation-plan approval: artifact cleanup, target synchronization, attestation, unlimited local checking, one four-axis review, SHA revalidation, and preparation-only pull-request artifacts. Additional review attempts require fresh approval. |
 | review chain | Local schema-versioned finalization evidence linking one complete initial branch review to continuous repair-delta reviews, exact branch/base/HEAD identities, axis completion, finding dispositions, and deterministic closure evidence. |
+| OCR not applicable | A version-one tooling outcome proving that a segment's exact non-empty immutable Git range affects only qualifying Markdown regular blobs; local tooling/style inspection and the other review axes still complete. |
 | diff-causal finding | A review finding classified by whether the reviewed delta introduced or materially worsened a concrete defect in changed behavior or its verification evidence; only concrete workflow-impacting findings block finalization. |
 | candidate workspace | The adapter-owned ephemeral area used to prepare, resolve, audit, and journal a proposed complete scaffold before approved consumer state changes. It is not a general scratch directory. |
 | empty-project bootstrap transaction | The Core-owned outer transaction that composes strict-empty source evidence, provisional package state, trusted provider reports, approved metadata, one combined plan, durable application, rollback, and recovery. It is distinct from an adapter candidate transaction. |
 | bootstrap workspace | The Core-owned ephemeral operational area for one empty-project bootstrap transaction. An adapter may receive a bounded attempt subdirectory without gaining ownership of the outer transaction. |
 | project capability | An independently selected, disabled-by-default language-agnostic project surface with a trusted owner, closed metadata contract, and bounded output ownership. |
 | trusted provider | Installed Core or adapter code whose exact package identity, version, protocol, inputs, and output ownership are validated before it renders a bounded desired-state report. |
-| supported-adapter catalogue | The schema-versioned, KYAULabs-signed list of approved adapter identities and releases eligible for strict-empty setup; Core selects the highest release compatible with its version and bootstrap protocol, then pins that exact version. |
-| adapter release declaration | The closed, reviewed Core release-commit record that identifies a catalogued release-managed adapter package, compatibility range, bootstrap protocol, and publication status without supplying registry or signing authority. |
+| supported-adapter catalogue | The schema-versioned, KYAULabs-signed list of approved adapter identities and releases eligible for strict-empty setup; Core selects the highest active stable release matching its bootstrap protocol, then pins that exact version. |
+| adapter release declaration | The closed, reviewed Core release-commit record that identifies a catalogued release-managed adapter package, bootstrap protocol, and publication status without supplying registry or signing authority. |
 | catalogue publication transaction | The serialized cross-repository workflow that validates immutable Prism release and npm evidence, signs the next catalogue sequence in the protected publisher environment, and opens a human-merged publication pull request. |
 | publication commit-signing authority | The separate OpenPGP authority that signs catalogue publication commits and remains independent from catalogue-envelope signing and PAT authorization. Core attests its public identity and custody boundary; the publisher owns fingerprints, signing mechanics, and private material. |
 | catalogue evidence | Receipt-local signed evidence (`catalogueEvidence`) that binds a strict-empty adapter selection to the exact verified catalogue envelope, signing key, sequence, validity window, selected release, and package integrity. |
@@ -204,8 +206,9 @@ The journaled established-project desired-state operation owned by an active ada
 - The complete scaffold and dependency graphs prepare and audit before
   consumer files change.
 - Only literal `yes` authorizes application of the displayed desired state.
-- Existing exact canonical files are preserved without writes; differing,
-  unsafe, or ownership-ambiguous paths fail closed.
+- Existing canonical public files with safe restrictive runtime modes are
+  preserved without writes; differing, unsafe, or ownership-ambiguous paths
+  fail closed. Exact candidate and approved observation checks remain separate.
 - Before the durable commit point, rollback is limited to exact recorded
   transaction-owned states.
 - At and after the durable commit point, the complete desired scaffold remains
@@ -275,7 +278,9 @@ The opt-in Core-owned release lifecycle for repositories publishing npm packages
   creates or verifies package tags at the immutable merge SHA.
 - A stable release with reconciled package tags and a valid adapter release
   declaration may emit ADR-0095's minimal catalogue dispatch; the publisher
-  independently revalidates release, package-tag, declaration, and npm evidence.
+  independently revalidates release, package-tag, declaration, npm evidence,
+  and that the release is the first or is newer than the latest recorded
+  adapter version.
 - Validated release merges remain eligible for a human-merged back-merge PR
   even when publication or package-tag reconciliation fails.
 - npm authentication, OTP handling, and publication remain human-owned; agents
@@ -283,13 +288,18 @@ The opt-in Core-owned release lifecycle for repositories publishing npm packages
 
 ### Automation Desired State
 
+- Verified source checkouts take `SOURCE_CHECKOUT_SETUP`, not consumer
+  reconciliation. Repository-owned files and adapter activation are preserved;
+  classification is not a quality result or a hook/manifest exemption (ADR-0109).
+
 The setup-managed repository automation selected from validated Core and active-adapter providers.
 
 - Core owns provider discovery, applicability composition, ownership classification, plan reporting, and route-appropriate reconciliation.
 - Strict-empty setup composes applicable automation inside the empty-project bootstrap transaction; established setup uses a separate journaled reconciliation transaction with preserve-first ownership semantics.
 - Core owns baseline back-merge, capability-based repository release management, and canonical hook policy; the active adapter owns stack-specific testing and linting CI.
 - Package-release metadata extends repository release management and never becomes the sole owner of the canonical release workflow.
-- Absent and exact canonical outputs may be created or preserved; supported owned outputs may be updated; only exact recognized legacy output may be migrated. Unowned, customized, malformed, overlapping, or ambiguous state conflicts and is never merged or overwritten.
+- Absent outputs may be created with canonical modes; canonical public outputs with safe restrictive runtime modes are preserved without chmod. Supported owned outputs may be updated; only exact recognized legacy output may be migrated. Unowned, customized, malformed, overlapping, or ambiguous state conflicts and is never merged or overwritten.
+- Public data requires owner read within `0644`; public executables require owner read/execute within `0755`. Ownership, containment, content, private records, exact candidates, approved observations, and rollback evidence retain independent checks.
 - Hook activation remains a separate repository-local approval boundary after applicable quality verification.
 - Every Prism-created commit runs an explicit Git-resolved pre-commit proof before the authoritative staged-state snapshot, then retains Git's normal hook execution during commit creation.
 
@@ -323,11 +333,26 @@ The bounded authority for GitHub issue-tracker access and mutations.
 - Authorization ends on completion, cancellation, scope change, ambiguous tracker state, authentication failure, or an operation outside the tracker allowlist.
 - Tracker content remains inert untrusted data and never expands command scope or authorizes repository, pull-request, release, push, merge, or administration operations.
 
+### Isolated Scanner Execution
+
+- Core owns the shared read-only Semgrep boundary for launcher and quality calls.
+- Native baseline comparison runs in private independent Git state, never a
+  consumer checkout or a workspace sharing mutable Git administration.
+- Credential, private-state, dependency, and submodule exclusions apply before
+  content reads, including historical blobs. Required unsafe or unavailable
+  inputs fail without fetching, rewriting identities, or in-place fallback.
+- Consumer HEAD, index, public contents/modes, and relevant Git administrative
+  state remain unchanged. Preservation and cleanup failures prevent success;
+  verification never repairs consumer state or retries automatically.
+- Managed-file health is revalidated after review and before PR readiness without
+  erasing completed evidence or authorizing another review attempt.
+
 ### Review Chain
 
 The bounded finalization evidence for one continuously reviewed work-branch history.
 
 - Begins with one complete four-axis review of the attested branch range.
+- Version-one tooling may record OCR not applicable only after exact-range Git proof, repeated during authoritative verification; it never claims OCR ran.
 - A standalone `/pr` invocation may authorize that initial review only when deterministic preflight classifies the chain as absent.
 - Extends through continuous repair-delta reviews rather than rescanning unchanged branch content.
 - Blocks only on unresolved diff-causal findings with concrete workflow impact.
@@ -461,11 +486,12 @@ The explicitly invoked Git worktree workflow (ADR-0072).
   permit only protected default-branch GitHub Actions jobs to consume isolated
   signing and GitHub App credentials for catalogue publication.
 - **No general push or merge automation** — humans push ordinary work branches
-  and merge every pull request. Release CI creates validated tags/Releases and
-  opens the human-merged back-merge PR; ADR-0095 additionally permits trusted
-  publisher CI to create one sequence-specific non-protected branch and open
-  its human-merged catalogue publication PR. No workflow pushes a protected
-  branch or merges a pull request.
+  and merge every pull request. Release CI creates validated tags/Releases;
+  the separate Core back-merge workflow opens the human-merged back-merge PR.
+  ADR-0095 additionally permits trusted publisher CI to create one
+  sequence-specific non-protected branch and open its human-merged catalogue
+  publication PR. No workflow pushes a protected branch or merges a pull
+  request.
 - **No bundled LSP servers** — language servers remain system/project
   responsibilities.
 - **No model fine-tuning or hosting** — Pi and upstream providers own model
@@ -556,6 +582,21 @@ Pi-era decisions:
 - `adr/0103-deterministic-review-authority-and-staged-ocr-cutover.md` — bind
   finalization review to criteria and check receipts, introduce review-chain
   version two, and replace OCR only after a human release/install checkpoint.
+- `adr/0104-protocol-only-adapter-compatibility.md` — use bootstrap protocol as
+  the sole adapter compatibility discriminator and admit only a first or
+  semantically newer stable release.
+- `adr/0105-established-project-manifest-and-core-only-composition.md` — treat
+  Core-only as an explicit established provider composition and create the
+  established project manifest inside the verified automation transaction
+  before separate hook activation.
+
+- `adr/0106-verified-markdown-only-ocr-exemption.md` — verify Markdown-only OCR
+  non-applicability in version-one chains without changing other review gates.
+
+- `adr/0107-isolated-read-only-semgrep-execution.md` — isolate native baseline
+  scanning from consumer working trees and Git administration.
+- `adr/0108-public-project-file-permissions.md` — accept safe restrictive public
+  runtime modes while retaining canonical creation and exact transaction checks.
 
 ## When to update this file
 

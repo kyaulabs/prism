@@ -1,11 +1,14 @@
-// $KYAULabs: managed-hooks.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: managed-hooks.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
+const {loadAdditionalSensitivePaths, sensitivePathMatch} = require('../sensitive-path-policy');
 const {runBounded} = require('./process');
+const {ManagedFileError, isSafeManagedMode, requireManagedMode} = require('./managed-file');
 
 const CANONICAL_HOOKS = Object.freeze([
     'commit-msg',
@@ -48,28 +51,38 @@ function requireSuccess(result, message) {
     return output(result).trim();
 }
 
-function readRegular(filePath, expectedMode = null) {
+function sameHookFile(left, right) {
+    return ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']
+        .every((field) => left[field] === right[field]);
+}
+
+function readRegular(filePath, expectedMode = null, relativePath = null) {
     const initial = fs.lstatSync(filePath);
     if (
         initial.isSymbolicLink() ||
         !initial.isFile() ||
         initial.size > MAX_HOOK_BYTES ||
-        (expectedMode !== null && (initial.mode & 0o777) !== expectedMode) ||
+        (expectedMode !== null && (initial.mode & 0o7777) !== expectedMode) ||
         typeof fs.constants.O_NOFOLLOW !== 'number'
     ) {
         throw new Error('managed hook is invalid');
     }
+    if (relativePath !== null) {
+        if (typeof process.getuid !== 'function' || initial.uid !== process.getuid()) {
+            throw new ManagedFileError('MANAGED_OWNER',
+                `managed file ownership is invalid: ${relativePath}`);
+        }
+        requireManagedMode(initial.mode, 0o755, relativePath);
+    }
     const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     try {
         const held = fs.fstatSync(descriptor);
+        if (!sameHookFile(initial, held)) throw new Error('managed hook changed');
         const contents = fs.readFileSync(descriptor);
         const current = fs.lstatSync(filePath);
         if (
-            !held.isFile() ||
-            held.dev !== initial.dev ||
-            held.ino !== initial.ino ||
-            current.dev !== held.dev ||
-            current.ino !== held.ino ||
+            !sameHookFile(held, fs.fstatSync(descriptor)) ||
+            !sameHookFile(held, current) ||
             contents.length !== held.size ||
             contents.length > MAX_HOOK_BYTES
         ) {
@@ -149,7 +162,7 @@ function existingHook(hooksRoot, name) {
     const filePath = path.join(hooksRoot, name);
     const entry = fs.lstatSync(filePath, {throwIfNoEntry: false});
     if (entry === undefined) return null;
-    return readRegular(filePath);
+    return readRegular(filePath, null, `${HOOKS_PATH}/${name}`);
 }
 
 function prismOwned(contents) {
@@ -193,7 +206,7 @@ function inspectManagedHooks({
             const current = existingHook(hooksRoot, canonical.name);
             let disposition;
             if (current === null) disposition = 'CREATE';
-            else if (current.mode === canonical.mode && current.contents.equals(canonical.contents)) {
+            else if (isSafeManagedMode(current.mode, canonical.mode) && current.contents.equals(canonical.contents)) {
                 disposition = 'CURRENT';
             } else if (prismOwned(current.contents)) disposition = 'MIGRATE';
             else disposition = 'CONFLICT';
@@ -232,8 +245,92 @@ function inspectManagedHooks({
                 message: current ? 'managed hooks are current' : 'managed hooks can be reconciled',
             })]),
         });
-    } catch {
-        return conflictReport();
+    } catch (error) {
+        return conflictReport(error instanceof ManagedFileError ? error.message : undefined);
+    }
+}
+
+function hasEffectiveManagedHooks({projectRoot: requestedRoot, coreRoot, run = runBounded, env = process.env}) {
+    const projectRoot = fs.realpathSync(requestedRoot);
+    const top = requireSuccess(invoke(run, projectRoot, ['rev-parse', '--show-toplevel'], env),
+        'repository is unavailable');
+    if (fs.realpathSync(top) !== projectRoot) throw new Error('repository root changed');
+    const resolvedResult = invoke(run, projectRoot, [
+        'rev-parse', '--path-format=absolute', '--git-path', 'hooks',
+    ], env);
+    requireSuccess(resolvedResult, 'effective hooks path is unavailable');
+    const configured = invoke(run, projectRoot, ['config', '--path', '--get', 'core.hooksPath'], env);
+    if (configured.error || ![0, 1].includes(configured.status)) throw new Error('effective hooks configuration is unavailable');
+    const resolved = output(resolvedResult).replace(/\n$/, '');
+    const selected = configured.status === 0 ? output(configured).replace(/\n$/, '') : resolved;
+    if (selected === '' || /[\x00-\x1f\x7f]/.test(selected) || /[\x00-\x1f\x7f]/.test(resolved)) {
+        throw new Error('effective hooks path is unsafe');
+    }
+    const hooksRoot = path.resolve(projectRoot, selected);
+    const relative = path.relative(projectRoot, hooksRoot);
+    if (relative === '' || relative === '..' || relative.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relative) || /[\\\x00-\x1f\x7f]/.test(relative) || Buffer.byteLength(relative) > 4096) {
+        throw new Error('effective hooks path is unsafe');
+    }
+    const policy = {home: os.homedir(), extraPaths: loadAdditionalSensitivePaths(env.PRISM_SENSITIVE_PATHS)};
+    const publicRelative = relative.split(path.sep).join('/').toLowerCase();
+    if (sensitivePathMatch(hooksRoot, policy) !== null ||
+        ['.pi/prism-tool', '.pi/prism-review', '.pi/npm', '.pi/git'].some((privatePath) =>
+            publicRelative === privatePath || publicRelative.startsWith(`${privatePath}/`))) {
+        throw new Error('effective hooks path is unsafe');
+    }
+    if (path.resolve(resolved) !== hooksRoot) throw new Error('effective hooks path changed');
+    if (typeof fs.constants.O_DIRECTORY !== 'number' || typeof fs.constants.O_NOFOLLOW !== 'number') {
+        throw new Error('effective hooks directory anchoring is unavailable');
+    }
+    const directories = [];
+    const sameDirectory = (left, right) => right?.isDirectory() && !right.isSymbolicLink() &&
+        ['dev', 'ino', 'uid', 'gid', 'mode'].every((field) => left[field] === right[field]);
+    const assertCurrent = () => {
+        for (const {descriptor, logical, initial} of directories) {
+            if (!sameDirectory(initial, fs.fstatSync(descriptor)) ||
+                !sameDirectory(initial, fs.lstatSync(logical, {throwIfNoEntry: false}))) {
+                throw new Error('effective hooks directory changed');
+            }
+        }
+    };
+    let anchor = projectRoot;
+    let logical = projectRoot;
+    try {
+        for (const part of ['', ...relative.split(path.sep)]) {
+            assertCurrent();
+            const location = part === '' ? anchor : path.join(anchor, part);
+            logical = part === '' ? logical : path.join(logical, part);
+            const initial = fs.lstatSync(location, {throwIfNoEntry: false});
+            if (initial === undefined) {
+                assertCurrent();
+                return false;
+            }
+            if (initial.isSymbolicLink() || !initial.isDirectory()) throw new Error('effective hooks path is unsafe');
+            const descriptor = fs.openSync(location, fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW);
+            directories.push({descriptor, logical, initial});
+            if (!sameDirectory(initial, fs.fstatSync(descriptor))) throw new Error('effective hooks directory changed');
+            anchor = [`/proc/self/fd/${descriptor}`, `/dev/fd/${descriptor}`].find((candidate) => {
+                try { return sameDirectory(initial, fs.statSync(candidate)); }
+                catch { return false; }
+            });
+            if (anchor === undefined) throw new Error('effective hooks directory anchoring is unavailable');
+        }
+        for (const canonical of canonicalManagedHooks(coreRoot)) {
+            assertCurrent();
+            if (sensitivePathMatch(path.join(hooksRoot, canonical.name), policy) !== null) {
+                throw new Error('effective hook path is unsafe');
+            }
+            const file = path.join(anchor, canonical.name);
+            if (fs.lstatSync(file, {throwIfNoEntry: false}) === undefined) continue;
+            const current = readRegular(file, null, `${relative}/${canonical.name}`);
+            assertCurrent();
+            if (current.contents.equals(canonical.contents) || prismOwned(current.contents)) return true;
+        }
+        assertCurrent();
+        return false;
+    } finally {
+        for (const {descriptor} of directories.reverse()) fs.closeSync(descriptor);
     }
 }
 
@@ -402,7 +499,7 @@ function applyManagedHooks({
 
 function verifyManagedHooks(options) {
     const inspected = inspectManagedHooks(options);
-    if (inspected.status === 'GO' && inspected.disposition === 'CURRENT') return inspected;
+    if (inspected.status !== 'GO' || inspected.disposition === 'CURRENT') return inspected;
     return Object.freeze({
         ...inspected,
         status: 'NO-GO',
@@ -421,6 +518,7 @@ module.exports = {
     applyManagedHooks,
     canonicalManagedHooks,
     inspectManagedHooks,
+    hasEffectiveManagedHooks,
     planManagedHooks,
     verifyManagedHooks,
 };

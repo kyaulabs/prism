@@ -233,12 +233,12 @@ Release-managed packages are declared only by `.prism/release.json` at the
 repository root. When the file is absent, state explicitly that this is a
 repository-only release and run no npm command.
 
-When present, require schema 2 with exactly these root fields before changing
+When present, require schema 3 with exactly these root fields before changing
 any manifest:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "managedBy": "@kyaulabs/prism-core",
   "versionPolicy": "lockstep",
   "packages": ["relative/package/directory"],
@@ -247,7 +247,6 @@ any manifest:
       "package": "relative/adapter/directory",
       "id": "adapter-id",
       "displayName": "Adapter name",
-      "coreRange": ">=1.2.3 <2.0.0",
       "bootstrapProtocol": 1,
       "status": "ACTIVE"
     }
@@ -258,7 +257,8 @@ any manifest:
 `adapterReleases` may be empty. Reject unknown declaration fields and unknown
 root keys. Reject an empty package list, duplicate package paths, duplicate
 adapter IDs, and more than 64 declarations. Keep every declaration closed to
-`package`, `id`, `displayName`, `coreRange`, `bootstrapProtocol`, and `status`.
+`package`, `id`, `displayName`, `bootstrapProtocol`, and `status`. Reject the
+removed `coreRange` field.
 
 Reject absolute or escaping package paths, whitespace, control characters,
 symlinks, private packages, missing or malformed `package.json` files,
@@ -266,12 +266,11 @@ unusable package names, duplicate tag prefixes, and paths that resolve outside
 the repository. Each declaration must identify exactly one configured
 release-managed public package. Require that package manifest to declare
 `prism.adapter === true` and the same positive safe-integer
-`bootstrapProtocol`. Require a bounded adapter ID and display name, a canonical
-valid `coreRange` accepted by Core's bundled SemVer implementation, and status
-`ACTIVE` or `REVOKED`.
+`bootstrapProtocol`. Require a bounded adapter ID and display name, an exact
+positive safe-integer bootstrap protocol, and status `ACTIVE` or `REVOKED`.
 
-Reject malformed ranges and unmanaged declaration packages.
-Reject protocol disagreement and any declaration/package version disagreement
+Reject unmanaged declaration packages, protocol disagreement, and any
+declaration/package version disagreement
 after lockstep version authoring. Validate every configured package and
 declaration before running the first npm command; partial package-version
 mutation is forbidden.
@@ -298,9 +297,9 @@ require its release-managed package version to equal the exact confirmed
 prism-tool package-release verify --json
 ```
 
-Require another `GO` report. It must not rewrite compatibility or infer
-`coreRange`. It must not add registry, integrity, publication, credential,
-sequence, branch, command, or signing fields. It preserves the reviewed
+Require another `GO` report. It must not rewrite compatibility or restore the
+removed range field. It must not add registry, integrity, publication,
+credential, sequence, branch, command, or signing fields. It preserves the reviewed
 declaration exactly. The release commit carries every configured
 package at the repository release version, whether or not that package's
 source changed.
@@ -364,7 +363,7 @@ git push -u origin release/X.Y.Z
 
 gh pr create --base main --head release/X.Y.Z \
     --title "Release vX.Y.Z" \
-    --body "Automated release PR for vX.Y.Z. Merging triggers release.yml, which creates the tag and GitHub Release at the merge SHA and opens the back-merge PR for a human to merge."
+    --body "Automated release PR for vX.Y.Z. Merging triggers release.yml, which creates the tag and GitHub Release at the merge SHA; back-merge.yml separately opens the back-merge PR for a human to merge."
 
 # After the release PR merges, publish every configured package (release.yml
 # already tagged each one; npm prompts for OTP if 2FA is enabled):
@@ -377,17 +376,19 @@ inert `cd PACKAGE_DIRECTORY && npm publish --access public` line for every
 configured package outside executable Bash fences.
 
 State that after the human merges the PR, `release.yml` creates the unsigned
-`vX.Y.Z` tag and GitHub Release at the merge SHA, tags every configured
-package (`<prefix>@X.Y.Z`), and opens the `main` → `develop` back-merge PR,
-which a human reviews and merges. The printed npm publication commands run
-after the merge. Stop there.
+`vX.Y.Z` tag and GitHub Release at the merge SHA and tags every configured
+package (`<prefix>@X.Y.Z`). The separate `back-merge.yml` workflow opens the
+`main` → `develop` back-merge PR, which a human reviews and merges. The printed
+npm publication commands run after the merge. Downstream catalogue publication
+independently accepts the first recorded adapter release or requires a strictly
+newer stable version than the latest recorded release. Stop there.
 
 ## Rules
 
 - Never push `main` or `develop` directly; all integration uses merged PRs.
 - Never create a tag, a GitHub Release, or a back-merge PR locally — after the
-  human merges the release PR, `release.yml` creates the tag and Release and
-  opens the back-merge PR.
+  human merges the release PR, `release.yml` creates the tag and Release, while
+  `back-merge.yml` opens the back-merge PR.
 - If there are no releasable commits or the human withholds the release
   confirmation, stop without creating anything.
 - Never reuse a release branch after its PR is merged; create a fresh

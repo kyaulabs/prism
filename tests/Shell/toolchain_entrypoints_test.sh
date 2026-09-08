@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+# $KYAULabs: toolchain_entrypoints_test.sh kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 # ── Toolchain entrypoint contract (Task 9) ──────────────────────────────────
 # Prompts, skills, and docs must route every declared tool through the
@@ -60,10 +60,16 @@ assert_file_contains "$CORE_PROMPTS/setup.md" 'one question at a time' 'setup as
 assert_file_contains "$CORE_PROMPTS/setup.md" 'candidate diff|diff' 'setup displays the candidate diff before apply'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup route --json' 'setup classifies the canonical root before established setup'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation inspect --json' 'setup inspects established automation providers'
-assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation plan --json' 'setup plans established automation'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation plan --metadata=' 'setup plans established automation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation apply --plan=.*--approval=yes --json' 'setup applies approved established automation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool automation verify --json' 'setup verifies established automation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool hook reconcile --approval=yes --json' 'setup reconciles canonical established hooks'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'prism-tool setup project metadata --source=established --adapter=core-only' 'setup inspects established Core-only metadata fields'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'CORE_ONLY.*ADAPTER|ADAPTER.*CORE_ONLY' 'setup distinguishes established Core-only and adapter composition'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'project-local inert.*payload|inert payload.*project-local' 'setup uses a project-local inert metadata payload'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'hook.*only after.*manifest.*provider.*verif|manifest.*provider.*verif.*before.*hook' 'setup gates established hooks on manifest and provider verification'
+assert_file_contains "$CORE_PROMPTS/setup.md" 'SOURCE_CHECKOUT_SETUP' 'setup dispatches verified source-checkout applicability'
+assert_file_not_contains "$CORE_PROMPTS/setup.md" 'source-checkout applicability remains assigned' 'setup no longer defers source-checkout applicability'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'SCAFFOLD_ONLY' 'setup identifies non-Git scaffold-only applicability'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'records repository automation as `NO-GO`' 'setup leaves non-Git scaffolds inapplicable for automation'
 assert_file_contains "$CORE_PROMPTS/setup.md" 'Template.*recommended default|recommended default.*Template' 'strict-empty setup recommends Template by default'
@@ -185,21 +191,30 @@ ESTABLISHED_AUTOMATION_SECTION="${RESULT_FILE}.established-automation"
 register_temp_dir "$ESTABLISHED_AUTOMATION_SECTION"
 awk '/^## Established repository automation$/ { active=1 } /^## 1[.] Pre-flight$/ { active=0 } active' \
     "$CORE_PROMPTS/setup.md" > "$ESTABLISHED_AUTOMATION_SECTION"
+setup_route_line=$({ grep -niF 'prism-tool setup route --json' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+established_section_line=$({ grep -niF '## Established repository automation' "$CORE_PROMPTS/setup.md" || true; } | cut -d: -f1 | head -1)
+established_doctor_line=$({ grep -niF 'prism-tool doctor --local-only' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_metadata_line=$({ grep -niF 'prism-tool setup project metadata --source=established --adapter=core-only' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_inspect_line=$({ grep -niF 'prism-tool automation inspect --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_release_line=$({ grep -niF 'Enable repository release management?' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
-established_plan_line=$({ grep -niF 'prism-tool automation plan --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
+established_plan_line=$({ grep -niF 'prism-tool automation plan --metadata=' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_apply_line=$({ grep -niF 'prism-tool automation apply --plan=' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_verify_line=$({ grep -niF 'prism-tool automation verify --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
 established_hook_line=$({ grep -niF 'prism-tool hook reconcile --approval=yes --json' "$ESTABLISHED_AUTOMATION_SECTION" || true; } | cut -d: -f1 | head -1)
-if [ -n "$established_inspect_line" ] && [ -n "$established_release_line" ] \
-    && [ -n "$established_plan_line" ] && [ -n "$established_apply_line" ] \
-    && [ -n "$established_verify_line" ] && [ -n "$established_hook_line" ] \
+if [ -n "$setup_route_line" ] && [ -n "$established_section_line" ] \
+    && [ -n "$established_doctor_line" ] && [ -n "$established_metadata_line" ] && [ -n "$established_inspect_line" ] \
+    && [ -n "$established_release_line" ] && [ -n "$established_plan_line" ] \
+    && [ -n "$established_apply_line" ] && [ -n "$established_verify_line" ] \
+    && [ -n "$established_hook_line" ] \
+    && [ "$setup_route_line" -lt "$established_section_line" ] \
+    && [ "$established_doctor_line" -lt "$established_metadata_line" ] \
+    && [ "$established_metadata_line" -lt "$established_inspect_line" ] \
     && [ "$established_inspect_line" -lt "$established_release_line" ] \
     && [ "$established_release_line" -lt "$established_plan_line" ] \
     && [ "$established_plan_line" -lt "$established_apply_line" ] \
     && [ "$established_apply_line" -lt "$established_verify_line" ] \
     && [ "$established_verify_line" -lt "$established_hook_line" ]; then
-    pass '/setup preserves established inspect, capability, plan, apply, verify, and hook ordering'
+    pass '/setup preserves established route, readiness, metadata, automation, and hook ordering'
 else
     fail '/setup does not preserve the established automation stage order'
     failures=$((failures + 1))
@@ -296,6 +311,7 @@ done
 
 echo "── local-only readiness on /check, /pr, and release ──"
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool doctor --local-only' 'check performs local-only readiness'
+assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool automation health --json' 'check verifies read-only managed project health'
 assert_file_contains "$CORE_PROMPTS/check.md" 'prism-tool markdown lint --changed-from' 'check runs changed Markdown through the shared gate'
 assert_file_contains "$CORE_PROMPTS/check.md" 'one tool call.*retain.*literal SHA|retain.*literal SHA.*later call' 'check resolves and retains the Markdown base separately'
 assert_file_contains "$CORE_PROMPTS/pr.md" 'prism-tool pr review-preflight' 'pr delegates review readiness to the launcher'
@@ -322,6 +338,17 @@ assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" '--ocr-test-approved|--code-egress-approved' 'code-review has no per-run approval flags'
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool run ocr' 'code-review cannot use generic OCR passthrough'
 assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'optional.*[Oo]cr|OCR.*optional|SKIPPED.*OCR' 'code-review treats OCR as mandatory, not optional'
+
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool code-review applicability --from FROM_SHA --to TO_SHA --json' 'review probes the exact immutable range'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'COMPLETE_NO_OCR' 'tooling exposes a distinct OCR outcome'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'all four axes remain required' 'Markdown exemption retains every review axis'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Mixed ranges retain normal OCR requirements' 'mixed ranges cannot take the Markdown exemption'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'A skipped response is not proof' 'empty selection cannot authorize an exemption'
+assert_file_not_contains "$CORE_SKILLS/code-review/SKILL.md" 'human may explicitly waive an' 'prose waivers cannot complete chain evidence'
+
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'prism-tool automation health --json' 'review checks managed readiness after recording evidence'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Preserve completed review evidence' 'health failure preserves completed review evidence'
+assert_file_contains "$CORE_SKILLS/code-review/SKILL.md" 'Do not rerun OCR' 'health failure does not authorize another OCR review'
 
 echo "── adapter checks/build use declared tool IDs ──"
 assert_file_contains "$ADAPTER_PROMPTS/check-php.md" 'prism-tool run php-cs-fixer -- fix --dry-run --diff' 'check-php runs php-cs-fixer through the launcher'

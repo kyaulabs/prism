@@ -129,6 +129,23 @@ configuration, and never loads project-local Markdown configuration, plugins,
 or custom rules. Skills, prompts, agent instructions, generated history, legal
 text, and unrelated templates require separate format-aware treatment.
 
+Semgrep scans run in disposable private Git repositories, never in the consumer
+checkout. Supported inputs, preservation checks, and bounds are documented in
+[Review runtime](docs/review-runtime.md#isolated-semgrep-scans).
+
+Managed project readiness is read-only:
+
+```bash
+prism-tool automation health --json
+```
+
+It verifies manifest composition, automation, and effective canonical hooks.
+`CURRENT` means configured state passed; `NOT_CONFIGURED` reports inapplicable
+checks as `SKIPPED`; `CONFLICT` blocks readiness without repair. Runtime readers
+accept safe restrictive permissions after Git recreation; creation remains
+`0644` for data and `0755` for executable wrappers. See
+[Project manifest](docs/project-manifest.md#public-managed-file-permissions).
+
 ## Supervised test servers
 
 Adapters may declare foreground-scoped loopback server profiles for test
@@ -160,11 +177,47 @@ configuration is a private closed record containing only browser `auto` or
 `disabled` and an optional loopback SearXNG URL. See
 [`extensions/web-access/README.md`](extensions/web-access/README.md).
 
+## Source-checkout setup
+
+`prism-tool setup route --json` recognizes independent Prism development clones
+and forks structurally, without remote lookup, pristine source requirements, or
+a directory-name convention. A verified source reports `SOURCE_CHECKOUT` and
+`SOURCE_CHECKOUT_SETUP` in the closed schema-two route. Incomplete or unsafe
+claims fail closed; source-shaped linked worktrees remain unsupported.
+
+`/setup` checks retained bootstrap continuity before proceeding. The source
+branch preserves repository-owned workflows, hooks, coverage infrastructure,
+release configuration, manifests, lockfiles, and disk-backed adapter activation.
+Consumer metadata, automation and release reconciliation, scaffold/dependency
+provisioning, and canonical hook activation are not applicable. Missing or
+invalid source adapter activation requires human remediation, not an implicit
+Core-only result or an installation that rewrites tracked settings.
+
+Shared global installation, independent standing consent, optional model/web
+preferences, and optional GitHub operations retain their existing approvals.
+Source recognition grants none of those effects. Source validation reuses
+`/check` and the resolved harness validator, including existing clean-tree and
+branch gates. Failures remain NO-GO; setup never repairs files or uses the
+normalizing pre-commit hook as a read-only validator. Identity is revalidated
+before source execution and final success. Reports distinguish preserved source
+files and inapplicable consumer reconciliation from actual validation PASS/FAIL.
+Recognition itself does not certify quality or bypass commit/review gates.
+
 ## Established and strict-empty setup
 
 Established projects keep the existing evidence-driven setup path. They do not
 enter strict-empty source selection, adapter acquisition, or bootstrap
-transactions.
+transactions. Established repositories use a schema two project manifest with
+exact `ESTABLISHED` source evidence. Core creates or migrates the manifest in
+the same journaled transaction as repository automation, verifies all providers,
+and only then offers separate canonical-hook activation.
+
+A Core-only (`CORE_ONLY`) established composition records a null adapter and
+runs hooks without loading adapter code. An `ADAPTER` composition must match one exact
+project-local registration; malformed or ambiguous adapter evidence is not
+absence. Valid schema-one Blank and Template manifests remain supported and are
+not rewritten only because the repository is established. See
+[Project manifest](docs/project-manifest.md).
 
 Strict-empty setup offers Template, Blank, or Cancel. Template is recommended.
 Blank performs no Template lookup. Cancel exits without creating bootstrap
@@ -310,8 +363,11 @@ preparation. One complete initial review starts the review chain. After a
 Blocking repair, fresh acceptance reviews only the repair delta. Advisory
 findings do not block `/pr`. Advisory findings do not block publication or need
 a waiver. Base or history changes, discontinuity, incomplete axes, malformed
-state, or a `HEAD` mismatch require a new complete initial review. A failed gate
-requires fresh finalization acceptance after repair.
+state, or a `HEAD` mismatch require a new complete initial review. Managed health
+runs after review and before PR readiness without discarding completed evidence
+or authorizing another OCR attempt. A health-only failure does not invalidate
+unchanged reviewed identities; repairs that change those identities follow the
+existing review-chain rules. Any additional review requires fresh finalization acceptance.
 
 A standalone `/pr` invocation may authorize one complete initial review only
 when deterministic preflight classifies the review chain as absent. Invalid
@@ -323,7 +379,9 @@ merge.
 
 ## Managed lockstep npm releases
 
-`/setup` discovers publishable packages and displays the exact package list.
+For applicable consumer projects, `/setup` discovers publishable packages and
+displays the exact package list. Source checkouts preserve their release files
+without consumer reconciliation.
 It installs Core-owned release configuration only after explicit enablement and displayed-diff mutation approval. The package-release lock records its owner
 PID; a human confirms that the process has stopped before removing the exact
 lock path.

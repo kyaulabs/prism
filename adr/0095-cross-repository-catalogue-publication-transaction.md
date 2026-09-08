@@ -6,7 +6,7 @@ Date: 2026-08-28
 
 Accepted
 
-Partially superseded by ADR-0097, which retains ADR-0096's Actions-only workflow-dispatch transport and replaces App authentication with separate bot-owned PATs. Independent evidence validation, sequence safety, publication authority, protected-branch behavior, and human-only merge remain accepted.
+Partially superseded by ADR-0097, which retains ADR-0096's Actions-only workflow-dispatch transport and replaces App authentication with separate bot-owned PATs. Partially superseded by ADR-0104's protocol-only compatibility and increasing-version admission rule. Independent evidence validation, sequence safety, publication authority, protected-branch behavior, and human-only merge remain accepted.
 
 Extends ADR-0046 and ADR-0079 after successful repository Release and package-tag reconciliation. Establishes a bounded exception to the current no-push-automation policy: trusted publisher CI may create one non-protected publication branch and open its human-merged pull request, but may not write a protected branch or merge.
 

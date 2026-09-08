@@ -4,6 +4,68 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
+## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.6.0) [0.6.0](https://github.com/kyaulabs/prism/compare/v0.5.0...v0.6.0) - (2026-09-08)
+
+### ⚗️ Testing
+
+- [Hooks] Remove native fixture dependency on global prism-tool ([903cc01](https://github.com/kyaulabs/prism/commit/903cc011080d44687a985d245dc1af144351e45a))
+- [Setup] Ignore read-driven access times in source preservation test ([75894f6](https://github.com/kyaulabs/prism/commit/75894f643b449ff2e42c1051a8573a1c21dadbba))
+
+### 🐛 Bug Fixes
+
+- [Automation] Compose Core-only providers ([4972315](https://github.com/kyaulabs/prism/commit/4972315fad6b6395e999eda63a6e267c8c7a27ee))
+- [Automation] Manage established project manifests atomically ([1db6aae](https://github.com/kyaulabs/prism/commit/1db6aae0c66545b7dafb5e651db8f8d74e46d514))
+- [Automation] Normalize missing metadata parent failures ([9ce5709](https://github.com/kyaulabs/prism/commit/9ce57093fb1e62ea11c1fd11f42b1f8292ed2637))
+- [Automation] Compare protected refs before back-merge creation ([7ab0c37](https://github.com/kyaulabs/prism/commit/7ab0c378f96c58c5d156948c2f926a3a273541cb))
+- [Automation] Validate exact back-merge pull-request state ([072447a](https://github.com/kyaulabs/prism/commit/072447a68c84dc27cfdfbb2522526a7ba63cc216))
+- [Automation] Recover concurrent back-merge creation fail closed ([267f983](https://github.com/kyaulabs/prism/commit/267f983dc1adaf3e0329366ee7cc9a756c7f26de))
+- [Hooks] Require coherent project identity ([149cf17](https://github.com/kyaulabs/prism/commit/149cf17686a3228c2497a9ecaff7aebf03d29d3c))
+- [Hooks] Accept safe restrictive managed file modes ([03384f3](https://github.com/kyaulabs/prism/commit/03384f398b2d6fd10977f0bf2d53ab1e6793bf25))
+- [Php-web] Preserve restrictive managed scaffold files ([42cc5dc](https://github.com/kyaulabs/prism/commit/42cc5dc9898c9c615c54ab3057f5cd0e30d1dfa4))
+- [Release] Emit protocol-only adapter evidence ([ac504be](https://github.com/kyaulabs/prism/commit/ac504be3c78342a54adeafb8a2d835d2d2c8fb6a))
+- [Review] Prove markdown-only ocr exemptions before recording ([618af7f](https://github.com/kyaulabs/prism/commit/618af7f690b488e33b7703b828a11e6f4251ae45))
+- [Review] Reverify stored markdown-only ocr exemptions ([03972db](https://github.com/kyaulabs/prism/commit/03972dbea5db278d22d506188d5fe82628a417ba))
+- [Review] Select and disclose verified ocr non-applicability ([3bda96a](https://github.com/kyaulabs/prism/commit/3bda96a74b2ea72d376dcb0cf2f5dc7be753ead5))
+- [Review] Prevent relative diffs from narrowing ocr proof ([68214fe](https://github.com/kyaulabs/prism/commit/68214fed00a50721aa399b4311ade327b12450ae))
+- [Review] Check managed file health before review readiness ([2465de9](https://github.com/kyaulabs/prism/commit/2465de920a3da2ff59ff3f28ad0a9a7086b5d15e))
+- [Review] Verify checkout safe review and hook compatibility ([c1504b3](https://github.com/kyaulabs/prism/commit/c1504b3e1bfe0da44c528b1167e2a7b83695e8c9))
+- [Review] Anchor effective hook directory reads ([e321c8b](https://github.com/kyaulabs/prism/commit/e321c8b9e7496358d7381ecdd7499f2acbcf6c88))
+- [Security] Isolate semgrep scans from consumer checkouts ([bb52e30](https://github.com/kyaulabs/prism/commit/bb52e30d2a44bbc51b4869aad13b8fbbf795f7cb))
+- [Security] Use isolated scanning for quality and rule tests ([3d93ab9](https://github.com/kyaulabs/prism/commit/3d93ab9f78c94c59f3b7d2fe93af12f3842c53f6))
+- [Security] Ignore inactive git worktree configuration during scans ([5d7592d](https://github.com/kyaulabs/prism/commit/5d7592d1a0e9009221f403cffe51307a65d4ee98))
+- [Setup] Complete Core-only reconciliation ([24221d9](https://github.com/kyaulabs/prism/commit/24221d9dd8b27b27a3791ebc39bdb221932f37bd))
+- [Setup] Validate established project evidence ([47d172a](https://github.com/kyaulabs/prism/commit/47d172a2de017a048eacc90c723037ce6aa8bd4d))
+- [Setup] Validate optional adapter reconciliation ([25398ed](https://github.com/kyaulabs/prism/commit/25398eda392162f24c7e1f53d671dfd559e8f948))
+- [Setup] Classify prism source checkouts before consumer setup ([2a6986a](https://github.com/kyaulabs/prism/commit/2a6986acc0b0de9eaf245db7305bdf550f729d77))
+- [Setup] Preserve source-owned automation during setup ([4b76ac3](https://github.com/kyaulabs/prism/commit/4b76ac31eca165b1695b4243ae246d8d85929e3e))
+- [Setup] Verify source setup preservation and consumer compatibility ([ec47466](https://github.com/kyaulabs/prism/commit/ec474669146b59c9f2a3b20215a8d2b81032ac0c))
+- [Setup] Revalidate entry state after source inspection ([6a0ebba](https://github.com/kyaulabs/prism/commit/6a0ebbaf79dd36cddb6a8bddd4987c3f9f3d0d78))
+- [Setup] Finish entry revalidation after git boundary lookup ([7d6095e](https://github.com/kyaulabs/prism/commit/7d6095ed06f6732be12e0c3c8cf8035a7a518b46))
+
+### 📝 Documentation
+
+- [Architecture] Adopt protocol-only adapter compatibility ([ce6aaf5](https://github.com/kyaulabs/prism/commit/ce6aaf5345ba4b794f736db3eddd8aca082b4eb9))
+- [Architecture] Record narrowed checkout safety fix ([fbd5408](https://github.com/kyaulabs/prism/commit/fbd5408311f0e8de75bc75c436238f604f3e6d6b))
+- [Architecture] Record source checkout setup applicability ([518468b](https://github.com/kyaulabs/prism/commit/518468be6f6def273064d8a7dc321fdcea9512d9))
+- [Core] Allow private task-owned temporary artifacts ([a5fc2f8](https://github.com/kyaulabs/prism/commit/a5fc2f8f42e20823037eab588e73afe6f4bd5cf0))
+- [Plan] Plan protocol-only adapter compatibility ([dd2dfef](https://github.com/kyaulabs/prism/commit/dd2dfef975a6ea78d230d00c22282d9c2fcd44d6))
+- [Review] Record markdown-only ocr exemption architecture and plan ([636c11a](https://github.com/kyaulabs/prism/commit/636c11af9b8e973e34ac27959c11afd2d5690cf9))
+- [Spec] Define verified markdown-only ocr exemption ([f83314a](https://github.com/kyaulabs/prism/commit/f83314a517bc4dd293a2cae6cca55127c7213c80))
+
+### 🔮 Misc
+
+- [Docs] Remove completed development artifacts ([8fbe31b](https://github.com/kyaulabs/prism/commit/8fbe31bc92d8b53835831fd7d60ed01b9081dbed))
+- [Docs] Remove completed development artifacts ([4e90af7](https://github.com/kyaulabs/prism/commit/4e90af7c82f546551a255c958eafe2bc646151c1))
+- [Docs] Remove completed development artifacts ([4233b6f](https://github.com/kyaulabs/prism/commit/4233b6f58c6b2ef852a0ff99bbde9d6c2cfa1b0c))
+- [Docs] Remove completed development artifacts ([1a7cbbd](https://github.com/kyaulabs/prism/commit/1a7cbbddcfb9e588140b5cab6bd1e6ed7f07b73b))
+- [Docs] Remove completed development artifacts ([59b61cf](https://github.com/kyaulabs/prism/commit/59b61cfe225a2ee407d9d87012dfd3fb4c70241b))
+- [Docs] Remove completed source checkout setup plan ([37ee9f5](https://github.com/kyaulabs/prism/commit/37ee9f5d28b3dbb4ea9de57ad056673a0bc089c5))
+
+### 🚀 Features
+
+- [Catalogue] Select adapters by bootstrap protocol ([be3f9e4](https://github.com/kyaulabs/prism/commit/be3f9e4188c918bf74c29899b82d5b682470d708))
+- [Setup] Define established project manifests ([ad7b3cb](https://github.com/kyaulabs/prism/commit/ad7b3cb04bcb2acfe1f6d38b1bbc132bb9ba09f5))
+<!-- Auto-generated on 2026-09-07T20:38:21.927301774-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.5.0) [0.5.0](https://github.com/kyaulabs/prism/compare/v0.4.3...v0.5.0) - (2026-09-04)
 
 ### ♻️ Refactor
@@ -14,9 +76,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 
 ### ⚗️ Testing
 
+- [Installer] Derive fixture version from manifest ([bc32284](https://github.com/kyaulabs/prism/commit/bc32284882892b8b15fb7400af83d31fe5f9018f))
 - [Php-web] Cover TypeScript quality dependency ([2e825ee](https://github.com/kyaulabs/prism/commit/2e825ee266b2a5000bf231acbb5862e315d030dd))
 - [Review] Strengthen launcher rollback evidence ([1913636](https://github.com/kyaulabs/prism/commit/1913636520e214868c31118785bca6fcdee52974))
 - [Review] Prove packaged authority bridge behavior ([9bd39c4](https://github.com/kyaulabs/prism/commit/9bd39c41e10b57d6edf367b1007f30a5d2bfaa8d))
+- [Review] Derive release version in review tests ([1fd667a](https://github.com/kyaulabs/prism/commit/1fd667ad72b6e30a301fc451a2453f486894ff37))
 - [Setup] Isolate seed hook launcher ([635505a](https://github.com/kyaulabs/prism/commit/635505ad83ad575087e7db053d48cddab0e9f654))
 
 ### 🐛 Bug Fixes
@@ -103,7 +167,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Setup] Reconcile established automation transactionally ([c571a33](https://github.com/kyaulabs/prism/commit/c571a3395a2bfe33c49ec86f426e35d0452d59b4))
 - [Setup] Install applicable repository automation ([aa70a1e](https://github.com/kyaulabs/prism/commit/aa70a1e53e0a8b69e748919f32f6b9d8f249eea4))
 - [Toolchain] Declare supervised server profiles ([6093a23](https://github.com/kyaulabs/prism/commit/6093a232006c0d6e2280ae87ddc6a6a33c4d005d))
-<!-- Auto-generated on 2026-09-03T22:59:16.759248115-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:21.959017063-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.4.3) [0.4.3](https://github.com/kyaulabs/prism/compare/v0.4.2...v0.4.3) - (2026-09-01)
 
 ### 🐛 Bug Fixes
@@ -118,7 +182,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 ### 🔮 Misc
 
 - [Docs] Remove completed development artifacts ([542ecfb](https://github.com/kyaulabs/prism/commit/542ecfb4fccdd364b4d7864916277654e9b3d405))
-<!-- Auto-generated on 2026-09-03T22:59:16.764323577-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:21.966110848-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.4.2) [0.4.2](https://github.com/kyaulabs/prism/compare/v0.4.1...v0.4.2) - (2026-08-31)
 
 ### ⚗️ Testing
@@ -163,7 +227,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Docs] Remove completed development artifacts ([f1e400a](https://github.com/kyaulabs/prism/commit/f1e400ac0ce5c99bc8454e94b0595bb11ef96d6d))
 - [Docs] Remove completed development artifacts ([bfbb245](https://github.com/kyaulabs/prism/commit/bfbb2451c07206a928ff46a24c746ce48fceddb8))
 - [Docs] Remove completed development artifacts ([2ca5f4e](https://github.com/kyaulabs/prism/commit/2ca5f4e092f83ee2cbcdf0f1c983c0de2cb903a1))
-<!-- Auto-generated on 2026-09-03T22:59:16.780281104-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:21.985750931-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.4.1) [0.4.1](https://github.com/kyaulabs/prism/compare/v0.4.0...v0.4.1) - (2026-08-28)
 
 ### 🐛 Bug Fixes
@@ -189,7 +253,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 ### 🔮 Misc
 
 - [Docs] Remove completed development artifacts ([587fad7](https://github.com/kyaulabs/prism/commit/587fad756e5a8aa775f7b0f5e5c2223e06eaed84))
-<!-- Auto-generated on 2026-09-03T22:59:16.788482977-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:21.998971860-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.4.0) [0.4.0](https://github.com/kyaulabs/prism/compare/v0.3.1...v0.4.0) - (2026-08-27)
 
 ### ♻️ Refactor
@@ -394,13 +458,13 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Web-access] Confine browser based keyless search ([9ca5283](https://github.com/kyaulabs/prism/commit/9ca52832587fbfe1deff91a7df9a5caaf2ed7b51))
 - [Web-access] Route consent gated browser first search ([2dd7ef6](https://github.com/kyaulabs/prism/commit/2dd7ef6667d546e26b0c715f70754acd050a9351))
 - [Web-access] Register bounded search and fetch tools ([f5acfba](https://github.com/kyaulabs/prism/commit/f5acfba44a7fea592c08e9f055f430559b06fa0d))
-<!-- Auto-generated on 2026-09-03T22:59:16.856835392-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:22.064907117-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.3.1) [0.3.1](https://github.com/kyaulabs/prism/compare/v0.3.0...v0.3.1) - (2026-08-24)
 
 ### 🐛 Bug Fixes
 
 - [Adapter] Resolve candidates without consumer manifests ([0bb36c7](https://github.com/kyaulabs/prism/commit/0bb36c7af98081110f161a2f856dc8ddd20a8a7c))
-<!-- Auto-generated on 2026-09-03T22:59:16.862135076-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:22.070152585-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.3.0) [0.3.0](https://github.com/kyaulabs/prism/compare/v0.2.1...v0.3.0) - (2026-08-23)
 
 ### ♻️ Refactor
@@ -511,7 +575,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Setup] Plan managed package release files ([fd07373](https://github.com/kyaulabs/prism/commit/fd07373eda67747eabed7673dc4a81d081fa20ef))
 - [Setup] Apply package release capability atomically ([388c2cd](https://github.com/kyaulabs/prism/commit/388c2cd3f1f8683fd43241682368657beacb5370))
 - [Setup] Manage lockstep package releases ([d46bd43](https://github.com/kyaulabs/prism/commit/d46bd43dd30e330fae58250cfd05cd4955725b03))
-<!-- Auto-generated on 2026-09-03T22:59:16.892282748-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:22.099723288-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.1) [0.2.1](https://github.com/kyaulabs/prism/compare/v0.2.0...v0.2.1) - (2026-08-21)
 
 ### ⚗️ Testing
@@ -546,7 +610,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Setup] Define safe core git initialization ([6ef8ab0](https://github.com/kyaulabs/prism/commit/6ef8ab0a93b32db59c7fdfc38c656337ebd782d8))
 - [Setup] Specify testing-ready project bootstrap ([9ee5deb](https://github.com/kyaulabs/prism/commit/9ee5deb70c9e5f68c9c7cc6f14cbd3faaaf2e79a))
 - [Setup] Accept project bootstrap architecture ([6eea8dc](https://github.com/kyaulabs/prism/commit/6eea8dc4acfe03239e53361e2fcbf0b382a1510c))
-<!-- Auto-generated on 2026-09-03T22:59:16.905707757-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:22.114612513-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.2.0) [0.2.0](https://github.com/kyaulabs/prism/compare/v0.1.0...v0.2.0) - (2026-08-20)
 
 ### ♻️ Refactor
@@ -959,7 +1023,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Toolchain] Raise OCR execution timeout to 10 minutes ([3285887](https://github.com/kyaulabs/prism/commit/3285887da995f03fe33e8ff5ac7ca57c86364caa))
 - [Toolchain] Add pull request workflow operations ([65d9fa5](https://github.com/kyaulabs/prism/commit/65d9fa5ea0ba5abb3b46cbd8c0101b668950ebe3))
 - [Workflow] Automate accepted branch finalization ([090f6e0](https://github.com/kyaulabs/prism/commit/090f6e0adbb8b54462f4aa7cc31c688b12b058d9))
-<!-- Auto-generated on 2026-09-03T22:59:17.060382070-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:22.260654173-07:00 -->
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.1.0) [0.1.0](https://github.com/kyaulabs/prism/commit/0ad9930922de977092ab9e39a0d8b4895fa5a17c) - (2026-08-13)
 
 ### ⏪ Reverts
@@ -1923,4 +1987,4 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 
 - [Skill] Fix GraphQL shell injection and quoting in skill snippets ([312f371](https://github.com/kyaulabs/prism/commit/312f37126513694ebe6b58108abc8d8d41cf250d))
 - [Tsconfig] Enable strict type-checking ([ced28a7](https://github.com/kyaulabs/prism/commit/ced28a78d791038f58a6e1ac5c1d4af967c44d95))
-<!-- Auto-generated on 2026-09-03T22:59:17.640694229-07:00 -->
+<!-- Auto-generated on 2026-09-07T20:38:22.627259883-07:00 -->

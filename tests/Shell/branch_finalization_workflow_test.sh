@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: branch_finalization_workflow_test.sh kyau@aura.kyaulabs 2026/08/23 -0700 Exp $
+# $KYAULabs: branch_finalization_workflow_test.sh kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 set -euo pipefail
 
@@ -42,6 +42,7 @@ markers=(
 	check
 	code-review
 	sha-revalidation
+	managed-health
 	pr
 )
 last=0
@@ -259,6 +260,16 @@ if ! grep -qE '(^|[[:space:]`])(gh|curl|wget)([[:space:]]|$)' <<< "$pr_section" 
 	pass 'finalization neither pushes nor creates the PR'
 else
 	fail 'finalization offers publication or GitHub mutation'
+fi
+
+if health_section=$(section_between '<!-- finalization-managed-health -->' '<!-- finalization-pr -->') \
+	&& grep -qF 'prism-tool automation health --json' <<< "$health_section" \
+	&& grep -qF 'Preserve completed review evidence' <<< "$health_section" \
+	&& grep -qF 'Do not rerun OCR' <<< "$health_section" \
+	&& grep -qF 'stop before `/pr`' <<< "$health_section"; then
+	pass 'post-review managed health blocks readiness without discarding or repeating review'
+else
+	fail 'post-review managed health contract is missing or incomplete'
 fi
 
 print_summary "branch_finalization_workflow"

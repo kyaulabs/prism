@@ -4,7 +4,7 @@ Date: 2026-08-27
 
 ## Status
 
-Accepted — partially superseded by ADR-0094's protected GitHub Actions signing custody. The catalogue schema, Core trust root, verification rules, publisher responsibilities, and key-rotation ordering remain in force.
+Accepted — partially superseded by ADR-0094's protected GitHub Actions signing custody and ADR-0104's protocol-only adapter compatibility. The Core trust root, signature verification, publisher responsibilities, and key-rotation ordering remain in force.
 
 Supersedes ADR-0082's Core-shipped adapter catalogue and lockstep adapter-version
 selection. Supersedes ADR-0083's strict-empty adapter-discovery authorization.

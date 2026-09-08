@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -160,8 +160,9 @@ test('packs the core package with every owned resource and executable modes', ()
         encoding: 'utf8',
     });
     assert.match(releaseWorkflow, /^# prism-managed: @kyaulabs\/prism-core$/m);
-    assert.match(releaseWorkflow, /^# prism-release-schema: 3$/m);
+    assert.match(releaseWorkflow, /^# prism-release-schema: 4$/m);
     assert.doesNotMatch(releaseWorkflow, /back-merge|--base develop --head main/);
+    assert.doesNotMatch(releaseWorkflow, /Install release validation dependencies|npm ci/);
     assert.equal(
         releaseWorkflow,
         fs.readFileSync(path.join(CORE_PKG, 'config', 'release.yml'), 'utf8'),
@@ -194,6 +195,11 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.has('NOTICE'), true, 'core NOTICE packaged');
     assert.equal(packed.files.has('docs/review-runtime.md'), true, 'review runtime documentation packaged');
     assert.equal(
+        packed.files.has('docs/project-manifest.md'),
+        true,
+        'project manifest documentation packaged'
+    );
+    assert.equal(
         packed.files.has('docs/adapter-catalogue.md'),
         true,
         'adapter catalogue publisher contract packaged'
@@ -225,7 +231,8 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.get('safe-dirs.json') & 0o111, 0, 'safe data is not executable');
     for (const module of [
         'adapter-catalogue-cache', 'adapter-catalogue-http', 'adapter-catalogue-validation',
-        'automation', 'automation-providers', 'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
+        'automation', 'automation-providers', 'established-project-provider', 'project-manifest',
+        'bootstrap-adapter', 'bootstrap-capabilities', 'bootstrap-composer', 'bootstrap-hooks',
         'bootstrap-journal', 'bootstrap-metadata', 'bootstrap-plan',
         'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
         'bootstrap-source',
@@ -292,9 +299,12 @@ test('documents reviewed adapter release authority and publisher ownership', () 
         'utf8'
     );
 
-    assert.match(catalogueDocs, /adapter release declaration.*compatibility authority/is);
+    assert.match(catalogueDocs, /adapter release declaration.*release authority/is);
+    assert.match(catalogueDocs, /schema 2.*in-place cutoff/is);
+    assert.match(catalogueDocs, /protocol is the sole runtime.*compatibility discriminator/is);
     assert.match(catalogueDocs, /package name.*version.*derived.*manifest/is);
     assert.match(catalogueDocs, /publisher.*independently revalidates/is);
+    assert.match(catalogueDocs, /first recorded.*strictly newer/is);
     assert.match(catalogueDocs, /protected.*Actions.*signing/is);
     assert.match(catalogueDocs, /human-merged.*pull request/is);
     assert.doesNotMatch(catalogueDocs, /production private signing key.*human-owned/is);
@@ -345,6 +355,21 @@ test('documents human-only bot-owned catalogue publication provisioning', () => 
         runbook,
         /github_pat_[A-Za-z0-9_]+|gh secret set|echo .*TOKEN|BEGIN (?:RSA |ENCRYPTED )?PRIVATE KEY|[.]env/,
     );
+});
+
+test('documents established Core-only project identity and hook behavior', () => {
+    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
+    const manifestDocs = fs.readFileSync(
+        path.join(CORE_PKG, 'docs', 'project-manifest.md'), 'utf8'
+    );
+
+    assert.match(coreReadme, /established.*schema two.*project manifest/is);
+    assert.match(coreReadme, /Core-only.*null adapter.*without.*adapter/is);
+    assert.match(manifestDocs, /schema two.*ESTABLISHED/is);
+    assert.match(manifestDocs, /schema one.*Blank.*Template/is);
+    assert.match(manifestDocs, /Core-only.*adapter.*null/is);
+    assert.match(manifestDocs, /hook.*no adapter.*load/is);
+    assert.match(manifestDocs, /invalid.*adapter.*not.*absence/is);
 });
 
 test('documents Blank Core-only application and recovery boundaries', () => {

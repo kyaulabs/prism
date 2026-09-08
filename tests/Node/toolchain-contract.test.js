@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: toolchain-contract.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -228,6 +228,12 @@ test('declares the exact bundled Markdown engine', () => {
     assert.equal(corePackage.dependencies['markdownlint-cli2'], '0.23.2');
     assert.equal(rootPackage.devDependencies['markdownlint-cli2'], '0.23.2');
     assert.equal(lock.packages['node_modules/markdownlint-cli2'].version, '0.23.2');
+});
+
+test('declares Semgrep as a scan-only operation with a ten-minute execution budget', () => {
+    const component = loadContract(coreContract).components.find(({id}) => id === 'semgrep');
+    assert.deepEqual(component.argumentPolicy, {mode: 'first-token', allowed: ['scan']});
+    assert.equal(component.executionTimeoutMs, 600000);
 });
 
 test('declares the approved bounded external compatibility requirements', () => {

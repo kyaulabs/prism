@@ -1,4 +1,4 @@
-// $KYAULabs: setup-route.js kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+// $KYAULabs: setup-route.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
 
 'use strict';
 
@@ -15,10 +15,13 @@ const ROUTE = Object.freeze({
     BOOTSTRAP_TEMPLATE: 'BOOTSTRAP_TEMPLATE',
     BOOTSTRAP_BLANK: 'BOOTSTRAP_BLANK',
     ESTABLISHED_SETUP: 'ESTABLISHED_SETUP',
+    SOURCE_CHECKOUT_SETUP: 'SOURCE_CHECKOUT_SETUP',
     STOP: 'STOP',
 });
 
 const MESSAGES = Object.freeze({
+    PRISM_SOURCE_CHECKOUT: 'canonical project root is an independent Prism source checkout',
+    UNSAFE_SOURCE_CHECKOUT: 'Prism source checkout evidence is incomplete or unsafe',
     EMPTY_ROOT: 'canonical project root is strictly empty',
     NON_EMPTY_ROOT: 'canonical project root contains established project entries',
     EXISTING_REPOSITORY: 'canonical project root contains existing repository state',
@@ -62,8 +65,9 @@ function inspectSetupRoute({projectRoot, source = null}) {
     }
     const entry = classifySetupEntry({projectRoot});
     if (entry.disposition === DISPOSITION.CONFLICT) return report(entry, null, ROUTE.STOP);
-    if (entry.disposition === DISPOSITION.ESTABLISHED) {
-        if (source === null) return report(entry, null, ROUTE.ESTABLISHED_SETUP);
+    if ([DISPOSITION.ESTABLISHED, DISPOSITION.SOURCE_CHECKOUT].includes(entry.disposition)) {
+        if (source === null) return report(entry, null, entry.disposition === DISPOSITION.SOURCE_CHECKOUT
+            ? ROUTE.SOURCE_CHECKOUT_SETUP : ROUTE.ESTABLISHED_SETUP);
         return report({
             ...entry,
             disposition: DISPOSITION.CONFLICT,

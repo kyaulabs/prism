@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-adapter-catalogue.test.js kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: prism-tool-adapter-catalogue.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
 
 'use strict';
 
@@ -76,7 +76,7 @@ function response(bytes, status = 200) {
 
 function validCatalogue() {
     return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         catalogueId: 'kyaulabs/prism-adapters',
         sequence: 7,
         issuedAt: '2026-08-27T00:00:00Z',
@@ -86,10 +86,10 @@ function validCatalogue() {
             displayName: 'PHP/web',
             packageName: '@kyaulabs/prism-php-web',
             releases: [
-                {version: '2.0.0', coreRange: '>=2.0.0 <3.0.0', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
-                {version: '1.8.2', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-26T00:00:00Z', status: 'ACTIVE'},
-                {version: '1.9.0-beta.1', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
-                {version: '1.8.3', coreRange: '^1.3.0', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'REVOKED'},
+                {version: '2.0.0', bootstrapProtocol: 2, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.8.2', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-26T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.9.0-beta.1', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'ACTIVE'},
+                {version: '1.8.3', bootstrapProtocol: 1, integrity: VALID_INTEGRITY, publishedAt: '2026-08-27T00:00:00Z', status: 'REVOKED'},
             ],
         }],
     };
@@ -383,7 +383,7 @@ test('preserves an unsafe cache without consulting the network', async (t) => {
     assert.deepEqual(fs.readFileSync(cachePath), retained);
 });
 
-test('selects the highest stable active Core-compatible release', () => {
+test('selects the highest stable active bootstrap-protocol-compatible release', () => {
     const catalogue = validateCataloguePayload({
         catalogue: validCatalogue(),
         now: new Date('2026-08-27T12:00:00Z'),
@@ -391,7 +391,6 @@ test('selects the highest stable active Core-compatible release', () => {
 
     assert.deepEqual(selectCompatibleAdapters({
         catalogue,
-        coreVersion: '1.4.0',
         bootstrapProtocol: 1,
     }), [{
         id: 'php-web',
@@ -401,6 +400,24 @@ test('selects the highest stable active Core-compatible release', () => {
         bootstrapProtocol: 1,
         integrity: VALID_INTEGRITY,
     }]);
+    assert.deepEqual(selectCompatibleAdapters({
+        catalogue,
+        bootstrapProtocol: 3,
+    }), []);
+});
+
+test('rejects the range-based catalogue schema after the cutoff', () => {
+    const catalogue = validCatalogue();
+    catalogue.schemaVersion = 1;
+    catalogue.adapters[0].releases[0].coreRange = '>=0.4.1 <10.0.0';
+
+    assert.throws(
+        () => validateCataloguePayload({
+            catalogue,
+            now: new Date('2026-08-27T12:00:00Z'),
+        }),
+        CatalogueError
+    );
 });
 
 test('orders compatible adapters independently of host locale collation', (t) => {
@@ -423,7 +440,6 @@ test('orders compatible adapters independently of host locale collation', (t) =>
 
     assert.deepEqual(selectCompatibleAdapters({
         catalogue: normalized,
-        coreVersion: '1.4.0',
         bootstrapProtocol: 1,
     }).map(({id}) => id), ['alpha', 'php-web']);
 });
@@ -443,7 +459,11 @@ test('rejects expired, overlong, duplicate, and malformed catalogue payloads', (
         {...catalogue, adapters: [{...catalogue.adapters[0], packageName: '@example/prism-php-web'}]},
         {...catalogue, adapters: [{...catalogue.adapters[0], releases: [{
             ...catalogue.adapters[0].releases[0],
-            coreRange: 'not-semver',
+            bootstrapProtocol: 0,
+        }]}]},
+        {...catalogue, adapters: [{...catalogue.adapters[0], releases: [{
+            ...catalogue.adapters[0].releases[0],
+            coreRange: '>=1.0.0',
         }]}]},
     ];
 

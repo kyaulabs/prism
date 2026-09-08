@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-tool-apply.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
 
 'use strict';
 
@@ -105,7 +105,7 @@ function makeCandidateFixture() {
         return [name, content];
     }));
     const plan = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         adapter: adapterContract.package,
         projectRoot: fs.realpathSync(projectRoot),
         original: Object.fromEntries(Object.entries(originalFiles).map(([name, content]) => [name, sha256(content)])),
@@ -115,6 +115,7 @@ function makeCandidateFixture() {
             original: 'absent',
             candidate: sha256(content),
             mode: 0o644,
+            observed: null,
         }])),
         audit: {critical: 0, high: 0, moderate: 0, low: 0},
         browserTargets: ['chromium'],
@@ -122,6 +123,28 @@ function makeCandidateFixture() {
     const planPath = path.join(workspace.root, 'candidate-plan.json');
     writeJson(planPath, plan);
     return {candidateFiles, plan, planPath, projectRoot, visualReviewFiles};
+}
+
+function preserveVisualFiles(fixture, mode = 0o644) {
+    const identities = new Map();
+    for (const [name, content] of Object.entries(fixture.visualReviewFiles)) {
+        const target = path.join(fixture.projectRoot, name);
+        fs.writeFileSync(target, content, {mode});
+        fs.chmodSync(target, mode);
+        const observed = fs.lstatSync(target);
+        fixture.plan.scaffold[name] = {
+            disposition: 'PRESERVE', original: sha256(content), candidate: sha256(content), mode: 0o644,
+            observed: {
+                dev: observed.dev, ino: observed.ino, uid: observed.uid, gid: observed.gid,
+                size: observed.size, mode, mtimeMs: observed.mtimeMs, ctimeMs: observed.ctimeMs,
+                sha256: sha256(content),
+            },
+        };
+        const stat = fs.statSync(target, {bigint: true});
+        identities.set(name, {ino: stat.ino, mtimeNs: stat.mtimeNs});
+    }
+    writeJson(fixture.planPath, fixture.plan);
+    return identities;
 }
 
 test('rejects every non-literal mutation approval before files or subprocesses change', (t) => {
@@ -185,6 +208,87 @@ test('cleans the owned candidate workspace when mutation approval is declined', 
     assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi', 'prism-tool', 'work')), false);
 });
 
+test('rejects old visual approval plans with regeneration guidance before mutation', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    fixture.plan.schemaVersion = 1;
+    for (const record of Object.values(fixture.plan.scaffold)) delete record.observed;
+    writeJson(fixture.planPath, fixture.plan);
+    const original = fs.readFileSync(path.join(fixture.projectRoot, 'composer.json'));
+    let invoked = false;
+
+    const result = applyCandidate({
+        contract: adapterContract, projectRoot: fixture.projectRoot, planPath: fixture.planPath,
+        run() { invoked = true; throw new Error('subprocess must not run'); },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'invalid plan');
+    assert.equal(result.checks[0].message, 'candidate plan version is obsolete; regenerate the plan');
+    assert.equal(invoked, false);
+    assert.deepEqual(fs.readFileSync(path.join(fixture.projectRoot, 'composer.json')), original);
+    for (const name of VISUAL_REVIEW_FILES) assert.equal(fs.existsSync(path.join(fixture.projectRoot, name)), false);
+});
+
+test('keeps candidate approval files private rather than accepting public runtime modes', (t) => {
+    for (const mode of [0o400, 0o640, 0o644, 0o4600]) {
+        const fixture = makeCandidateFixture();
+        t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+        fs.chmodSync(fixture.planPath, mode);
+        const original = fs.readFileSync(path.join(fixture.projectRoot, 'composer.json'));
+        const read = t.mock.method(fs, 'readFileSync');
+        let invoked = false;
+
+        const result = applyCandidate({
+            contract: adapterContract, projectRoot: fixture.projectRoot, planPath: fixture.planPath,
+            run() { invoked = true; return {status: 1}; },
+        });
+
+        assert.equal(result.status, 'NO-GO');
+        assert.equal(result.data.reason, 'invalid plan');
+        assert.equal(read.mock.calls.some((call) => call.arguments[0] === fixture.planPath), false);
+        assert.equal(invoked, false);
+        assert.deepEqual(fs.readFileSync(path.join(fixture.projectRoot, 'composer.json')), original);
+        t.mock.restoreAll();
+    }
+});
+
+test('rejects foreign or substituted private approval files before application', (t) => {
+    for (const scenario of ['owner', 'symlink', 'replacement']) {
+        const fixture = makeCandidateFixture();
+        t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+        const contents = fs.readFileSync(fixture.planPath);
+        const lstat = fs.lstatSync;
+        let changed = false;
+        let invoked = false;
+        t.mock.method(fs, 'lstatSync', (file, ...args) => {
+            const stat = lstat(file, ...args);
+            if (file === fixture.planPath && !changed) {
+                changed = true;
+                if (scenario === 'owner') stat.uid = process.getuid() + 1;
+                else {
+                    fs.renameSync(file, `${file}.original`);
+                    if (scenario === 'symlink') fs.symlinkSync(`${file}.original`, file);
+                    else fs.writeFileSync(file, contents, {mode: 0o600});
+                }
+            }
+            return stat;
+        });
+
+        const result = applyCandidate({
+            contract: adapterContract, projectRoot: fixture.projectRoot, planPath: fixture.planPath,
+            run() { invoked = true; return {status: 1}; },
+        });
+
+        assert.equal(result.status, 'NO-GO', scenario);
+        assert.equal(result.data.reason, 'invalid plan', scenario);
+        assert.equal(changed, true);
+        assert.equal(invoked, false);
+        assert.equal(fs.readFileSync(path.join(fixture.projectRoot, 'composer.json'), 'utf8'), '{"name":"fixture/project"}\n');
+        t.mock.restoreAll();
+    }
+});
+
 test('rejects a stale original hash before package installation', (t) => {
     const fixture = makeCandidateFixture();
     t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
@@ -236,21 +340,7 @@ test('rejects a broken symlink substituted for an absent original file', (t) => 
 test('preserves exact canonical visual review files without rewriting them', (t) => {
     const fixture = makeCandidateFixture();
     t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
-    const identities = new Map();
-    for (const [name, content] of Object.entries(fixture.visualReviewFiles)) {
-        const target = path.join(fixture.projectRoot, name);
-        fs.writeFileSync(target, content, {mode: 0o644});
-        fs.chmodSync(target, 0o644);
-        fixture.plan.scaffold[name] = {
-            disposition: 'PRESERVE',
-            original: sha256(content),
-            candidate: sha256(content),
-            mode: 0o644,
-        };
-        const stat = fs.statSync(target, {bigint: true});
-        identities.set(name, {ino: stat.ino, mtimeNs: stat.mtimeNs});
-    }
-    writeJson(fixture.planPath, fixture.plan);
+    const identities = preserveVisualFiles(fixture);
 
     const result = applyCandidate({
         contract: adapterContract,
@@ -270,6 +360,88 @@ test('preserves exact canonical visual review files without rewriting them', (t)
     for (const name of VISUAL_REVIEW_FILES) {
         const stat = fs.statSync(path.join(fixture.projectRoot, name), {bigint: true});
         assert.deepEqual({ino: stat.ino, mtimeNs: stat.mtimeNs}, identities.get(name), name);
+    }
+});
+
+test('rejects byte-identical visual file replacement after approval before applying dependencies', (t) => {
+    const fixture = makeCandidateFixture();
+    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+    preserveVisualFiles(fixture);
+    const file = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+    fs.renameSync(file, `${file}.original`);
+    fs.writeFileSync(file, fixture.visualReviewFiles[VISUAL_REVIEW_FILES[0]], {mode: 0o644});
+    fs.chmodSync(file, 0o644);
+    const replaced = fs.lstatSync(file);
+    assert.notEqual(replaced.ino, fixture.plan.scaffold[VISUAL_REVIEW_FILES[0]].observed.ino);
+    const original = fs.readFileSync(path.join(fixture.projectRoot, 'composer.json'));
+    let invoked = false;
+
+    const result = applyCandidate({
+        contract: adapterContract, projectRoot: fixture.projectRoot, planPath: fixture.planPath,
+        run() { invoked = true; return {status: 1}; },
+    });
+
+    assert.equal(result.status, 'NO-GO');
+    assert.equal(result.data.reason, 'stale plan');
+    assert.equal(invoked, false);
+    assert.deepEqual(fs.readFileSync(path.join(fixture.projectRoot, 'composer.json')), original);
+    assert.equal(fs.lstatSync(file).ino, replaced.ino);
+});
+
+test('invalidates visual approval after safe-to-safe chmod without normalizing the files', (t) => {
+    for (const [beforeMode, afterMode] of [[0o600, 0o640], [0o640, 0o600], [0o644, 0o400]]) {
+        const fixture = makeCandidateFixture();
+        t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+        preserveVisualFiles(fixture, beforeMode);
+        const file = path.join(fixture.projectRoot, VISUAL_REVIEW_FILES[0]);
+        fs.chmodSync(file, afterMode);
+        const before = fs.lstatSync(file);
+        const original = fs.readFileSync(path.join(fixture.projectRoot, 'composer.json'));
+        let invoked = false;
+
+        const result = applyCandidate({
+            contract: adapterContract, projectRoot: fixture.projectRoot, planPath: fixture.planPath,
+            run() { invoked = true; return {status: 1}; },
+        });
+
+        assert.equal(result.status, 'NO-GO');
+        assert.equal(result.data.reason, 'stale plan');
+        assert.equal(invoked, false);
+        assert.deepEqual(fs.readFileSync(path.join(fixture.projectRoot, 'composer.json')), original);
+        const after = fs.lstatSync(file);
+        for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+            assert.equal(after[field], before[field], field);
+        }
+    }
+});
+
+test('rejects malformed visual approval observations before mutation', (t) => {
+    for (const mutate of [
+        (record) => { delete record.observed; },
+        (record) => { record.observed = null; },
+        (record) => { record.observed.mode = '384'; },
+        (record) => { record.observed.mode = 384.5; },
+        (record) => { record.observed.mode = 0o664; },
+        (record) => { record.observed.uid = -1; },
+        (record) => { record.observed.sha256 = '0'.repeat(64); },
+        (record) => { record.observed.extra = true; },
+    ]) {
+        const fixture = makeCandidateFixture();
+        t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+        preserveVisualFiles(fixture, 0o600);
+        mutate(fixture.plan.scaffold[VISUAL_REVIEW_FILES[0]]);
+        writeJson(fixture.planPath, fixture.plan);
+        let invoked = false;
+
+        const result = applyCandidate({
+            contract: adapterContract, projectRoot: fixture.projectRoot, planPath: fixture.planPath,
+            run() { invoked = true; return {status: 1}; },
+        });
+
+        assert.equal(result.status, 'NO-GO');
+        assert.equal(result.data.reason, 'invalid plan');
+        assert.equal(invoked, false);
+        assert.equal(fs.readFileSync(path.join(fixture.projectRoot, 'composer.json'), 'utf8'), '{"name":"fixture/project"}\n');
     }
 });
 
@@ -674,98 +846,109 @@ test('retries transient created-file cleanup during outer rollback', (t) => {
     assert.equal(fs.existsSync(targetPath), false);
 });
 
-test('applies dependency and canonical visual review files with Chromium only', (t) => {
-    const fixture = makeCandidateFixture();
-    t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
-    const originalModes = {
-        'composer.json': 0o640,
-        'composer.lock': 0o600,
-        'package.json': 0o644,
-        'package-lock.json': 0o660,
-    };
-    for (const [name, mode] of Object.entries(originalModes)) {
-        fs.chmodSync(path.join(fixture.projectRoot, name), mode);
-    }
-    const invocations = [];
-    const executableVersions = new Map(
-        adapterContract.components
-            .filter(({kind}) => kind === 'command')
-            .map((component) => [component.executable, component.version])
-    );
-    const run = (command, args, options) => {
-        invocations.push({command, args, cwd: options.cwd});
-        if (command === 'composer' && args[0] === 'install') {
-            for (const executable of ['php-cs-fixer', 'pest']) {
-                const executablePath = path.join(fixture.projectRoot, 'vendor', 'bin', executable);
-                fs.mkdirSync(path.dirname(executablePath), {recursive: true});
-                fs.writeFileSync(executablePath, '#!/bin/sh\nexit 0\n', {mode: 0o755});
-                fs.chmodSync(executablePath, 0o755);
+for (const visualMode of [null, 0o600, 0o640, 0o400]) {
+    test(`applies dependencies with Chromium while ${visualMode === null ? 'creating' : `preserving ${visualMode.toString(8)}`} visual files`, (t) => {
+        const fixture = makeCandidateFixture();
+        t.after(() => fs.rmSync(fixture.projectRoot, {recursive: true, force: true}));
+        if (visualMode !== null) preserveVisualFiles(fixture, visualMode);
+        const visualBefore = new Map(visualMode === null ? [] : VISUAL_REVIEW_FILES.map((name) =>
+            [name, fs.lstatSync(path.join(fixture.projectRoot, name))]));
+        const originalModes = {
+            'composer.json': 0o640,
+            'composer.lock': 0o600,
+            'package.json': 0o644,
+            'package-lock.json': 0o660,
+        };
+        for (const [name, mode] of Object.entries(originalModes)) {
+            fs.chmodSync(path.join(fixture.projectRoot, name), mode);
+        }
+        const invocations = [];
+        const executableVersions = new Map(
+            adapterContract.components
+                .filter(({kind}) => kind === 'command')
+                .map((component) => [component.executable, component.version])
+        );
+        const run = (command, args, options) => {
+            invocations.push({command, args, cwd: options.cwd});
+            if (command === 'composer' && args[0] === 'install') {
+                for (const executable of ['php-cs-fixer', 'pest']) {
+                    const executablePath = path.join(fixture.projectRoot, 'vendor', 'bin', executable);
+                    fs.mkdirSync(path.dirname(executablePath), {recursive: true});
+                    fs.writeFileSync(executablePath, '#!/bin/sh\nexit 0\n', {mode: 0o755});
+                    fs.chmodSync(executablePath, 0o755);
+                }
+                return {status: 0, stdout: '', stderr: '', error: undefined};
             }
-            return {status: 0, stdout: '', stderr: '', error: undefined};
-        }
-        if (command === 'npm' && args[0] === 'ci') {
-            for (const executable of ['sass', 'uglifyjs', 'eslint', 'stylelint', 'tsc', 'playwright']) {
-                const executablePath = path.join(fixture.projectRoot, 'node_modules', '.bin', executable);
-                fs.mkdirSync(path.dirname(executablePath), {recursive: true});
-                fs.writeFileSync(executablePath, '#!/bin/sh\nexit 0\n', {mode: 0o755});
-                fs.chmodSync(executablePath, 0o755);
+            if (command === 'npm' && args[0] === 'ci') {
+                for (const executable of ['sass', 'uglifyjs', 'eslint', 'stylelint', 'tsc', 'playwright']) {
+                    const executablePath = path.join(fixture.projectRoot, 'node_modules', '.bin', executable);
+                    fs.mkdirSync(path.dirname(executablePath), {recursive: true});
+                    fs.writeFileSync(executablePath, '#!/bin/sh\nexit 0\n', {mode: 0o755});
+                    fs.chmodSync(executablePath, 0o755);
+                }
+                return {status: 0, stdout: '', stderr: '', error: undefined};
             }
-            return {status: 0, stdout: '', stderr: '', error: undefined};
-        }
-        if (command === 'composer' && args[0] === 'audit') {
-            return {status: 0, stdout: '{"advisories":{}}', stderr: '', error: undefined};
-        }
-        if (command === 'npm' && args[0] === 'audit') {
-            return {
-                status: 0,
-                stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}',
-                stderr: '',
-                error: undefined,
-            };
-        }
-        const executable = path.basename(command);
-        if (args[0] === 'install' && executable === 'playwright') {
-            return {status: 0, stdout: '', stderr: '', error: undefined};
-        }
-        if (executableVersions.has(executable)) {
-            return {
-                status: 0,
-                stdout: `${executable} ${executableVersions.get(executable)}\n`,
-                stderr: '',
-                error: undefined,
-            };
-        }
-        throw new Error(`unexpected command ${command}`);
-    };
+            if (command === 'composer' && args[0] === 'audit') {
+                return {status: 0, stdout: '{"advisories":{}}', stderr: '', error: undefined};
+            }
+            if (command === 'npm' && args[0] === 'audit') {
+                return {
+                    status: 0,
+                    stdout: '{"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":0,"critical":0}},"vulnerabilities":{}}',
+                    stderr: '',
+                    error: undefined,
+                };
+            }
+            const executable = path.basename(command);
+            if (args[0] === 'install' && executable === 'playwright') {
+                return {status: 0, stdout: '', stderr: '', error: undefined};
+            }
+            if (executableVersions.has(executable)) {
+                return {
+                    status: 0,
+                    stdout: `${executable} ${executableVersions.get(executable)}\n`,
+                    stderr: '',
+                    error: undefined,
+                };
+            }
+            throw new Error(`unexpected command ${command}`);
+        };
 
-    const result = applyCandidate({
-        contract: adapterContract,
-        projectRoot: fixture.projectRoot,
-        planPath: fixture.planPath,
-        run,
+        const result = applyCandidate({
+            contract: adapterContract,
+            projectRoot: fixture.projectRoot,
+            planPath: fixture.planPath,
+            run,
+        });
+
+        assert.equal(result.status, 'GO');
+        assert.deepEqual(invocations.slice(0, 3).map(({command, args}) => ({
+            command: path.basename(command),
+            args,
+        })), [
+            {command: 'composer', args: ['install', '--no-scripts', '--no-interaction']},
+            {command: 'npm', args: ['ci', '--ignore-scripts']},
+            {command: 'playwright', args: ['install', 'chromium']},
+        ]);
+        for (const [name, content] of Object.entries(fixture.candidateFiles)) {
+            const filePath = path.join(fixture.projectRoot, name);
+            assert.equal(fs.readFileSync(filePath, 'utf8'), content, name);
+            assert.equal(fs.statSync(filePath).mode & 0o777, originalModes[name], name);
+        }
+        for (const [name, content] of Object.entries(fixture.visualReviewFiles)) {
+            const filePath = path.join(fixture.projectRoot, name);
+            assert.deepEqual(fs.readFileSync(filePath), content, name);
+            assert.equal(fs.statSync(filePath).mode & 0o777, visualMode ?? 0o644, name);
+            if (visualMode !== null) {
+                const after = fs.lstatSync(filePath);
+                for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
+                    assert.equal(after[field], visualBefore.get(name)[field], `${name}: ${field}`);
+                }
+            }
+        }
+        assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi', 'prism-tool', 'work')), false);
     });
-
-    assert.equal(result.status, 'GO');
-    assert.deepEqual(invocations.slice(0, 3).map(({command, args}) => ({
-        command: path.basename(command),
-        args,
-    })), [
-        {command: 'composer', args: ['install', '--no-scripts', '--no-interaction']},
-        {command: 'npm', args: ['ci', '--ignore-scripts']},
-        {command: 'playwright', args: ['install', 'chromium']},
-    ]);
-    for (const [name, content] of Object.entries(fixture.candidateFiles)) {
-        const filePath = path.join(fixture.projectRoot, name);
-        assert.equal(fs.readFileSync(filePath, 'utf8'), content, name);
-        assert.equal(fs.statSync(filePath).mode & 0o777, originalModes[name], name);
-    }
-    for (const [name, content] of Object.entries(fixture.visualReviewFiles)) {
-        const filePath = path.join(fixture.projectRoot, name);
-        assert.deepEqual(fs.readFileSync(filePath), content, name);
-        assert.equal(fs.statSync(filePath).mode & 0o777, 0o644, name);
-    }
-    assert.equal(fs.existsSync(path.join(fixture.projectRoot, '.pi', 'prism-tool', 'work')), false);
-});
+}
 
 test('retains desired files and reports the fixed retry when Chromium installation fails', (t) => {
     const fixture = makeCandidateFixture();
