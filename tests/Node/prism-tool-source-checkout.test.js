@@ -112,7 +112,10 @@ test('rejects unsafe source evidence modes and symlinks without repairing them',
         const before = fs.lstatSync(target);
 
         assert.equal(route(root).status, 'NO-GO', `${relative}: ${change}`);
-        assert.deepEqual(fs.lstatSync(target), before);
+        const after = fs.lstatSync(target);
+        for (const field of ['dev', 'ino', 'uid', 'gid', 'mode', 'nlink', 'size', 'mtimeMs', 'ctimeMs']) {
+            assert.equal(after[field], before[field], `${relative}: ${change}: ${field}`);
+        }
     }
 });
 
