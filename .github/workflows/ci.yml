@@ -83,8 +83,8 @@ jobs:
       - name: Install pi (pinned)
         # validate-harness.sh imports the safety extension via `pi -e`, and the
         # check_skill_frontmatter shell test depends on the pi CLI. Pinned for
-        # reproducibility (matches the pinned core peerDependency).
-        run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.84.1
+        # reproducibility (matches the development SDK baseline).
+        run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
 
       - name: Install shellcheck 0.11.0
         # Pinned for local/CI parity with a verified SHA-256 (no curl-to-tar
@@ -278,13 +278,14 @@ jobs:
           node packages/prism-core/scripts/prism-tool.js run commitlint -- --from="origin/${BASE_REF}" --to=HEAD --verbose
 
   package-smoke:
-    name: Package smoke (${{ matrix.os }})
+    name: Package smoke (${{ matrix.os }}, SDK ${{ matrix.sdk }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        sdk: ['0.84.1', '0.85.1']
 
     steps:
       - name: Checkout
@@ -298,32 +299,46 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Pack and smoke both packages from an unrelated consumer
-        shell: bash
-        run: |
-          set -euo pipefail
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-          npm pack ./packages/prism-core --ignore-scripts --pack-destination "$tmpdir" >/dev/null
-          npm pack ./packages/prism-php-web --ignore-scripts --pack-destination "$tmpdir" >/dev/null
-          core_tgz=$(ls "$tmpdir"/kyaulabs-prism-core-*.tgz)
-          adapter_tgz=$(ls "$tmpdir"/kyaulabs-prism-php-web-*.tgz)
-          tar -tzf "$core_tgz" > "$tmpdir/core.list"
-          tar -tzf "$adapter_tgz" > "$tmpdir/adapter.list"
-          grep -qx 'package/toolchain.json' "$tmpdir/core.list"
-          grep -qx 'package/scripts/prism-tool.js' "$tmpdir/core.list"
-          grep -qx 'package/toolchain.json' "$tmpdir/adapter.list"
-          grep -qx 'package/scripts/prism-tool-adapter.js' "$tmpdir/adapter.list"
-          # Install the core package into a temporary Pi-managed root.
-          core_dir="$tmpdir/pi-root/node_modules/@kyaulabs-prism-core"
-          mkdir -p "$core_dir"
-          tar -xzf "$core_tgz" -C "$core_dir" --strip-components=1
-          # Invoke the packaged CLI from an unrelated temporary consumer project;
-          # a usage failure proves the packaged entry point executes.
-          mkdir -p "$tmpdir/consumer"
-          cd "$tmpdir/consumer"
-          if node "$core_dir/scripts/prism-tool.js" unknown-command >/dev/null 2>&1; then
-            echo "packaged CLI unexpectedly succeeded" >&2
-            exit 1
-          fi
-          echo "package smoke PASS"
+      - name: Install and verify packed reviewer
+        env:
+          SDK_VERSION: ${{ matrix.sdk }}
+        run: node tests/Package/prism-review-smoke.js --sdk "$SDK_VERSION" --network-approved=yes
+
+      - name: Retain package installation replay evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sdk-replay-${{ github.job }}-${{ strategy.job-index }}
+          path: .pi/tmp/package-smoke-*/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
+  sdk-compatibility:
+    name: Latest stable SDK compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+
+      - name: Verify latest stable in-range SDK
+        run: node tests/Package/prism-review-smoke.js --sdk latest --network-approved=yes
+
+      - name: Retain package installation replay evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sdk-replay-${{ github.job }}-${{ strategy.job-index }}
+          path: .pi/tmp/package-smoke-*/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7

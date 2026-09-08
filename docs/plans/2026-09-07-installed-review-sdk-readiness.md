@@ -46,7 +46,7 @@ The installed Core 0.6.0 SDK lookup failed. A guarded isolated doctor probe twic
 | `cli.js` | `sdk --json`, stage-specific doctor diagnostics, unchanged authority grammar |
 | `install-global.sh` | SDK check before successful deployment claims |
 | Node/package and shell tests | Missing dependency regression, real SDK compatibility, installer and removal contracts |
-| CI and maintained docs | Reproducible baselines, newer drift detection, documented remediation |
+| CI and maintained docs | Reproducible baselines, latest-stable drift detection, documented remediation |
 | Context guidance and prompt inventory | Native compaction without `/handoff` |
 
 ## Preparation after approval
@@ -932,12 +932,13 @@ Preserve the surrounding continuous-frontier and skill-transition rules.
 
 - [x] Search active package/docs surfaces for `/handoff`, `docs/handoffs`, and recommendations to write a handoff. Inspect each result rather than blanket-deleting the word. Historical ADRs/changelogs and normal skill transitions are excluded from removal. If another active reference is discovered, add its exact path to this task before editing and report that narrow plan correction.
 - [x] Run `node --test tests/Node/native-session-continuity.test.js tests/Node/toolchain-packaging.test.js`, `bash tests/Shell/wayfinder_workflow_contract_test.sh`, and the resolved harness validator. Preserve existing attribution and frontmatter.
-- [ ] Stage and commit:
+- [x] Stage and commit:
 
 ```bash
 prism-tool commit create --type refactor --scope workflow --subject "remove handoff capability in favor of native pi compaction" --refs 535
 ```
 
+Task 5 committed as `a640163bdf7168ffbdc08b1fd12f8e2f96d07e63`.
 Task 5 verification: prompt-removal and active-guidance assertions each went
 Red before their changes. The seven active files share one table-driven test
 rather than seven separately registered tests, preserving one behavior per TDD
@@ -950,6 +951,41 @@ ADR body, changelog, global installed resource, or user artifact was changed.
 
 ## Task 6: Exercise installed SDKs in package smoke and compatibility CI
 
+**Execution state: resumed after the human-approved latest-stable amendment.** Both real
+installed-package baselines (0.84.1 and 0.85.1) passed SDK readiness, isolated
+doctor, offline lock replay, and the three installed-copy negative SDK cases.
+The credential guard remained loaded with no denied reads. Independent guard
+tests reject synthetic reads through sync, callback, promise, and ESM APIs
+before filesystem access. No inference or real credential-file read occurred.
+
+The `newer` run returned npm E404: no published version matched
+`>0.85.1 <=5.0.0`. The human explicitly approved selecting the latest stable
+within `>=0.84.1 <=5.0.0`, even when it equals the baseline, and continuing
+implementation. Use the honest selector name `latest`; never call an equal
+version newer. CI pin/scaffold changes and Task 6 verification are now
+complete; the terminal issue-closing commit follows verification.
+
+Minor packaging correction: normalize npm pack JSON as an array or keyed
+object, matching the repository's existing package tests. The initial smoke
+run failed at that shape assumption before any SDK import; the corrected
+0.84.1 run and the 0.85.1 run then passed.
+
+All three lanes passed locally: 0.84.1, 0.85.1, and `latest` resolving to
+0.85.1. Local execution used Node 26.8.0 on Linux; Node 24 and macOS are
+configured CI lanes, not locally verified platforms. The focused suite passed
+152 tests and the full Node suite passed 1,558. Shell contracts passed:
+CI 53, foundation 11, architecture 39, installer 56, and Wayfinder 45.
+
+Inspected and removed only the three task-owned replay directories, each with
+its four noncredential files: `.pi/tmp/package-smoke-alkAAR`,
+`.pi/tmp/package-smoke-MIdXvJ`, and `.pi/tmp/package-smoke-GN55Fh`.
+Their directory modes were 0700 and file modes 0600. They were untracked rather
+than ignored in this checkout; no ignore-policy change was needed after exact
+cleanup. Temporary installation roots were removed by each run's `finally`.
+Harness validation, source syntax, Markdown lint, and whitespace checks passed.
+No PHP coverage gate applies to this Node/configuration slice. The production
+runtime is not using the test credential guard, and no OCR cutover occurred.
+
 **Files:**
 
 - Create: `tests/Package/prism-review-smoke.js`, `tests/Package/prism-review-model.mjs`, `tests/Package/prism-review-credential-guard.cjs`
@@ -960,17 +996,17 @@ ADR body, changelog, global installed resource, or user artifact was changed.
 
 **Interfaces:**
 
-- Smoke invocation: `node tests/Package/prism-review-smoke.js --sdk 0.84.1 --network-approved=yes` or `--sdk 0.85.1` or `--sdk newer`.
+- Smoke invocation: `node tests/Package/prism-review-smoke.js --sdk 0.84.1 --network-approved=yes` or `--sdk 0.85.1` or `--sdk latest`.
 - It packs current Core and adapter, installs Core alone with peer omission and an exact SDK override, invokes real packaged commands, and replays the installation from the generated lock. No mock substitutes for SDK import, Core doctor, or profile validation.
 - The model helper obtains test-only built-in model metadata from the installed SDK with an empty credential store, no model-file discovery, and no network. It does not select or configure a human model.
 
-- [ ] **Red: add a contract test asserting the CI smoke calls this script, the script installs with `--legacy-peer-deps`, it checks doctor and SDK outcomes, and the old `unknown-command` smoke success predicate is absent.** Read only `.github/workflows/ci.yml` and the two new test scripts. Use these independent literal assertions:
+- [x] **Red: add a contract test asserting the CI smoke calls this script, the script installs with `--legacy-peer-deps`, it checks doctor and SDK outcomes, and the old `unknown-command` smoke success predicate is absent.** Read only `.github/workflows/ci.yml` and the two new test scripts. Use these independent literal assertions:
 
 ```javascript
 assert.match(ci, /tests\/Package\/prism-review-smoke\.js/);
 assert.match(ci, /0\.84\.1/);
 assert.match(ci, /0\.85\.1/);
-assert.match(ci, /newer/);
+assert.match(ci, /latest/);
 assert.doesNotMatch(ci, /packaged CLI unexpectedly succeeded/);
 assert.match(smoke, /--legacy-peer-deps/);
 assert.match(smoke, /SDK_MISSING/);
@@ -980,7 +1016,7 @@ assert.match(smoke, /SDK_VERSION_UNSUPPORTED/);
 
 The behavior proof is the actual smoke run, not these wiring assertions.
 
-- [ ] **Green: implement the model helper as this complete ESM program.** Copy it into the temporary install root before execution so its imports resolve there, not in the checkout.
+- [x] **Green: implement the model helper as this complete ESM program.** Copy it into the temporary install root before execution so its imports resolve there, not in the checkout.
 
 ```javascript
 import {ModelRuntime} from '@earendil-works/pi-coding-agent';
@@ -997,7 +1033,7 @@ process.stdout.write(JSON.stringify({PI_PROVIDER: model.provider, PI_MODEL: mode
     PI_REASONING_LEVEL: 'off'}) + '\n');
 ```
 
-- [ ] Implement the smoke harness around the following complete operations. Keep it under `tests/Package`, outside the normal offline Node-test glob. Require exact CLI arguments and explicit network approval before any install or version query. All child processes use an allowlisted environment containing only system PATH, private HOME/cache/temp paths, `PI_OFFLINE=1`, and task model controls; no inherited Node, npm, provider, SSH, cloud, or Git configuration. Use an owner-only temporary root and a `finally` cleanup. Child commands have bounded timeouts and output buffers.
+- [x] Implement the smoke harness around the following complete operations. Keep it under `tests/Package`, outside the normal offline Node-test glob. Require exact CLI arguments and explicit network approval before any install or version query. All child processes use an allowlisted environment containing only system PATH, private HOME/cache/temp paths, `PI_OFFLINE=1`, and task model controls; no inherited Node, npm, provider, SSH, cloud, or Git configuration. Use an owner-only temporary root and a `finally` cleanup. Child commands have bounded timeouts and output buffers.
 
 ```javascript
 const childProcess = require('node:child_process');
@@ -1009,7 +1045,7 @@ const root = path.resolve(__dirname, '../..');
 const args = process.argv.slice(2);
 assert.equal(args.length, 3);
 assert.equal(args[0], '--sdk');
-assert.ok(['0.84.1', '0.85.1', 'newer'].includes(args[1]));
+assert.ok(['0.84.1', '0.85.1', 'latest'].includes(args[1]));
 assert.equal(args[2], '--network-approved=yes');
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-sdk-smoke-'));
 fs.chmodSync(work, 0o700);
@@ -1045,23 +1081,24 @@ function ok(command, argv, cwd = work, extra = {}) {
     return result.stdout;
 }
 function pack(packagePath) {
-    const entries = JSON.parse(ok('npm', ['pack', packagePath, '--json', '--ignore-scripts',
+    const output = JSON.parse(ok('npm', ['pack', packagePath, '--json', '--ignore-scripts',
         '--pack-destination', work], work));
+    const entries = Array.isArray(output) ? output : Object.values(output);
     assert.equal(entries.length, 1);
     return {file: path.join(work, entries[0].filename), files: entries[0].files};
 }
 try {
     let version = args[1];
-    if (version === 'newer') {
+    if (version === 'latest') {
         const versions = JSON.parse(ok('npm', ['view',
-            '@earendil-works/pi-coding-agent@>0.85.1 <=5.0.0', 'version', '--json']));
+            '@earendil-works/pi-coding-agent@>=0.84.1 <=5.0.0', 'version', '--json']));
         const candidates = (Array.isArray(versions) ? versions : [versions])
             .filter(value => typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value));
         candidates.sort((a, b) => {
             const x = a.split('.').map(Number), y = b.split('.').map(Number);
             return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
         });
-        assert.ok(candidates.length > 0, 'no newer stable in-range SDK is available; compatibility lane is not verified');
+        assert.ok(candidates.length > 0, 'no stable in-range SDK is available; compatibility lane is not verified');
         version = candidates.at(-1);
     }
     console.log(JSON.stringify({lane: args[1], sdkVersion: version}));
@@ -1174,8 +1211,8 @@ record();
 
 Test the guard independently with a child program calling its wrapped reader on a nonexistent synthetic credential basename, and assert the child fails and the evidence has `denied: true`; never create or read a credential file. Guard scope here is SDK credential-file regression detection, not a new security sandbox. All other sensitive-path restrictions still apply.
 
-- [ ] Preserve Task 1's dependency-declaration Red and the original missing-SDK reproduction as the causal baseline. Task 6's first Red is its CI wiring test; its negative runtime cases must explicitly assert `SDK_MISSING`, `SDK_API_UNSUPPORTED`, and `SDK_VERSION_UNSUPPORTED` on the task-owned installed copy. Do not run the new `sdk` grammar against the old executable and mistake its usage error for the original bug. Run both fixed baselines and require full positive and negative PASS.
-- [ ] Update the main CI Pi CLI install and generated PHP/web scaffold pin from `0.84.1` to `0.85.1`; update their exact assertions. Keep root lockfiles at 0.85.1. Replace the current package-smoke job's body with a matrix over `os: [ubuntu-latest, macos-latest]` and `sdk: ['0.84.1', '0.85.1']`, preserving existing pinned checkout/setup-node actions and permissions. The smoke step is:
+- [x] Preserve Task 1's dependency-declaration Red and the original missing-SDK reproduction as the causal baseline. Task 6's first Red is its CI wiring test; its negative runtime cases must explicitly assert `SDK_MISSING`, `SDK_API_UNSUPPORTED`, and `SDK_VERSION_UNSUPPORTED` on the task-owned installed copy. Do not run the new `sdk` grammar against the old executable and mistake its usage error for the original bug. Run both fixed baselines and require full positive and negative PASS.
+- [x] Update the main CI Pi CLI install and generated PHP/web scaffold pin from `0.84.1` to `0.85.1`; update their exact assertions. Keep root lockfiles at 0.85.1. Replace the current package-smoke job's body with a matrix over `os: [ubuntu-latest, macos-latest]` and `sdk: ['0.84.1', '0.85.1']`, preserving existing pinned checkout/setup-node actions and permissions. The smoke step is:
 
 ```yaml
       - name: Install and verify packed reviewer
@@ -1187,8 +1224,8 @@ Test the guard independently with a child program calling its wrapped reader on 
 Add an Ubuntu `sdk-compatibility` job with the same pinned checkout and Node 24 setup, 15-minute timeout, no persisted checkout credentials, and:
 
 ```yaml
-      - name: Verify newer in-range SDK
-        run: node tests/Package/prism-review-smoke.js --sdk newer --network-approved=yes
+      - name: Verify latest stable in-range SDK
+        run: node tests/Package/prism-review-smoke.js --sdk latest --network-approved=yes
 ```
 
 Add this artifact step to both SDK jobs after the smoke step; the discovered v4 tag resolved to this commit, which must remain pinned:
@@ -1205,19 +1242,19 @@ Add this artifact step to both SDK jobs after the smoke step; the discovered v4 
           retention-days: 7
 ```
 
-The literal path includes only the four task-created replay files, not general `.pi` state. Local runs leave these ignored evidence directories for inspection; delete only the exact task-created directories after validation and report cleanup. Do not delete other `.pi/tmp` contents.
+The literal path includes only the four task-created replay files, not general `.pi` state. Local runs leave these task-owned evidence directories for inspection; delete only the exact task-created directories after validation and report cleanup. Do not delete other `.pi/tmp` contents.
 
-Do not mark a failed compatibility lane successful or skip it silently when no version qualifies. Record the exact resolved SDK version in its output. The pinned baseline lanes and root `npm ci` evidence remain release gates; the newer lane does not replace them. Retain the generated consumer lock and exact-version report as a CI artifact before task cleanup by copying only those noncredential files to the job's artifact directory; re-running `npm ci` from that lock is the replay path.
+Do not mark a failed compatibility lane successful or skip it silently when no version qualifies. Record the exact resolved SDK version in its output. The pinned baseline lanes and root `npm ci` evidence remain release gates; the latest-stable lane does not replace them. Retain the generated consumer lock and exact-version report as a CI artifact before task cleanup by copying only those noncredential files to the job's artifact directory; re-running `npm ci` from that lock is the replay path.
 
-- [ ] Extend `tests/Shell/pi_ci_contract_test.sh` for both baselines, the newer lane, and no legacy unknown-command predicate. Preserve its existing Linux/macOS, `npm pack`, temporary-root, authentication, and managed-tool assertions, adjusting the `npm pack`/`mktemp` wiring checks to inspect the owned smoke script when logic has moved there.
-- [ ] Document the distinction between locked root verification, fixed-SDK installed-package lanes with lock replay, and newer-version drift detection. Explicitly state that only a human's post-release installed-consumer doctor result satisfies the released-consumer acceptance criterion.
-- [ ] Run:
+- [x] Extend `tests/Shell/pi_ci_contract_test.sh` for both baselines, the latest-stable lane, and no legacy unknown-command predicate. Preserve its existing Linux/macOS, `npm pack`, temporary-root, authentication, and managed-tool assertions, adjusting the `npm pack`/`mktemp` wiring checks to inspect the owned smoke script when logic has moved there.
+- [x] Document the distinction between locked root verification, fixed-SDK installed-package lanes with lock replay, and latest-stable drift detection. Explicitly state that only a human's post-release installed-consumer doctor result satisfies the released-consumer acceptance criterion.
+- [x] Run:
 
 ```bash
 node --test tests/Node/prism-review-package-contract.test.js tests/Node/prism-review-sdk.test.js tests/Node/prism-review-cli.test.js tests/Node/prism-review-session.test.js tests/Node/check-peer-deps.test.js tests/Node/toolchain-packaging.test.js tests/Node/native-session-continuity.test.js tests/Node/prism-tool-php-web-bootstrap.test.js
 node tests/Package/prism-review-smoke.js --sdk 0.84.1 --network-approved=yes
 node tests/Package/prism-review-smoke.js --sdk 0.85.1 --network-approved=yes
-node tests/Package/prism-review-smoke.js --sdk newer --network-approved=yes
+node tests/Package/prism-review-smoke.js --sdk latest --network-approved=yes
 bash tests/Shell/pi_ci_contract_test.sh
 bash tests/Shell/prism_review_foundation_contract_test.sh
 bash tests/Shell/prism_review_architecture_contract_test.sh
@@ -1225,9 +1262,9 @@ bash tests/Shell/install_global_toolchain_test.sh
 bash tests/Shell/wayfinder_workflow_contract_test.sh
 ```
 
-If a newer SDK fails capability or isolation checks, retain the bounded diagnostic, record the exact version, and return to the specific compatibility assumption; never widen away the failure. No real inference is needed.
+If the latest-stable SDK fails capability or isolation checks, retain the bounded diagnostic, record the exact version, and return to the specific compatibility assumption; never widen away the failure. No real inference is needed.
 
-- [ ] Run the full Node suite with `npm run test:node` and the resolved harness validator. Inspect changed source for temporary probes, raw exception output, and unintended authority changes. Stage this task's files and create the sole terminal issue-closing implementation commit:
+- [x] Run the full Node suite with `npm run test:node` and the resolved harness validator. Inspect changed source for temporary probes, raw exception output, and unintended authority changes. Stage this task's files and create the sole terminal issue-closing implementation commit:
 
 ```bash
 prism-tool commit create --type fix --scope review --subject "verify installed sdk readiness across supported pi baselines" --fixes 535
@@ -1248,7 +1285,7 @@ prism-tool commit create --type fix --scope review --subject "verify installed s
 - Missing/version/API diagnostics and credential-free doctor: Tasks 2–3.
 - Installer SDK verification: Task 4.
 - Actual package resolution, positive readiness and incompatible SDK failures: Task 6.
-- Minimum/0.85.1/newer compatibility evidence and lock replay: Task 6.
+- Minimum/0.85.1/latest-stable compatibility evidence and lock replay: Task 6.
 - External trust, OCR and human release checkpoint: global constraints, Tasks 3/6 and final verification.
 - Approved capability removal with history and safety preserved: Task 5 and ADR-0111.
 - Issue provenance: all earlier logical commits use `--refs 535`; Task 6 is the sole `--fixes 535` recipe. Cleanup adds no second closing reference.

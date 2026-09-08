@@ -146,6 +146,29 @@ the SDK when API compatibility fails. Do not point the reviewer at checkout
 code or repair resolution with `NODE_PATH`. No readiness result authorizes OCR
 removal or bypasses the human release, publication, and installation checkpoint.
 
+## Package compatibility verification
+
+Root `npm ci` verifies the committed development dependency graph. Separate
+installed-package CI lanes pack Core and the adapter, install Core into an
+independent consumer with peer installation and lifecycle scripts disabled,
+and replay the generated consumer lock with offline `npm ci`.
+
+The fixed lanes use SDK 0.84.1 and 0.85.1 on Linux and macOS with Node 24.
+A separate lane selects the latest stable SDK within `>=0.84.1 <=5.0.0` and
+records its exact version. It may equal a fixed baseline; it does not claim a
+newer release was tested when none exists. Missing versions and failed API or
+isolation checks fail the lane rather than silently skipping it.
+
+Each smoke run exercises real SDK import and isolated doctor initialization
+without inference. A test-only guard detects credential-file access, including
+attempts caught by the SDK. Installed-copy negative cases must report
+`SDK_MISSING`, `SDK_API_UNSUPPORTED`, and `SDK_VERSION_UNSUPPORTED`.
+
+CI retains only the consumer manifest, generated lock, Core archive, and exact
+version report for replay. These tests do not replace fixed-baseline release
+evidence or authorize OCR cutover. Only the human's post-release, externally
+installed consumer doctor result satisfies released-consumer acceptance.
+
 ## Commands and exits
 
 Run the executable from the repository being reviewed:

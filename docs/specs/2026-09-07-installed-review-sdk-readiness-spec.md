@@ -42,7 +42,7 @@ bounded remediation rather than exposing raw exceptions or configuration.
    provider failures.
 4. As a maintainer, I want package smoke tests to exercise actual SDK imports
    and readiness, not merely demonstrate that a command exits nonzero.
-5. As a maintainer, I want reproducible baseline checks and a newer-version
+5. As a maintainer, I want reproducible baseline checks and a latest-stable
    compatibility lane that detects drift.
 6. As a reviewer, I want external Core and adapter provenance preserved, with
    OCR and current review authority unchanged until their separate cutover.
@@ -78,8 +78,9 @@ bounded remediation rather than exposing raw exceptions or configuration.
   live authentication probe; authentication remains unknown until an
   authorized review attempt.
 - Release verification uses exact baseline SDK versions and committed
-  dependency evidence. CI covers 0.84.1, 0.85.1, and a newer in-range release
-  through a separately identifiable compatibility lane. The compatibility
+  dependency evidence. CI covers 0.84.1, 0.85.1, and the latest stable release
+  within `>=0.84.1 <=5.0.0` through a separately identifiable compatibility
+  lane. The selected version may equal a pinned baseline. The compatibility
   lane records the exact version tested and cannot substitute for baseline
   release evidence.
 - The selected provider, model, and reasoning level remain human-controlled.
@@ -121,7 +122,7 @@ The user confirmed these seams:
   session-handoff command or document recommendation. Assert native compaction
   guidance remains and genuine blocker/approval gates are preserved. Historical
   records and ordinary skill transitions are outside the removal assertion.
-- CI: retain exact minimum and 0.85.1 baselines and add a newer-version lane.
+- CI: retain exact minimum and 0.85.1 baselines and add a latest-stable lane.
 - Human release checkpoint: after publication and installation, run doctor
   from the independent consumer with valid model, profile, and provider
   prerequisites. Require `GO` and external provenance evidence before claiming
@@ -141,6 +142,11 @@ not mock the SDK import or replace the whole readiness operation with success.
 - Publication, pushes, or GitHub pull-request mutations by the agent.
 
 ## Further Notes
+
+During execution, npm reported no version matching `>0.85.1 <=5.0.0`.
+The human approved tracking the latest stable in the full supported range,
+including a version equal to the baseline, rather than waiting for a newer
+release. This does not widen version policy or weaken API checks.
 
 Clean temporary installs reproduced missing ESM imports with peer installation
 disabled. Pi 0.84.1 and 0.85.1 both imported successfully and passed Core 0.6.0's

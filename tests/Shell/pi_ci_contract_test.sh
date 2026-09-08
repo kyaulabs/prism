@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/09/01 -0700 Exp $
+# $KYAULabs: pi_ci_contract_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # ── Pi-native CI contract (Task 11) ──────────────────────────────────────────
 # The consolidated contract for .github/workflows/ci.yml. Replaces the legacy
@@ -13,6 +13,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 CI="$REPO_ROOT/.github/workflows/ci.yml"
+SMOKE="$REPO_ROOT/tests/Package/prism-review-smoke.js"
 
 if [ ! -f "$CI" ]; then
 	fail "ci.yml is missing"
@@ -21,14 +22,17 @@ if [ ! -f "$CI" ]; then
 fi
 
 failures=0
-assert_ci_contains() {
-	local pattern="$1" label="$2"
-	if grep -qE -e "$pattern" "$CI"; then
+assert_file_contains() {
+	local file="$1" pattern="$2" label="$3"
+	if grep -qE -e "$pattern" "$file"; then
 		pass "$label"
 	else
-		fail "$label (missing $pattern in ci.yml)"
+		fail "$label (missing $pattern in $file)"
 		failures=$((failures + 1))
 	fi
+}
+assert_ci_contains() {
+	assert_file_contains "$CI" "$1" "$2"
 }
 assert_ci_not_contains() {
 	local pattern="$1" label="$2"
@@ -48,7 +52,7 @@ assert_ci_contains 'verify-protected-push.sh' 'protected-push script is invoked'
 echo "── runtime floors and pinning ──"
 assert_ci_contains "php-version: '8.5'" 'PHP 8.5 is configured'
 assert_ci_contains 'node-version:.*24' 'Node 24 satisfies the core engine floor'
-assert_ci_contains '@earendil-works/pi-coding-agent@0.84.1' 'Pi is pinned to 0.84.1'
+assert_ci_contains '@earendil-works/pi-coding-agent@0.85.1' 'Pi is pinned to 0.85.1'
 
 echo "── bounded external provisioning ──"
 assert_ci_contains 'SEMGREP_RANGE.*1\.173\.0' 'Semgrep provisioning names the >=1.173.0 lower bound'
@@ -87,7 +91,8 @@ echo "── verification surface ──"
 assert_ci_contains 'npm run test:node|node --test' 'Node tests run'
 assert_ci_contains 'composer test:shell|tests/Shell/.*_test\.sh' 'Shell regression tests run (composer test:shell or inline loop)'
 assert_ci_contains 'validate-harness.sh' 'Harness validation runs'
-assert_ci_contains 'npm pack' 'Package smoke packs archives'
+assert_ci_contains 'tests/Package/prism-review-smoke.js' 'Package smoke invokes the owned test program'
+assert_file_contains "$SMOKE" "'pack', packagePath" 'Package smoke packs archives'
 assert_ci_contains 'composer audit|npm audit' 'Dependency audits run'
 assert_ci_contains 'prism-tool.js run php-cs-fixer' 'Adapter lint runs through the launcher'
 assert_ci_contains 'prism-tool(\.js)? server run @kyaulabs/prism-php-web:browser-fixture --tool pest' 'Pest coverage uses the supervised browser fixture profile'
@@ -98,7 +103,16 @@ assert_ci_contains 'prism-tool.js run playwright' 'Playwright Chromium installs 
 assert_ci_contains 'package-smoke' 'A package-smoke job exists'
 assert_ci_contains 'macos-latest' 'Package smoke covers macOS'
 assert_ci_contains 'ubuntu-latest' 'Jobs run on ubuntu-latest'
-assert_ci_contains 'mktemp' 'Package smoke uses a temporary consumer project'
+assert_file_contains "$SMOKE" 'fs\.mkdtempSync' 'Package smoke uses a temporary consumer project'
+assert_file_contains "$SMOKE" 'credential-guard' 'Package smoke guards credential reads'
+assert_file_contains "$SMOKE" 'authentication.*UNKNOWN' 'Package doctor leaves authentication unprobed'
+assert_file_contains "$SMOKE" '--legacy-peer-deps' 'Package smoke matches Pi peer omission'
+assert_file_contains "$SMOKE" "'ci'.*--offline" 'Package smoke replays its lock offline'
+assert_ci_contains 'sdk:.*0[.]84[.]1.*0[.]85[.]1' 'Package smoke retains both fixed SDK baselines'
+assert_ci_contains '--sdk latest --network-approved=yes' 'Compatibility lane tests latest stable in range'
+assert_ci_contains 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' 'Replay upload action is pinned'
+assert_ci_contains 'path: [.]pi/tmp/package-smoke-' 'Only package-smoke replay evidence is uploaded'
+assert_ci_not_contains 'unknown-command|packaged CLI unexpectedly succeeded' 'Usage failure is not a smoke success predicate'
 
 echo "── no direct declared-tool invocation after bootstrap ──"
 assert_ci_not_contains 'npx (stylelint|eslint|commitlint|playwright)' 'No direct npx for declared tools'

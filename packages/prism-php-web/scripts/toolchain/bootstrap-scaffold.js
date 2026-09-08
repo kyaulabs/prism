@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -379,7 +379,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: python3 -m venv /tmp/semgrep && /tmp/semgrep/bin/pip install 'semgrep>=1.173.0,<2.0.0'
       - run: npm install -g --ignore-scripts '@alibaba-group/open-code-review@>=1.9.1 <2.0.0'
-      - run: npm install -g --ignore-scripts '@earendil-works/pi-coding-agent@0.84.1'
+      - run: npm install -g --ignore-scripts '@earendil-works/pi-coding-agent@0.85.1'
       - run: pi install npm:@kyaulabs/prism-core@${request.adapter.packageVersion}
       - run: pi install -l npm:@kyaulabs/prism-php-web@${request.adapter.packageVersion}
       - run: prism-tool doctor --local-only
