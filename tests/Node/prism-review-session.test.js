@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-session.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: prism-review-session.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -186,7 +186,7 @@ test('resolves the exact active Pi model without auth readiness checks', async (
     });
     assert.equal(active.model, MODEL);
     assert.deepEqual(fixture.calls.slice(0, 2), [
-        {name: 'ModelRuntime.create', options: {refreshOnCreate: false}},
+        {name: 'ModelRuntime.create', options: {refreshOnCreate: false, allowModelNetwork: false}},
         {name: 'getModel', provider: ENV.PI_PROVIDER, id: ENV.PI_MODEL},
     ]);
     assert.equal(fixture.calls.some(({name}) => /Auth/.test(name)), false);
@@ -199,19 +199,19 @@ test('rejects invalid model controls, unknown models, and unsupported reasoning'
         {...ENV, PI_MODEL: 'bad model'},
         {...ENV, PI_REASONING_LEVEL: 'extreme'},
     ]) {
-        await assert.rejects(() => resolveActiveModel({env, loadSdk: fakeSdk().loadSdk}), /active model/i);
+        await assert.rejects(() => resolveActiveModel({env, loadSdk: fakeSdk().loadSdk}), {message: 'MODEL_CONTROLS_INVALID'});
     }
     await assert.rejects(() => resolveActiveModel({
         env: ENV, loadSdk: fakeSdk(null, {model: null}).loadSdk,
-    }), /unavailable/i);
+    }), {message: 'MODEL_UNAVAILABLE'});
     await assert.rejects(() => resolveActiveModel({
         env: ENV,
         loadSdk: fakeSdk(null, {model: {...MODEL, reasoning: false}}).loadSdk,
-    }), /reasoning/i);
+    }), {message: 'MODEL_REASONING_UNSUPPORTED'});
     await assert.rejects(() => resolveActiveModel({
         env: {...ENV, PI_REASONING_LEVEL: 'max'},
         loadSdk: fakeSdk(null, {model: {...MODEL, thinkingLevelMap: {max: null}}}).loadSdk,
-    }), /reasoning/i);
+    }), {message: 'MODEL_REASONING_UNSUPPORTED'});
 });
 
 test('calculates a conservative bounded source allowance', () => {
@@ -557,6 +557,129 @@ test('inspects isolated SDK construction without inference', async () => {
     assert.equal(fixture.calls.some(({name}) => name === 'session.prompt'), false);
     assert.equal(fixture.calls.some(({name}) => name === 'session.dispose'), true);
     assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
+});
+
+test('doctor initializes a credential-free local model runtime', async () => {
+    const fixture = fakeSdk();
+    await inspectIsolatedRuntime({repositoryRoot: REPOSITORY_ROOT, tempRoot: TEMP_ROOT,
+        env: ENV, loadSdk: fixture.loadSdk});
+    const options = fixture.calls.find(call => call.name === 'ModelRuntime.create').options;
+    assert.equal(options.refreshOnCreate, false);
+    assert.equal(options.allowModelNetwork, false);
+    assert.equal(await options.credentials.read('fixture'), undefined);
+    assert.deepEqual(await options.credentials.list(), []);
+    await assert.rejects(() => options.credentials.modify('fixture', async () => undefined));
+    await assert.rejects(() => options.credentials.delete('fixture'));
+});
+
+test('review model resolution retains SDK-owned credential delegation', async () => {
+    const fixture = fakeSdk();
+    await resolveActiveModel({env: ENV, loadSdk: fixture.loadSdk});
+    const options = fixture.calls.find(call => call.name === 'ModelRuntime.create').options;
+    assert.equal(Object.hasOwn(options, 'credentials'), false);
+    assert.equal(options.allowModelNetwork, false);
+});
+
+test('doctor rejects unsupported SDK exports before runtime initialization', async () => {
+    const fixture = fakeSdk();
+    const sdk = await fixture.loadSdk();
+    delete sdk.createAgentSession;
+    await assert.rejects(() => inspectIsolatedRuntime({repositoryRoot: REPOSITORY_ROOT,
+        tempRoot: TEMP_ROOT, env: ENV, loadSdk: async () => sdk}), {message: 'SDK_API_UNSUPPORTED'});
+    assert.equal(fixture.calls.length, 0);
+});
+
+test('doctor validates returned SDK methods and disposes rejected sessions', async () => {
+    for (const target of ['runtime', 'loader', 'session']) {
+        const fixture = fakeSdk();
+        const sdk = await fixture.loadSdk();
+        if (target === 'runtime') sdk.ModelRuntime.create = async () => ({});
+        if (target === 'loader') sdk.DefaultResourceLoader.prototype.getSystemPromptSource = undefined;
+        if (target === 'session') {
+            const create = sdk.createAgentSession;
+            sdk.createAgentSession = async options => {
+                const created = await create(options);
+                created.session.abort = undefined;
+                return created;
+            };
+        }
+        await assert.rejects(() => inspectIsolatedRuntime({repositoryRoot: REPOSITORY_ROOT,
+            tempRoot: TEMP_ROOT, env: ENV, loadSdk: async () => sdk}), {message: 'SDK_API_UNSUPPORTED'});
+        if (target === 'session') assert.equal(fixture.calls.some(call => call.name === 'session.dispose'), true);
+        assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
+    }
+});
+
+test('doctor redacts local model failures without changing live provider classification', async () => {
+    for (const stage of ['create', 'getModel']) {
+        const fixture = fakeSdk(null, {runtimeError: new Error('401 PRIVATE_CANARY')});
+        const sdk = await fixture.loadSdk();
+        if (stage === 'getModel') sdk.ModelRuntime.create = async () => ({
+            getModel() { throw new Error('401 PRIVATE_CANARY'); },
+        });
+        await assert.rejects(() => inspectIsolatedRuntime({repositoryRoot: REPOSITORY_ROOT,
+            tempRoot: TEMP_ROOT, env: ENV, loadSdk: async () => sdk}), {message: 'MODEL_RUNTIME_FAILED'});
+        assert.deepEqual(await runIsolatedSession(request(fixture, {loadSdk: async () => sdk})), {
+            ok: false, outcome: 'INCONCLUSIVE', reason: 'PROVIDER_AUTH_FAILED',
+        });
+    }
+});
+
+test('resource failures have bounded isolation diagnostics rather than provider errors', async () => {
+    for (const stage of ['construct', 'reload', 'state']) {
+        const fixture = fakeSdk();
+        const sdk = await fixture.loadSdk();
+        const Loader = sdk.DefaultResourceLoader;
+        sdk.DefaultResourceLoader = class extends Loader {
+            constructor(options) {
+                super(options);
+                if (stage === 'construct') throw new Error('401 PRIVATE_CANARY');
+            }
+            async reload() {
+                if (stage === 'reload') throw new Error('401 PRIVATE_CANARY');
+                return super.reload();
+            }
+            getSkills() {
+                if (stage === 'state') throw new Error('401 PRIVATE_CANARY');
+                return super.getSkills();
+            }
+        };
+        await assert.rejects(() => inspectIsolatedRuntime({repositoryRoot: REPOSITORY_ROOT,
+            tempRoot: TEMP_ROOT, env: ENV, loadSdk: async () => sdk}), {message: 'RESOURCE_ISOLATION_FAILED'});
+        assert.deepEqual(await runIsolatedSession(request(fixture, {loadSdk: async () => sdk})), {
+            ok: false, outcome: 'INCONCLUSIVE', reason: 'RESOURCE_ISOLATION_FAILED',
+        });
+        assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
+    }
+});
+
+test('doctor bounds session preparation failures while live review preserves provider errors', async () => {
+    const fixture = fakeSdk();
+    const sdk = await fixture.loadSdk();
+    sdk.createAgentSession = async () => { throw new Error('401 PRIVATE_CANARY'); };
+    await assert.rejects(() => inspectIsolatedRuntime({repositoryRoot: REPOSITORY_ROOT,
+        tempRoot: TEMP_ROOT, env: ENV, loadSdk: async () => sdk}), {message: 'RESOURCE_ISOLATION_FAILED'});
+    assert.deepEqual(await runIsolatedSession(request(fixture, {loadSdk: async () => sdk})), {
+        ok: false, outcome: 'INCONCLUSIVE', reason: 'PROVIDER_AUTH_FAILED',
+    });
+    assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
+});
+
+test('doctor attempts all cleanup and reports bounded cleanup failures', async () => {
+    for (const stage of ['dispose', 'remove']) {
+        const fixture = fakeSdk(null, stage === 'dispose' ? {disposeError: new Error('PRIVATE_CANARY')} : {});
+        let removed = false;
+        await assert.rejects(() => inspectIsolatedRuntime({repositoryRoot: REPOSITORY_ROOT,
+            tempRoot: TEMP_ROOT, env: ENV, loadSdk: fixture.loadSdk,
+            removeTemp(target) {
+                fs.rmSync(target, {recursive: true, force: true});
+                removed = true;
+                if (stage === 'remove') throw new Error('PRIVATE_CANARY');
+            },
+        }), {message: 'CLEANUP_FAILED'});
+        assert.equal(removed, true);
+        assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
+    }
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

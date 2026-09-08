@@ -116,6 +116,11 @@ using it deliberately. See [Review runtime and authority compatibility
 bridge](docs/review-runtime.md) for the complete grammar, state model, limits,
 provider cost, and dual-read preflight behavior.
 
+Use `prism-review sdk --json` to check Core’s runtime SDK dependency without
+model selection, credentials, or inference. See [SDK prerequisite checks and
+readiness diagnostics](docs/review-runtime.md#sdk-prerequisite-check) before
+running the consumer-specific doctor.
+
 The Core Markdown profile checks changed ADRs, `docs/`, maintained root docs,
 package READMEs and package docs, and maintained extension READMEs:
 

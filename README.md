@@ -126,6 +126,9 @@ gates, TDD cycle, review chain, and finalization rules.
 Core also ships a non-authoritative `prism-review` foundation for bounded ad hoc
 review. It does not replace the current OCR-backed `code-review` or write review
 chain state. See [Review runtime foundation](packages/prism-core/docs/review-runtime.md).
+Use `prism-review sdk --json` for a model-independent installed SDK check;
+[readiness diagnostics](packages/prism-core/docs/review-runtime.md#sdk-prerequisite-check)
+explain its limits and doctor’s additional checks.
 
 Ordinary commits use one standalone launcher call after exact staging:
 

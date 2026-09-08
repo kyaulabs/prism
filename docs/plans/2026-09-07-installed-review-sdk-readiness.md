@@ -468,7 +468,7 @@ test('valid package metadata and API evidence returns the imported SDK', async t
 ```
 
 - [x] Rerun `node --test tests/Node/prism-review-sdk.test.js tests/Node/check-peer-deps.test.js`. Run syntax checks on the three new modules with `node --check`.
-- [ ] Stage this task's files and commit:
+- [x] Stage this task's files and commit:
 
 ```bash
 prism-tool commit create --type fix --scope review --subject "validate package-relative sdk version and capabilities" --refs 535
@@ -476,6 +476,7 @@ prism-tool commit create --type fix --scope review --subject "validate package-r
 
 ### Task 2 execution evidence
 
+Task 2 committed as `a6b7b92546797bba76ab509f4c8efd030a877ea2`.
 Task 1 committed as `b7d8507a63f6b432f8c741c00e55fbc8d4bc4506`.
 Task 2 passed 35 focused tests and all 1540 Node tests. Syntax checks on all
 three new modules and harness validation passed. The version matrix includes
@@ -505,7 +506,7 @@ Actual installed-package SDK import remains Task 6's separate proof.
 - SDK/doctor failure: existing identity fields plus `{reason, remediation}` from `diagnostic()`.
 - `resolveActiveModel(options)` accepts internal `readinessOnly: boolean`; `inspectIsolatedRuntime` always sets it true. Review execution leaves it false.
 
-- [ ] **Red: add this CLI test and reject malformed SDK grammar through the existing invalid-argument table.**
+- [x] **Red: add this CLI test and reject malformed SDK grammar through the existing invalid-argument table.**
 
 ```javascript
 test('sdk readiness is independent of repository, model, and authentication', async () => {
@@ -527,8 +528,8 @@ test('sdk readiness is independent of repository, model, and authentication', as
 
 Add `['sdk']`, `['sdk','--json','--json']`, and `['sdk','--json','extra']` to invalid arguments.
 
-- [ ] Run `node --test tests/Node/prism-review-cli.test.js`; expect the new SDK command test to fail.
-- [ ] **Green: import `loadSdk` and diagnostics into `cli.js`; add `prism-review sdk --json` to HELP. Insert this exact branch before doctor.**
+- [x] Run `node --test tests/Node/prism-review-cli.test.js`; expect the new SDK command test to fail.
+- [x] **Green: import `loadSdk` and diagnostics into `cli.js`; add `prism-review sdk --json` to HELP. Insert this exact branch before doctor.**
 
 ```javascript
 if (argv.length === 2 && argv[0] === 'sdk' && argv[1] === '--json') {
@@ -546,7 +547,7 @@ if (argv.length === 2 && argv[0] === 'sdk' && argv[1] === '--json') {
 
 The `inspectSdk` hook is accessible only through direct JavaScript calls in tests, never environment or user CLI input.
 
-- [ ] **Red: add these complete runtime tests using the existing `fakeSdk`, `ENV`, `REPOSITORY_ROOT`, and `TEMP_ROOT` fixtures.**
+- [x] **Red: add these complete runtime tests using the existing `fakeSdk`, `ENV`, `REPOSITORY_ROOT`, and `TEMP_ROOT` fixtures.**
 
 ```javascript
 test('doctor initializes a credential-free local model runtime', async () => {
@@ -572,7 +573,7 @@ test('review model resolution retains SDK-owned credential delegation', async ()
 
 Update the existing fake factory-call expectation to include `allowModelNetwork: false`. Update the existing invalid-controls assertion from `/active model/i` to a predicate checking `MODEL_CONTROLS_INVALID`; keep each unknown-model and reasoning assertion independently targeted.
 
-- [ ] **Green: replace `loadPublicSdk` and annotate model failures in `session-runner.js`.**
+- [x] **Green: replace `loadPublicSdk` and annotate model failures in `session-runner.js`.**
 
 ```javascript
 const {loadSdk, validateSdkApi, requireMethods} = require('./sdk');
@@ -611,8 +612,8 @@ Remove the old single `ModelRuntime.create` typeof guard; the loader now owns it
 
 In `inspectIsolatedRuntime`, call `resolveActiveModel({...options, readinessOnly: true})`. Do not change model controls or fall back to another model. Preserve public custom-model discovery; do not set `modelsPath: null` in production merely to simplify fixtures.
 
-- [ ] **Red: test missing methods on returned loader/session objects.** Use fake SDK overrides returning a loader without `getSystemPromptSource`, a runtime without `getModel`, and a created session without `abort`. Assert `SDK_API_UNSUPPORTED`, not a raw TypeError. Existing fake SDKs must provide all methods the real boundary uses.
-- [ ] **Green: after constructing the resource loader, before `reload`, validate:**
+- [x] **Red: test missing methods on returned loader/session objects.** Use fake SDK overrides returning a loader without `getSystemPromptSource`, a runtime without `getModel`, and a created session without `abort`. Assert `SDK_API_UNSUPPORTED`, not a raw TypeError. Existing fake SDKs must provide all methods the real boundary uses.
+- [x] **Green: after constructing the resource loader, before `reload`, validate:**
 
 ```javascript
 requireMethods(resourceLoader, ['reload', 'getExtensions', 'getSkills', 'getPrompts',
@@ -622,11 +623,11 @@ requireMethods(resourceLoader, ['reload', 'getExtensions', 'getSkills', 'getProm
 
 After creating a session, validate `created?.session` methods `subscribe`, `prompt`, `abort`, `dispose`. On failure, dispose it if a callable dispose exists, then rethrow the branded failure. Wrap resource creation/reload and the existing `resourceState()` validation in `atStageAsync('RESOURCE_ISOLATION_FAILED', ...)` or `atStage('RESOURCE_ISOLATION_FAILED', ...)` as applicable, preserving branded SDK failures. Replace the existing isolation-specific message throws with the branded isolation code; update `runIsolatedSession` to use the branded reason for these cases rather than regex matching the old message. Keep timeout, cancellation, provider-auth, submission, and review-outcome behavior unchanged. Limit the isolation-stage wrapper to resource-loader construction/reload/state checks; do not blanket-wrap an authorized session's provider errors. Doctor may normalize its own final session-preparation failure because it makes no provider call. Retain the existing live-review provider-auth regression tests.
 
-- [ ] **Red: add doctor cases for missing SDK, incompatible API, unavailable model, invalid profile, mismatched adapter provider, and unsafe receipt state.** At each existing injection boundary throw either `readinessError(code)` or a raw canary error. Assert the exact stage code and a nonempty static remediation, exit 3, and no canary in either output stream.
-- [ ] **Green: normalize only at the owning boundary.** In doctor, replace the ineligible trust throw with `readinessError('AUTHORITY_INELIGIBLE')`. Use `atStage('PROFILE_INVALID', ...)` for Core profile loading, optional adapter discovery, adapter profile loading, and missing profile. Use `atStage('ADAPTER_PROVIDER_INVALID', ...)` for doctor repository identity, external provider resolution and adapter policy mismatch. Unsafe criteria/check states use `RECEIPT_STATE_UNSAFE`; unsafe receipt inspection is wrapped with that stage. Change doctor's catch to `catch (error)` and spread `diagnostic(error)` instead of the generic reason. For bridge and ad hoc catches, preserve their result shape and authority special case, but serialize any branded readiness failure through `diagnostic(error)`; unclassified failures remain `RUNTIME_READINESS_FAILED`.
-- [ ] Keep cleanup in `finally`; if disposal/removal fails during doctor inspection, emit `CLEANUP_FAILED` without leaking temporary paths. Test cleanup failure through `removeTemp`, retaining the existing failure-over-success behavior.
-- [ ] Update exact-output tests deliberately: trust failures now report `AUTHORITY_INELIGIBLE`; missing profile reports `PROFILE_INVALID`; model-control tests must inject eligible trust to reach that boundary; otherwise they correctly stop at trust. Add `remediation` to full failure expectations through independent literal expectations, not by calling production `diagnostic()` to construct the entire expected report.
-- [ ] Append these maintained documentation sections to the runtime reference and link them from the two READMEs:
+- [x] **Red: add doctor cases for missing SDK, incompatible API, unavailable model, invalid profile, mismatched adapter provider, and unsafe receipt state.** At each existing injection boundary throw either `readinessError(code)` or a raw canary error. Assert the exact stage code and a nonempty static remediation, exit 3, and no canary in either output stream.
+- [x] **Green: normalize only at the owning boundary.** In doctor, replace the ineligible trust throw with `readinessError('AUTHORITY_INELIGIBLE')`. Use `atStage('PROFILE_INVALID', ...)` for Core profile loading, optional adapter discovery, adapter profile loading, and missing profile. Use `atStage('ADAPTER_PROVIDER_INVALID', ...)` for doctor repository identity, external provider resolution and adapter policy mismatch. Unsafe criteria/check states use `RECEIPT_STATE_UNSAFE`; unsafe receipt inspection is wrapped with that stage. Change doctor's catch to `catch (error)` and spread `diagnostic(error)` instead of the generic reason. For bridge and ad hoc catches, preserve their result shape and authority special case, but serialize any branded readiness failure through `diagnostic(error)`; unclassified failures remain `RUNTIME_READINESS_FAILED`.
+- [x] Keep cleanup in `finally`; if disposal/removal fails during doctor inspection, emit `CLEANUP_FAILED` without leaking temporary paths. Test cleanup failure through `removeTemp`, retaining the existing failure-over-success behavior.
+- [x] Update exact-output tests deliberately: trust failures now report `AUTHORITY_INELIGIBLE`; missing profile reports `PROFILE_INVALID`; model-control tests must inject eligible trust to reach that boundary; otherwise they correctly stop at trust. Add `remediation` to full failure expectations through independent literal expectations, not by calling production `diagnostic()` to construct the entire expected report.
+- [x] Append these maintained documentation sections to the runtime reference and link them from the two READMEs:
 
 ```markdown
 ## SDK prerequisite check
@@ -670,12 +671,21 @@ code or repair resolution with `NODE_PATH`. No readiness result authorizes OCR
 removal or bypasses the human release, publication, and installation checkpoint.
 ```
 
-- [ ] Run `node --test tests/Node/prism-review-sdk.test.js tests/Node/prism-review-cli.test.js tests/Node/prism-review-session.test.js`. Fix only regressions within these specified boundaries.
+- [x] Run `node --test tests/Node/prism-review-sdk.test.js tests/Node/prism-review-cli.test.js tests/Node/prism-review-session.test.js`. Fix only regressions within these specified boundaries.
 - [ ] Stage and commit:
 
 ```bash
 prism-tool commit create --type fix --scope review --subject "report bounded sdk and consumer readiness diagnostics" --refs 535
 ```
+
+Task 3 verification: the SDK/CLI/session suite passed 76 tests; the full Node
+suite passed 1,552 tests. Authority regressions also passed. Syntax checks,
+harness validation, Markdown lint, and whitespace checks passed. Added tests
+cover credential-free doctor initialization, unchanged live credential
+delegation and provider errors, returned SDK methods, isolation, cleanup, and
+redacted stage diagnostics. No PHP coverage gate applies to this Node-only
+slice. Real installed-package proof remains Task 6; these unit results do not
+establish released-consumer readiness or authorize OCR cutover.
 
 ## Task 4: Make installation verify SDK readiness
 

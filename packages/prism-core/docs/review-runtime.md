@@ -106,6 +106,46 @@ checks runtime permissions and composition after review and before either PR
 route succeeds. Its diagnostics do not discard completed review evidence or
 authorize another review. See [Project manifest](project-manifest.md#read-only-health).
 
+## SDK prerequisite check
+
+`prism-review sdk --json` checks package-relative SDK import, version, and
+required public APIs without Git, model selection, credentials, or inference.
+It returns exit 0 with `GO`, or exit 3 with `NO-GO`, a stable `reason`, and static
+`remediation`. This does not establish review authority or authentication.
+
+Core supplies the SDK as a runtime dependency. Its SDK and host-peer metadata
+use `>=0.84.1 <=5.0.0`, including 5.0.0. An in-range version must also satisfy
+required runtime APIs; version acceptance alone never establishes compatibility.
+
+Doctor additionally checks external provenance, the selected model, isolated
+resources, profiles, adapter providers, and receipt state. Authentication stays
+`UNKNOWN`; doctor does not read credential files or probe a provider.
+
+| Reason | Meaning |
+| --- | --- |
+| `SDK_MISSING` | Core cannot resolve its declared SDK |
+| `SDK_METADATA_INVALID` | SDK package/version evidence is unsafe or malformed |
+| `SDK_PROVENANCE_INVALID` | SDK code resolves inside the reviewed repository |
+| `SDK_VERSION_UNSUPPORTED` | Version is outside the supported stable interval |
+| `SDK_API_UNSUPPORTED` | A required public or returned-object API is missing |
+| `SDK_LOAD_FAILED` | The resolved SDK or a transitive dependency cannot load |
+| `MODEL_CONTROLS_INVALID` | Active Pi controls are absent or malformed |
+| `MODEL_UNAVAILABLE` | The selected model is not in the local catalogue |
+| `MODEL_REASONING_UNSUPPORTED` | The selected reasoning level is unsupported |
+| `MODEL_RUNTIME_FAILED` | Local model runtime initialization failed |
+| `RESOURCE_ISOLATION_FAILED` | Isolated session resources failed validation |
+| `PROFILE_INVALID` | Expected package-owned review policy is invalid |
+| `ADAPTER_PROVIDER_INVALID` | Matching external provider evidence is unavailable |
+| `AUTHORITY_INELIGIBLE` | Core is not outside the reviewed repository |
+| `RECEIPT_STATE_UNSAFE` | Existing authority state cannot safely be reused |
+| `CLEANUP_FAILED` | Temporary runtime cleanup failed |
+| `RUNTIME_READINESS_FAILED` | An unclassified prerequisite failed closed |
+
+Restore a verified Core dependency graph or install a Core release tested with
+the SDK when API compatibility fails. Do not point the reviewer at checkout
+code or repair resolution with `NODE_PATH`. No readiness result authorizes OCR
+removal or bypasses the human release, publication, and installation checkpoint.
+
 ## Commands and exits
 
 Run the executable from the repository being reviewed:

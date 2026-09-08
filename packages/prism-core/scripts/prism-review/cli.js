@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -21,6 +21,8 @@ const {buildReviewPlan, loadAdapterProfile, loadCoreProfile} = require('./profil
 const {safeRelativePath: validateSafeRelativePath} = require('./schema');
 const {inspectIsolatedRuntime, resolveActiveModel} = require('./session-runner');
 const {classifyTrustRoot} = require('./trust');
+const {loadSdk} = require('./sdk');
+const {diagnostic, readinessError, atStage} = require('./readiness');
 
 const MAX_MANIFEST_BYTES = 65536;
 const utf8 = new TextDecoder('utf-8', {fatal: true});
@@ -29,6 +31,7 @@ const HELP = `usage: prism-review COMMAND
 
 prism-review --version
 prism-review --help
+prism-review sdk --json
 prism-review doctor --json
 prism-review criteria record --source ROLE:COMMIT:PATH [--source ROLE:COMMIT:PATH ...] --json
 prism-review criteria none --json
@@ -134,9 +137,9 @@ function profileReadiness(context, coreRoot, projectRoot) {
     if (registration?.reviewPath === null || registration?.reviewPath === undefined) {
         return {profile, adapter: null};
     }
-    const identity = doctorRepositoryIdentity(context, projectRoot);
+    const identity = atStage('ADAPTER_PROVIDER_INVALID', () => doctorRepositoryIdentity(context, projectRoot));
     const resolveProvider = context.resolveQualityProvider ?? resolveQualityProvider;
-    const provider = resolveProvider({
+    const provider = atStage('ADAPTER_PROVIDER_INVALID', () => resolveProvider({
         repositoryRoot: projectRoot,
         coreRoot,
         protectedBase: identity.baseSha,
@@ -144,13 +147,13 @@ function profileReadiness(context, coreRoot, projectRoot) {
         resolvePackage: context.resolvePackage,
         run: context.runGit,
         env: context.env,
-    });
+    }));
     const loadAdapter = context.loadAdapterProfile ?? loadAdapterProfile;
     const adapter = loadAdapter({registration, repositoryRoot: projectRoot, protectedBase: identity.baseSha});
     const installed = loadAdapter({registration: provider.registration,
         repositoryRoot: projectRoot, protectedBase: identity.baseSha});
     if (adapter.profileDigest !== installed.profileDigest || adapter.policyDigest !== installed.policyDigest) {
-        throw new Error('doctor adapter policy is mismatched');
+        throw readinessError('ADAPTER_PROVIDER_INVALID');
     }
     profile.adapter = {profileDigest: adapter.profileDigest, policyDigest: adapter.policyDigest};
     return {
@@ -228,6 +231,7 @@ async function executeReview(review, context, coreRoot, projectRoot, trust) {
         changedPaths: changedPaths(snapshot),
     });
     const active = await (context.resolveActiveModel ?? resolveActiveModel)({
+        repositoryRoot: projectRoot,
         env: context.env ?? process.env,
         loadSdk: context.loadSdk,
     });
@@ -520,12 +524,23 @@ async function main(argv, context = {}) {
         stdout.write(HELP);
         return EXIT.OK;
     }
+    if (argv.length === 2 && argv[0] === 'sdk' && argv[1] === '--json') {
+        try {
+            const inspected = await (context.inspectSdk ?? loadSdk)();
+            writeJson(stdout, {schemaVersion: 1, command: 'sdk', status: 'GO',
+                sdk: {packageName: '@earendil-works/pi-coding-agent', version: inspected.version}});
+            return EXIT.OK;
+        } catch (error) {
+            writeJson(stdout, {schemaVersion: 1, command: 'sdk', status: 'NO-GO', ...diagnostic(error)});
+            return EXIT.READINESS;
+        }
+    }
     if (argv.length === 2 && argv[0] === 'doctor' && argv[1] === '--json') {
         try {
             const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
             const projectRoot = repositoryRoot(context);
             const trust = (context.classifyTrustRoot ?? classifyTrustRoot)(coreRoot, projectRoot);
-            if (!trust.eligibleForAuthority) throw new Error('authority trust root is unavailable');
+            if (!trust.eligibleForAuthority) throw readinessError('AUTHORITY_INELIGIBLE');
             const model = await (context.inspectIsolatedRuntime ?? inspectIsolatedRuntime)({
                 repositoryRoot: projectRoot,
                 env: context.env ?? process.env,
@@ -533,14 +548,16 @@ async function main(argv, context = {}) {
                 tempRoot: context.tempRoot,
                 removeTemp: context.removeTemp,
             });
-            const readiness = profileReadiness(context, coreRoot, projectRoot);
-            if (readiness === null) throw new Error('Core review profile is unavailable');
+            const readiness = atStage('PROFILE_INVALID', () => profileReadiness(context, coreRoot, projectRoot));
+            if (readiness === null) throw readinessError('PROFILE_INVALID');
             const {profile} = readiness;
-            const criteria = (context.inspectCriteria ?? inspectCriteria)({...context, projectRoot});
-            const check = (context.inspectCheck ?? inspectCheck)({...context, projectRoot});
+            const criteria = atStage('RECEIPT_STATE_UNSAFE', () =>
+                (context.inspectCriteria ?? inspectCriteria)({...context, projectRoot}));
+            const check = atStage('RECEIPT_STATE_UNSAFE', () =>
+                (context.inspectCheck ?? inspectCheck)({...context, projectRoot}));
             if (!['ABSENT', 'VALID'].includes(criteria.state) ||
                 !['ABSENT', 'VALID'].includes(check.state)) {
-                throw new Error('authority receipt state is unsafe');
+                throw readinessError('RECEIPT_STATE_UNSAFE');
             }
             const authority = {
                 core: {
@@ -576,12 +593,12 @@ async function main(argv, context = {}) {
                 checks,
             });
             return EXIT.OK;
-        } catch {
+        } catch (error) {
             writeJson(stdout, {
                 schemaVersion: 1,
                 command: 'doctor',
                 status: 'NO-GO',
-                reason: 'RUNTIME_READINESS_FAILED',
+                ...diagnostic(error),
             });
             return EXIT.READINESS;
         }
@@ -596,7 +613,7 @@ async function main(argv, context = {}) {
             const report = await executeBridge(bridge, context, projectRoot, trust);
             writeJson(stdout, report);
             return report.outcome === 'PASS' ? EXIT.OK : EXIT.REVIEW;
-        } catch {
+        } catch (error) {
             writeJson(stdout, {
                 schemaVersion: 1,
                 command: bridge.command,
@@ -607,9 +624,8 @@ async function main(argv, context = {}) {
                 state: 'UNSAFE',
                 version: null,
                 receiptDigest: null,
-                reason: trust !== null && !trust.eligibleForAuthority && requiresAuthority(bridge.operation)
-                    ? 'AUTHORITY_INELIGIBLE'
-                    : 'RUNTIME_READINESS_FAILED',
+                ...diagnostic(trust !== null && !trust.eligibleForAuthority && requiresAuthority(bridge.operation)
+                    ? readinessError('AUTHORITY_INELIGIBLE') : error),
             });
             return EXIT.READINESS;
         }
@@ -623,14 +639,14 @@ async function main(argv, context = {}) {
             const report = await executeReview(review, context, coreRoot, projectRoot, trust);
             writeJson(stdout, report);
             return report.outcome === 'PASS' ? EXIT.OK : EXIT.REVIEW;
-        } catch {
+        } catch (error) {
             writeJson(stdout, {
                 schemaVersion: 1,
                 command: review.command,
                 authoritative: false,
                 status: 'NO-GO',
                 outcome: 'INCONCLUSIVE',
-                reason: 'RUNTIME_READINESS_FAILED',
+                ...diagnostic(error),
             });
             return EXIT.READINESS;
         }
