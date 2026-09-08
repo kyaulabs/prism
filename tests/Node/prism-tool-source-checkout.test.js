@@ -393,4 +393,27 @@ test('rejects root entries or Git identity changed as source inspection begins',
     }
 });
 
+test('checks root entries after the final containing-Git lookup', (t) => {
+    const root = makeTempDir();
+    t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+    const lstat = fs.lstatSync;
+    let markerObservations = 0;
+    let output = '';
+    t.mock.method(fs, 'lstatSync', (file, ...args) => {
+        if (file === path.join(root, '.git') && ++markerObservations === 3) {
+            fs.writeFileSync(path.join(root, 'concurrent-user-file'), 'preserve me\n');
+        }
+        return lstat(file, ...args);
+    });
+    t.mock.method(process.stdout, 'write', (chunk) => { output += chunk; return true; });
+
+    const status = main(['setup', 'route', '--json'], {projectRoot: root});
+
+    t.mock.restoreAll();
+    assert.ok(markerObservations >= 3);
+    assert.equal(status, 5);
+    assert.equal(JSON.parse(output).route, 'STOP');
+    assert.equal(fs.readFileSync(path.join(root, 'concurrent-user-file'), 'utf8'), 'preserve me\n');
+});
+
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

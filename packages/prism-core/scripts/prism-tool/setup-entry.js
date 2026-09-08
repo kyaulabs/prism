@@ -157,9 +157,9 @@ function classifySetupEntry({projectRoot}) {
         }
         const source = inspectSourceCheckout({projectRoot: canonicalRoot});
         if (source.disposition === 'CONFLICT') return conflict(canonicalRoot, source.reason);
-        if (!sameIdentity(before, fs.lstatSync(canonicalRoot)) ||
+        if (!sameGitBoundary(firstGitBoundary, inspectGitBoundary(canonicalRoot)) ||
             !sameEntries(firstEntries, snapshotEntries(canonicalRoot)) ||
-            !sameGitBoundary(firstGitBoundary, inspectGitBoundary(canonicalRoot))) {
+            !sameIdentity(before, fs.lstatSync(canonicalRoot))) {
             return conflict(canonicalRoot, REASON.INDETERMINATE);
         }
         if (source.disposition === 'SOURCE_CHECKOUT') {
