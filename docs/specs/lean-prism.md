@@ -109,7 +109,7 @@ they remain useful. This checklist tracks execution, not additional approvals.
       ordinary command freedom, and recovery after rejected/failed operations.
 - [x] Remove web-tool consent gating while preserving search/fetch safety tests.
 - [ ] Delete legacy consent CLI/state-management and setup callers with their engines.
-- [ ] Replace setup with Core/module skills and template file selection.
+- [x] Replace setup with Core/module skills and template file selection.
 - [ ] Remove catalogue/bootstrap/provider/reconciliation engines and callers.
 - [ ] Remove reviewer executable, receipts, chains and finalization authority.
 - [ ] Simplify issue, learning, doctor, check, release and PR workflows.
@@ -160,7 +160,19 @@ Completed:
   skill validator expects removed Output-style/table wording and timed out; its
   policy-specific assertions need replacement, not restoration of old instructions.
 
-Next tasks: implement the small secret guard and remove obsolete engines;
+- The changed-file PHP coverage default is now 90%. All 26 shell coverage checks
+  pass, including 89% rejection, exact-90% acceptance and explicit `--min` override.
+  PHP syntax, PHP CS Fixer and shellcheck passed. `tdd-php` and `/check-php` now use
+  ordinary project tooling; old provisioning/quality engines still contain separate
+  aggregate 80% rules to delete with those engines.
+- `/setup` now delegates to a Core `setup` skill and module `setup-php-web` skill.
+  `/setup-labels`, `/setup-rulesets` and `/doctor` use task-scoped ordinary tooling.
+  Template metadata was inspected read-only: default branch `develop`, two hooks,
+  collaboration files, and no workflow files at inspection time. Setup must inspect
+  current inventory, adapt staged/redacted hook scanning, and not claim generated
+  workflows were copied from the template. No consumer setup was actually executed.
+
+Next tasks: finish the small secret guard and remove obsolete engines;
 finish specialist workflow/skill callers still using the old contracts. Keep TDD for runtime behavior. Existing tests of deleted policy
 will need retirement/replacement, not preservation through compatibility shims.
 
