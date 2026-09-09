@@ -6,7 +6,6 @@ const CODES = Object.freeze({
     SDK_MISSING: 'Reinstall Core with its declared runtime dependencies using the supported installer.',
     SDK_METADATA_INVALID: 'Restore the verified Core dependency graph; SDK metadata could not be validated.',
     SDK_PROVENANCE_INVALID: 'Restore an SDK dependency outside the repository being reviewed.',
-    SDK_VERSION_UNSUPPORTED: 'Install a Pi SDK version within >=0.84.1 <=5.0.0 through the supported Core dependency graph.',
     SDK_API_UNSUPPORTED: 'Use a Core release tested with this SDK or restore its verified dependency graph.',
     SDK_LOAD_FAILED: 'Restore the verified Core dependency graph; an SDK import or transitive dependency failed.',
     AUTHORITY_INELIGIBLE: 'Use an installed Core package outside the repository being reviewed.',

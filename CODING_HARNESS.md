@@ -207,7 +207,9 @@ direct fallback. Public content fetching is browser-free.
 
 Declared tools resolve through `prism-tool` according to the Core and adapter
 toolchain contracts. Core bundles commitlint, git-cliff, and
-`markdownlint-cli2`. Semgrep is the mandatory compatible external tool.
+`markdownlint-cli2`. Semgrep is the mandatory external tool. Non-Prism version
+numbers, including Pi's, are observations rather than runtime gates (ADR-0114).
+Prism compatibility, dependency pins, capability checks, and audits remain.
 The PHP/web adapter owns project-local development tools such as Pest,
 php-cs-fixer, Playwright, Sass, ESLint, Stylelint, and UglifyJS.
 

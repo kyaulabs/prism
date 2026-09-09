@@ -61,7 +61,7 @@ try {
     let version = args[1];
     if (version === 'latest') {
         const versions = JSON.parse(ok('npm', ['view',
-            '@earendil-works/pi-coding-agent@>=0.84.1 <=5.0.0', 'version', '--json']));
+            '@earendil-works/pi-coding-agent@latest', 'version', '--json']));
         const candidates = (Array.isArray(versions) ? versions : [versions])
             .filter(value => typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value));
         candidates.sort((a, b) => {
@@ -131,7 +131,15 @@ try {
     fs.writeFileSync(path.join(sdkRoot, 'package.json'), JSON.stringify(fakeManifest), {mode: 0o600});
     const unsupported = run(process.execPath, [cli, 'sdk', '--json'], consumer);
     assert.equal(unsupported.status, 3);
-    assert.equal(JSON.parse(unsupported.stdout).reason, 'SDK_VERSION_UNSUPPORTED');
+    assert.equal(JSON.parse(unsupported.stdout).reason, 'SDK_API_UNSUPPORTED');
+    fs.rmSync(sdkRoot, {recursive: true});
+    fs.renameSync(parked, sdkRoot);
+    const observedManifest = JSON.parse(fs.readFileSync(path.join(sdkRoot, 'package.json'), 'utf8'));
+    observedManifest.version = '99.0.0-development';
+    fs.writeFileSync(path.join(sdkRoot, 'package.json'), JSON.stringify(observedManifest), {mode: 0o600});
+    const observed = JSON.parse(ok(process.execPath, [cli, 'sdk', '--json'], consumer));
+    assert.equal(observed.status, 'GO');
+    assert.equal(observed.sdk.version, '99.0.0-development');
     console.log(JSON.stringify({lane: args[1], sdkVersion: version, packageSmoke: 'PASS'}));
 } finally {
     fs.rmSync(work, {recursive: true, force: true});

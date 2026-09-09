@@ -79,11 +79,11 @@ test('passes lower-bound external tools while ignoring update advertisements', (
     });
 
     assert.deepEqual(checks, [
-        {id: 'semgrep', status: 'PASS', expected: '>=1.173.0 <2.0.0', actual: '1.173.0', message: 'compatible version'},
+        {id: 'semgrep', status: 'PASS', expected: '>=1.173.0 <2.0.0', actual: '1.173.0', message: 'executable available; version observed'},
     ]);
 });
 
-test('rejects duplicate Semgrep installed-version evidence', (t) => {
+test('records duplicate Semgrep version evidence as unknown without blocking', (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
     writeExecutable(directory, 'semgrep', '');
@@ -98,20 +98,21 @@ test('rejects duplicate Semgrep installed-version evidence', (t) => {
 
     assert.deepEqual(checks[0], {
         id: 'semgrep',
-        status: 'FAIL',
+        status: 'PASS',
         expected: '>=1.173.0 <2.0.0',
-        message: 'malformed version',
+        actual: null,
+        message: 'executable available; malformed version; capabilities checked at use',
     });
 });
 
-test('enforces lower-inclusive and upper-exclusive Semgrep compatibility', (t) => {
+test('observes Semgrep versions without enforcing the reference range', (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
     writeExecutable(directory, 'semgrep', '');
     const cases = [
-        {actual: '1.999.7', status: 'PASS', message: 'compatible version'},
-        {actual: '1.172.9', status: 'FAIL', message: 'version mismatch'},
-        {actual: '2.0.0', status: 'FAIL', message: 'version mismatch'},
+        {actual: '1.999.7', status: 'PASS', message: 'executable available; version observed'},
+        {actual: '1.172.9', status: 'PASS', message: 'executable available; version observed'},
+        {actual: '2.0.0', status: 'PASS', message: 'executable available; version observed'},
     ];
 
     for (const fixture of cases) {
@@ -164,10 +165,10 @@ test('reports a safe actual version when an external version mismatches', (t) =>
 
     assert.deepEqual(checks[0], {
         id: 'semgrep',
-        status: 'FAIL',
+        status: 'PASS',
         expected: '>=1.173.0 <2.0.0',
         actual: '1.172.0',
-        message: 'version mismatch',
+        message: 'executable available; version observed',
     });
 });
 
@@ -189,9 +190,10 @@ test('sanitizes conflicting version output and secret canaries', (t) => {
 
     assert.deepEqual(checks[0], {
         id: 'semgrep',
-        status: 'FAIL',
+        status: 'PASS',
         expected: '>=1.173.0 <2.0.0',
-        message: 'malformed version',
+        actual: null,
+        message: 'executable available; malformed version; capabilities checked at use',
     });
     assert.doesNotMatch(rendered, /CANARY-API-KEY-94f0/);
 });
@@ -206,9 +208,10 @@ test('reports a version probe timeout without subprocess output', (t) => {
 
     assert.deepEqual(checks[0], {
         id: 'semgrep',
-        status: 'FAIL',
+        status: 'PASS',
         expected: '>=1.173.0 <2.0.0',
-        message: 'version probe timeout',
+        actual: null,
+        message: 'executable available; version probe timeout; capabilities checked at use',
     });
     assert.doesNotMatch(JSON.stringify(checks), /CANARY-API-KEY-94f0/);
 });
@@ -223,9 +226,10 @@ test('reports a version probe output limit without relaying output', (t) => {
 
     assert.deepEqual(checks[0], {
         id: 'semgrep',
-        status: 'FAIL',
+        status: 'PASS',
         expected: '>=1.173.0 <2.0.0',
-        message: 'version probe output limit',
+        actual: null,
+        message: 'executable available; version probe output limit; capabilities checked at use',
     });
     assert.doesNotMatch(JSON.stringify(checks), /CANARY-API-KEY-94f0/);
 });

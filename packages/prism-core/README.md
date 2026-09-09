@@ -33,7 +33,7 @@ The package archive includes `extensions/`, `skills/`, `prompts/`, `scripts/`,
 
 ## Install
 
-Semgrep `>=1.173.0 <2.0.0` must already be installed. Prism verifies it but
+Semgrep must already be installed. Its version is informational; Prism verifies availability but
 never installs, configures, authenticates, or reads its credentials.
 
 From a Prism checkout:
@@ -94,8 +94,10 @@ Run offline readiness with:
 prism-tool doctor --local-only
 ```
 
-Full `/doctor` verifies installed reviewer trust, SDK compatibility, model
-metadata, Core policy, and the active adapter without inference. Optional web
+Full `/doctor` verifies installed reviewer trust, SDK API capabilities, model
+metadata, Core policy, and the active adapter without inference. Non-Prism
+version numbers, including Pi's, never block runtime readiness (ADR-0114).
+Dependency pins, audits, and Prism identity/protocol checks remain. Optional web
 readiness is reported separately. CI creates no consent and runs no provider
 review or web access.
 

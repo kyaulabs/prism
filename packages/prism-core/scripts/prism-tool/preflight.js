@@ -4,7 +4,6 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {compareStableVersions} = require('./contract');
 const {extractVersion, runBounded} = require('./process');
 
 const STABLE_VERSION_SOURCE = '(?:0|[1-9]\\d{0,8})\\.(?:0|[1-9]\\d{0,8})\\.(?:0|[1-9]\\d{0,8})';
@@ -37,14 +36,6 @@ function extractInstalledVersion(component, output) {
     return versions.length === 1 ? versions[0] : null;
 }
 
-function versionMatches(component, actual) {
-    if (component.version) return actual === component.version;
-    return (
-        compareStableVersions(actual, component.versionRequirement.minimum) >= 0 &&
-        compareStableVersions(actual, component.versionRequirement.maximumExclusive) < 0
-    );
-}
-
 function checkExternalTools({contract, env = process.env, run = runBounded}) {
     return contract.components
         .filter(({kind, provisioning}) => kind === 'command' && provisioning === 'external')
@@ -68,12 +59,10 @@ function checkExternalTools({contract, env = process.env, run = runBounded}) {
                 ? null
                 : extractInstalledVersion(component, `${result.stdout}\n${result.stderr}`);
             if (result.status === 0 && actual) {
-                const matches = versionMatches(component, actual);
-                let message = 'version mismatch';
-                if (matches) message = component.version ? 'exact version' : 'compatible version';
+                const message = 'executable available; version observed';
                 return {
                     id: component.id,
-                    status: matches ? 'PASS' : 'FAIL',
+                    status: 'PASS',
                     expected,
                     actual,
                     message,
@@ -85,9 +74,10 @@ function checkExternalTools({contract, env = process.env, run = runBounded}) {
             if (result.timedOut) message = 'version probe timeout';
             return {
                 id: component.id,
-                status: 'FAIL',
+                status: 'PASS',
                 expected,
-                message,
+                actual: null,
+                message: `executable available; ${message}; capabilities checked at use`,
             };
         });
 }

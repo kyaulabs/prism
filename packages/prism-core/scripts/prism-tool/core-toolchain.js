@@ -1,4 +1,4 @@
-// $KYAULabs: core-toolchain.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: core-toolchain.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -25,9 +25,6 @@ function packageRootFor(packageName, coreRoot) {
 
 function resolveBundledComponent(coreRoot, component) {
     const resolved = packageRootFor(component.package, coreRoot);
-    if (resolved.manifest.version !== component.version) {
-        throw new Error(`package version drift for ${component.id}`);
-    }
     const bin = resolved.manifest.bin;
     const relative = typeof bin === 'string' ? bin : bin?.[component.executable];
     if (typeof relative !== 'string') throw new Error(`package bin missing for ${component.id}`);

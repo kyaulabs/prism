@@ -62,9 +62,11 @@ if (process.argv[2] === '--version') {
         process.exit(0);
     }
     const failed = process.env.PI_FIXTURE_SDK_MISSING === '1';
+    const version = process.env.PI_FIXTURE_SDK_VERSION === 'null' ? null :
+        (process.env.PI_FIXTURE_SDK_VERSION ?? '0.85.1');
     process.stdout.write(JSON.stringify(failed
         ? {schemaVersion: 1, command: 'sdk', status: 'NO-GO', reason: 'SDK_MISSING', remediation: 'Reinstall Core.'}
-        : {schemaVersion: 1, command: 'sdk', status: 'GO', sdk: {packageName: '@earendil-works/pi-coding-agent', version: '0.85.1'}}) + '\n');
+        : {schemaVersion: 1, command: 'sdk', status: 'GO', sdk: {packageName: '@earendil-works/pi-coding-agent', version}}) + '\n');
     process.exitCode = failed ? 3 : 0;
 } else if (process.argv[2] === '--fixture-argument') {
     process.stdout.write('fixture review\n');
@@ -495,6 +497,28 @@ else
     fail "missing SDK did not stop installation before deployment"
 fi
 
+for sdk_version in 99.0.0-development null; do
+    SDK_GO_ROOT=$(mktemp -d)
+    register_temp_dir "$SDK_GO_ROOT"
+    write_fake_tools "$SDK_GO_ROOT"
+    mkdir -p "$SDK_GO_ROOT/home" "$SDK_GO_ROOT/pi-agent" "$SDK_GO_ROOT/bin-dir"
+    : > "$SDK_GO_ROOT/pi-invocations"
+    status=0
+    output=$(HOME="$SDK_GO_ROOT/home" \
+        PI_CODING_AGENT_DIR="$SDK_GO_ROOT/pi-agent" \
+        PRISM_BIN_DIR="$SDK_GO_ROOT/bin-dir" \
+        PRISM_CORE_SOURCE='npm:@kyaulabs/prism-core' \
+        PI_INVOCATIONS="$SDK_GO_ROOT/pi-invocations" \
+        PI_FIXTURE_SDK_VERSION="$sdk_version" \
+        PATH="$SDK_GO_ROOT/bin:$PATH" \
+        bash "$INSTALLER" --network-approved=yes 2>&1) || status=$?
+    if [ "$status" -eq 0 ] && [ -x "$SDK_GO_ROOT/bin-dir/prism-review" ]; then
+        pass "installer accepts informational SDK version $sdk_version"
+    else
+        fail "installer blocked informational SDK version $sdk_version"
+    fi
+done
+
 for sdk_report in malformed command status canary oversized; do
     SDK_BAD_ROOT=$(mktemp -d)
     register_temp_dir "$SDK_BAD_ROOT"
@@ -532,6 +556,7 @@ output=$(HOME="$T3/home" \
     PI_CODING_AGENT_DIR="$T3/pi-agent" \
     PRISM_BIN_DIR="$T3/bin-dir" \
     PI_INVOCATIONS="$T3/pi-invocations" \
+    SEMGREP_VERSION='1.172.9' \
     PATH="$T3/bin:$PATH" \
     bash "$INSTALLER" 2>&1) || status=$?
 if [ "$status" -eq 0 ] \
@@ -540,7 +565,7 @@ if [ "$status" -eq 0 ] \
     && grep -qFx "install $REPO_ROOT/packages/prism-core|ignore=unset" "$T3/pi-invocations" \
     && [ "$(wc -l < "$T3/pi-invocations")" -eq 1 ] \
     && [ ! -e "$T3/pi-agent/prism-consent.json" ]; then
-    pass "installer performs no live inference or consent mutation"
+    pass "installer accepts an older Semgrep without live inference or consent mutation"
 else
     fail "installer did not defer consent and live readiness to /setup"
 fi
@@ -555,6 +580,12 @@ fi
 T4=$(mktemp -d)
 register_temp_dir "$T4"
 write_fake_tools "$T4"
+# Isolate PATH so a host Semgrep cannot hide the missing mandatory executable.
+chmod -x "$T4/bin/semgrep"
+for utility in awk basename bash cat chmod cksum cp cut dirname env find git grep head id ln mkdir mktemp mv node pwd readlink realpath rm sed sh sort stat tail tr wc; do
+    utility_path=$(command -v "$utility") || continue
+    ln -s "$utility_path" "$T4/bin/$utility"
+done
 mkdir -p "$T4/home" "$T4/pi-agent" "$T4/bin-dir"
 : > "$T4/pi-invocations"
 output=""
@@ -563,8 +594,7 @@ output=$(HOME="$T4/home" \
     PI_CODING_AGENT_DIR="$T4/pi-agent" \
     PRISM_BIN_DIR="$T4/bin-dir" \
     PI_INVOCATIONS="$T4/pi-invocations" \
-    SEMGREP_VERSION='1.172.9' \
-    PATH="$T4/bin:$PATH" \
+    PATH="$T4/bin" \
     bash "$INSTALLER" 2>&1) || status=$?
 if [ "$status" -ne 0 ] \
     && grep -qF 'prism toolchain local readiness failed' <<< "$output" \
@@ -575,6 +605,7 @@ if [ "$status" -ne 0 ] \
     pass "failed mandatory readiness retains resources and stops before setup"
 else
     fail "failed mandatory readiness removed resources or continued to setup"
+    printf '%s\n' "$output" >&2
 fi
 
 echo "── launcher ownership and uninstall ──"

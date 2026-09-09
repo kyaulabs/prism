@@ -485,8 +485,8 @@ it('exercises both readiness outcomes', function (): void {
 `;
     if (outputPath === 'tests/Feature/RuntimeSmokeTest.php') return `<?php
 declare(strict_types=1);
-it('runs on PHP 8.5 or newer', function (): void {
-    expect(PHP_VERSION_ID)->toBeGreaterThanOrEqual(80500);
+it('provides the required socket capability', function (): void {
+    expect(function_exists('socket_create'))->toBeTrue();
 });
 `;
     if (outputPath === 'tests/Browser/SmokeTest.php') return `<?php

@@ -8,25 +8,25 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const {pathToFileURL} = require('node:url');
-const {loadSdk, validateSdkVersion, validateSdkApi, requireMethods} = require('../../packages/prism-core/scripts/prism-review/sdk');
+const {loadSdk, observeSdkVersion, validateSdkApi, requireMethods} = require('../../packages/prism-core/scripts/prism-review/sdk');
 const {readinessError, diagnostic, atStage, atStageAsync} = require('../../packages/prism-core/scripts/prism-review/readiness');
 
-test('admits stable SDK versions within the inclusive supported interval', () => {
-    for (const version of ['0.84.1', '0.85.1', '0.86.0', '1.0.0', '5.0.0', '5.0.0+build.1']) {
-        assert.equal(validateSdkVersion(version), version);
+test('observes SDK metadata without a compatibility interval', () => {
+    for (const version of ['0.1.0', '0.85.1', '99.0.0', '5.0.0+build.1', 'development', '0.85.1-beta.1']) {
+        assert.equal(observeSdkVersion(version), version);
     }
 });
 
-test('rejects malformed, prerelease, and out-of-range SDK versions', () => {
-    for (const version of ['0.84.0', '5.0.1', '6.0.0', '0.85.1-beta.1', 'garbage', null, '01.0.0', 'v0.85.1']) {
-        assert.throws(() => validateSdkVersion(version), error => diagnostic(error).reason === 'SDK_VERSION_UNSUPPORTED');
+test('unavailable or unsafe version observations are null, not readiness blockers', () => {
+    for (const version of [null, undefined, {}, '', 'x'.repeat(129), 'private\ncanary']) {
+        assert.equal(observeSdkVersion(version), null);
     }
 });
 
 test('only branded failures supply trusted diagnostics', () => {
-    assert.deepEqual(diagnostic(readinessError('SDK_VERSION_UNSUPPORTED')), {
-        reason: 'SDK_VERSION_UNSUPPORTED',
-        remediation: 'Install a Pi SDK version within >=0.84.1 <=5.0.0 through the supported Core dependency graph.',
+    assert.deepEqual(diagnostic(readinessError('SDK_API_UNSUPPORTED')), {
+        reason: 'SDK_API_UNSUPPORTED',
+        remediation: 'Use a Core release tested with this SDK or restore its verified dependency graph.',
     });
     const forged = Object.assign(new Error('PRIVATE_CANARY'), {code: 'SDK_MISSING'});
     assert.deepEqual(diagnostic(forged), {
@@ -38,7 +38,7 @@ test('only branded failures supply trusted diagnostics', () => {
 
 test('readiness diagnostics accept only the closed stage vocabulary', () => {
     for (const code of ['SDK_MISSING', 'SDK_METADATA_INVALID', 'SDK_PROVENANCE_INVALID',
-        'SDK_VERSION_UNSUPPORTED', 'SDK_API_UNSUPPORTED', 'SDK_LOAD_FAILED', 'AUTHORITY_INELIGIBLE',
+        'SDK_API_UNSUPPORTED', 'SDK_LOAD_FAILED', 'AUTHORITY_INELIGIBLE',
         'MODEL_CONTROLS_INVALID', 'MODEL_UNAVAILABLE', 'MODEL_REASONING_UNSUPPORTED',
         'MODEL_RUNTIME_FAILED', 'RESOURCE_ISOLATION_FAILED', 'PROFILE_INVALID',
         'ADAPTER_PROVIDER_INVALID', 'RECEIPT_STATE_UNSAFE', 'CLEANUP_FAILED', 'RUNTIME_READINESS_FAILED']) {
@@ -85,8 +85,8 @@ test('returns an SDK providing the required public API', () => {
     assert.equal(validateSdkApi(sdk), sdk);
 });
 
-test('an in-range version does not excuse absent or incompatible public APIs', () => {
-    validateSdkVersion('5.0.0');
+test('version observations do not excuse absent or incompatible public APIs', () => {
+    observeSdkVersion('99.0.0');
     for (const candidate of [null, {}, ...Object.keys(sdkNamespace()).map(key => {
         const sdk = sdkNamespace();
         sdk[key] = undefined;
@@ -126,6 +126,26 @@ test('valid package metadata and API evidence returns the imported SDK', async t
     assert.equal(result.sdk, fixture.namespace);
 });
 
+for (const version of ['99.0.0-development', null]) {
+    test(`loads the required SDK APIs with informational version ${version}`, async t => {
+        const fixture = sdkFixture(t);
+        fixture.write(version);
+        const result = await loadSdk(fixture.options);
+        assert.equal(result.version, version);
+        assert.equal(result.sdk, fixture.namespace);
+    });
+}
+
+test('rejects SDK manifest drift even when both version observations are unknown', async t => {
+    const fixture = sdkFixture(t);
+    fixture.write(null);
+    fixture.options.importSdk = async () => {
+        fixture.write('');
+        return fixture.namespace;
+    };
+    await assert.rejects(() => loadSdk(fixture.options), error => diagnostic(error).reason === 'SDK_METADATA_INVALID');
+});
+
 const cases = [
     ['directory metadata', 'SDK_METADATA_INVALID', fixture => {
         fs.unlinkSync(fixture.manifest);
@@ -137,9 +157,9 @@ const cases = [
     ['missing APIs after import', 'SDK_API_UNSUPPORTED', fixture => {
         fixture.options.importSdk = async () => ({});
     }],
-    ['unsupported version before import', 'SDK_VERSION_UNSUPPORTED', fixture => {
-        fixture.write('5.0.1');
-        fixture.options.importSdk = async () => { throw new Error('import must not run'); };
+    ['unfamiliar version still reaches import and reports actual load failure', 'SDK_LOAD_FAILED', fixture => {
+        fixture.write('99.0.0');
+        fixture.options.importSdk = async () => { throw new Error('import failed'); };
     }],
     ['dangling nearest metadata', 'SDK_METADATA_INVALID', fixture => {
         fs.symlinkSync('absent-manifest.json', path.join(path.dirname(fixture.entry), 'package.json'));

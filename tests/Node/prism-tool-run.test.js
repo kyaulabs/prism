@@ -260,7 +260,7 @@ test('rejects contract and package manifest drift before execution', async (t) =
     assert.equal(fs.existsSync(marker), false);
 });
 
-test('rejects a bundled package version that differs from its contract', async (t) => {
+test('runs an available bundled package despite a differing installed version', async (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
     const marker = path.join(directory, 'executed');
@@ -276,9 +276,8 @@ test('rejects a bundled package version that differs from its contract', async (
         input: '',
     }));
 
-    assert.equal(result.status, 4);
-    assert.match(result.stderr, /bundled tool is unavailable/);
-    assert.equal(fs.existsSync(marker), false);
+    assert.equal(result.status, 0);
+    assert.equal(fs.existsSync(marker), true);
 });
 
 test('fails closed without relaying output that exceeds the bound', async (t) => {

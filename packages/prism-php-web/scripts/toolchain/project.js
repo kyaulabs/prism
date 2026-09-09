@@ -1,4 +1,4 @@
-// $KYAULabs: project.js kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+// $KYAULabs: project.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -75,9 +75,7 @@ function inspect({contract, projectRoot, run}) {
     checks.unshift(
         {
             id: 'php',
-            status: runtime && /^(?:8\.(?:[5-9]|\d{2,})|(?:9|[1-9]\d+)\.\d+)\.\d+/.test(runtime.version)
-                ? 'PASS'
-                : 'FAIL',
+            status: runtime ? 'PASS' : 'FAIL',
             actual: runtime?.version,
             message: runtime ? 'runtime detected' : 'runtime probe failed',
         },

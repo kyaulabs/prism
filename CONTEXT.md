@@ -45,7 +45,7 @@ documentation, and conversation.
 | bundled core tool | An unauthenticated language-agnostic command-line tool distributed as an exact runtime dependency of the Prism core and resolved relative to that package. |
 | external core prerequisite | A mandatory system-owned command-line tool that Prism verifies but never installs, configures, authenticates, upgrades, or downgrades autonomously. Semgrep is the mandatory prerequisite. |
 | consumer-dev tool | A stack-specific development dependency that an adapter provisions into a consumer project's native manifests and lockfiles after explicit approval. |
-| toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executable versions satisfy their exact or bounded requirements, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
+| toolchain readiness | The fail-closed state in which every active contract is valid, mandatory executables and required capabilities are available, required connectivity checks pass at their defined cadence, and installed dependency graphs have no known advisories. |
 | toolchain entry point | A Prism command, hook, installer, health check, security/review workflow, or gate that depends on the declared toolchain and therefore performs mandatory core preflight before its main operation. |
 | consent boundary | One external-effect authorization. Invoking `/setup` authorizes only its disclosed fixed-template and dependency-network effects for one attempt; project mutation remains separately approved except for the exact provisional adapter installation explicitly selected during strict-empty setup. Read-only GitHub repository and tracker metadata is standing-authorized; confirming a tracker preview or invoking Wayfinder authorizes only that bounded issue/map mutation batch or lifecycle. The active task includes two automatic review attempts with provider cost and reviewed-code egress; the third and every later attempt need fresh approval. Separately revocable standing web-access consent covers only the web-access extension's bounded loopback search, fixed-origin keyless search, and guarded public textual fetches. Neither grant transfers to other effects. |
 | setup attempt | One invocation-scoped `/setup` orchestration with bounded source/package/dependency networking, independently approved project and hook mutation stages, and no standing setup consent after it stops. |
@@ -176,9 +176,11 @@ The declaration that connects Prism resources to executable capabilities.
 
 The measured state required before a toolchain entry point proceeds.
 
-- Missing or mismatched Semgrep is always NO-GO.
-- Semgrep must satisfy `>=1.173.0 <2.0.0`; login remains optional for local
-  scanning.
+- Missing Semgrep is always NO-GO; a reported-version mismatch is not.
+- Semgrep must be available and its actual scan must succeed; login remains
+  optional. Non-Prism version numbers, including Pi SDK and PHP versions,
+  do not gate runtime readiness (ADR-0114). Unknown external tool versions are
+  explicit null metadata. Pins, audits, and Prism identity/schema checks remain.
 - The global installer performs local readiness only. Full doctor verifies the
   installed review trust root, SDK, model metadata, policy, and adapter without
   inference. It neither depends on consent nor grants review authority.

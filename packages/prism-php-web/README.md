@@ -27,8 +27,11 @@ boundaries.
 
 ## Prerequisites and install
 
-Install Prism Core globally first. Semgrep remains
-Core prerequisites. Consumer development uses PHP 8.5+, Composer, Node.js,
+Install Prism Core globally first. Semgrep remains a Core prerequisite.
+PHP 8.5+ is the reference stack, not a Prism runtime version gate. Non-Prism
+versions are metadata; required capabilities and actual checks must work
+(ADR-0114). Dependency pins, audits, and Prism compatibility remain enforced.
+Consumer development uses PHP, Composer, Node.js,
 MariaDB, nginx, and the exact tools declared by this adapter.
 
 From the trusted consumer project:

@@ -1,4 +1,4 @@
-// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: transaction.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -160,16 +160,6 @@ function combinedTotals(composer, npm) {
     );
 }
 
-function extractExactVersion(output) {
-    if (typeof output !== 'string' || Buffer.byteLength(output) > 1048576) {
-        throw new Error('version output is invalid');
-    }
-    const matches = output.match(/(?<![0-9A-Za-z.-])v?(\d+\.\d+\.\d+)(?![0-9A-Za-z.-])/g) ?? [];
-    const versions = new Set(matches.map((match) => match.replace(/^v/, '')));
-    if (versions.size !== 1) throw new Error('version output is invalid');
-    return [...versions][0];
-}
-
 function readJsonFile(filePath) {
     const stat = fs.lstatSync(filePath);
     if (stat.isSymbolicLink() || !stat.isFile() || stat.size > 16777216) {
@@ -214,7 +204,7 @@ function installLockedGraph({contract, projectRoot, run, resumePhase = null}) {
     }
 }
 
-function verifyInstalledGraph({contract, projectRoot, run}) {
+function verifyInstalledGraph({contract, projectRoot}) {
     const composerLock = readJsonFile(path.join(projectRoot, 'composer.lock'));
     const composerPackages = new Map(
         [...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])]
@@ -232,15 +222,7 @@ function verifyInstalledGraph({contract, projectRoot, run}) {
         if (installed !== component.version) throw new Error('installed lock graph does not match');
     }
     for (const component of contract.components.filter(({kind}) => kind === 'command')) {
-        const executable = resolveTool({component, projectRoot});
-        const result = run(executable, component.versionArguments, {
-            cwd: projectRoot,
-            maxBuffer: 1048576,
-            timeout: 30000,
-        });
-        if (result.error || result.status !== 0 || extractExactVersion(result.stdout) !== component.version) {
-            throw new Error('installed command version does not match');
-        }
+        resolveTool({component, projectRoot});
     }
 }
 
@@ -307,7 +289,7 @@ function verifyInstalledProject({contract, projectRoot, run}) {
             status: 'GO',
             checks: [
                 {id: 'installed-audit', status: 'PASS', message: 'zero advisories'},
-                {id: 'installed-graph', status: 'PASS', message: 'exact versions installed'},
+                {id: 'installed-graph', status: 'PASS', message: 'declared lock graph and executables verified'},
             ],
             data: {audit},
         };
@@ -569,7 +551,7 @@ function applyCandidate({
             checks: [
                 {id: 'candidate-application', status: 'PASS', message: 'candidate files applied'},
                 {id: 'installed-audit', status: 'PASS', message: 'zero advisories'},
-                {id: 'installed-graph', status: 'PASS', message: 'exact versions installed'},
+                {id: 'installed-graph', status: 'PASS', message: 'declared lock graph and executables verified'},
             ],
             data: {audit: {...plan.audit}},
         };

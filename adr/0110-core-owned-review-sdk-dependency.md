@@ -6,6 +6,10 @@ Date: 2026-09-07
 
 Accepted
 
+Runtime numeric SDK gating is superseded by
+[ADR-0114](0114-non-prism-versions-are-observations.md). Dependency ownership,
+lockfiles, provenance, and API capability checks remain.
+
 Partially supersedes ADR-0102's consequence that the standalone reviewer uses
 Pi's public SDK through the existing host peer relationship. Its review trust
 root, isolation, model ownership, and staged introduction remain unchanged.

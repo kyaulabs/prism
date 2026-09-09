@@ -50,6 +50,7 @@ test('records actual versions for bounded adapter command callbacks', async (t) 
     const bin = makeTempDir();
     t.after(() => fs.rmSync(bin, {recursive: true, force: true}));
     fs.writeFileSync(path.join(bin, 'composer'), '#!/bin/sh\nexit 0\n', {mode: 0o755});
+    let versionAvailable = true;
     const callbacks = createQualityCallbacks({
         branch: 'develop', baseRef: 'develop', baseSha: head, headSha: head,
     }, {
@@ -64,10 +65,12 @@ test('records actual versions for bounded adapter command callbacks', async (t) 
             argumentPolicy: {mode: 'passthrough'},
         }], serverProfiles: []}},
         handler: {resolveTool: () => path.join(root, 'vendor', 'bin', 'php-cs-fixer')},
-        run: (command, args) => args.includes('--version')
-            ? {status: 0, stdout: path.basename(command) === 'composer'
+        run: (command, args) => args.includes('--version') && !versionAvailable
+            ? {status: 2, stdout: '', stderr: 'unsupported version option'}
+            : args.includes('--version')
+                ? {status: 0, stdout: path.basename(command) === 'composer'
                 ? 'Composer version 2.8.1 2026-01-01'
-                : 'PHP CS Fixer 3.95.18 running on PHP runtime 8.5.9', stderr: '', error: undefined}
+                : 'PHP CS Fixer 3.94.0', stderr: '', error: undefined}
             : {status: 0, stdout: '', stderr: '', error: undefined},
     });
 
@@ -75,7 +78,14 @@ test('records actual versions for bounded adapter command callbacks', async (t) 
     const tool = await callbacks.runTool({toolId: 'php-cs-fixer', args: ['fix', '--dry-run']});
 
     assert.deepEqual(result.tools, [{id: 'composer', version: '2.8.1'}]);
-    assert.deepEqual(tool.tools, [{id: 'php-cs-fixer', version: '3.95.18'}]);
+    assert.deepEqual(tool.tools, [{id: 'php-cs-fixer', version: '3.94.0'}]);
+    versionAvailable = false;
+    const unknown = await callbacks.runTool({toolId: 'php-cs-fixer', args: ['fix', '--dry-run']});
+    assert.equal(unknown.status, 0);
+    assert.deepEqual(unknown.tools, [{id: 'php-cs-fixer', version: null}]);
+    const unknownRuntime = await callbacks.runCommand({command: 'node', args: ['--help']});
+    assert.equal(unknownRuntime.status, 0);
+    assert.deepEqual(unknownRuntime.tools, [{id: 'node', version: null}]);
 });
 
 test('derives bounded adapter inputs from the immutable Git range', async (t) => {

@@ -3,23 +3,18 @@
 'use strict';
 
 const fs = require('node:fs');
+const {createHash} = require('node:crypto');
 const path = require('node:path');
 const {fileURLToPath} = require('node:url');
 const {TextDecoder} = require('node:util');
-const semver = require('semver');
 const {readinessError, atStage, atStageAsync} = require('./readiness');
 
 const PACKAGE = '@earendil-works/pi-coding-agent';
-const RANGE = '>=0.84.1 <=5.0.0';
 const MAX_BYTES = 65536;
 
-function validateSdkVersion(version) {
-    if (typeof version !== 'string' ||
-        !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(version) ||
-        semver.valid(version) === null || !semver.satisfies(version, RANGE)) {
-        throw readinessError('SDK_VERSION_UNSUPPORTED');
-    }
-    return version;
+function observeSdkVersion(version) {
+    return typeof version === 'string' && version.length > 0 && version.length <= 128 &&
+        !/[\x00-\x1f\x7f]/.test(version) ? version : null;
 }
 
 function requireMethods(value, names) {
@@ -62,7 +57,9 @@ function readManifest(file) {
             after.ino !== held.ino || after.size !== held.size) {
             throw readinessError('SDK_METADATA_INVALID');
         }
-        return JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(bytes.subarray(0, length)));
+        const content = bytes.subarray(0, length);
+        return {value: JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(content)),
+            digest: createHash('sha256').update(content).digest('hex')};
     } finally {
         fs.closeSync(fd);
     }
@@ -90,8 +87,8 @@ function sdkMetadata(entry, repositoryRoot) {
             present = false;
         }
         if (present) {
-            const value = readManifest(manifest);
-            if (value?.name === PACKAGE) return {version: validateSdkVersion(value.version), manifest};
+            const {value, digest} = readManifest(manifest);
+            if (value?.name === PACKAGE) return {version: observeSdkVersion(value.version), manifest, digest};
         }
         const parent = path.dirname(directory);
         if (parent === directory) break;
@@ -112,10 +109,10 @@ async function loadSdk(options = {}) {
     const sdk = await atStageAsync('SDK_LOAD_FAILED', () => (options.importSdk ?? bridge.importSdk)());
     validateSdkApi(sdk);
     const after = atStage('SDK_METADATA_INVALID', () => readManifest(metadata.manifest));
-    if (after?.name !== PACKAGE || after.version !== metadata.version) throw readinessError('SDK_METADATA_INVALID');
+    if (after.value?.name !== PACKAGE || after.digest !== metadata.digest) throw readinessError('SDK_METADATA_INVALID');
     return Object.freeze({sdk, version: metadata.version});
 }
 
-module.exports = {loadSdk, validateSdkVersion, validateSdkApi, requireMethods};
+module.exports = {loadSdk, observeSdkVersion, validateSdkApi, requireMethods};
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

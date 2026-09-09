@@ -1,4 +1,4 @@
-// $KYAULabs: quality-provider.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: quality-provider.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -48,7 +48,7 @@ function toolRecords(tools) {
     return tools.map((tool) => {
         if (tool === null || typeof tool !== 'object' || Array.isArray(tool) ||
             Object.keys(tool).sort().join(',') !== 'id,version' ||
-            typeof tool.id !== 'string' || typeof tool.version !== 'string') {
+            typeof tool.id !== 'string' || (tool.version !== null && typeof tool.version !== 'string')) {
             throw new Error('quality-provider tool record is invalid');
         }
         return {id: tool.id, version: tool.version};

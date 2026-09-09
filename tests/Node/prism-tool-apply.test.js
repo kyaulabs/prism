@@ -1084,7 +1084,7 @@ test('dispatches literal approval as an approved adapter application', (t) => {
     assert.equal(report.data.retry, 'composer install --no-scripts --no-interaction');
 });
 
-test('rejects lockfile and executable version drift during final verification', (t) => {
+test('rejects lockfile drift but performs no native executable version matching', (t) => {
     const fixtures = [];
     t.after(() => {
         for (const fixture of fixtures) {
@@ -1117,27 +1117,11 @@ test('rejects lockfile and executable version drift during final verification', 
         fs.writeFileSync(path.join(commandFixture.projectRoot, name), content);
     }
     writeConsumerExecutables(commandFixture.projectRoot);
-    const versions = new Map(
-        adapterContract.components
-            .filter(({kind}) => kind === 'command')
-            .map((component) => [component.executable, component.version])
-    );
-    versions.set('pest', '5.1.2');
-    assert.throws(
-        () => verifyInstalledGraph({
-            contract: adapterContract,
-            projectRoot: commandFixture.projectRoot,
-            run(command) {
-                return {
-                    status: 0,
-                    stdout: `${path.basename(command)} ${versions.get(path.basename(command))}\n`,
-                    stderr: '',
-                    error: undefined,
-                };
-            },
-        }),
-        /installed command version does not match/
-    );
+    assert.doesNotThrow(() => verifyInstalledGraph({
+        contract: adapterContract,
+        projectRoot: commandFixture.projectRoot,
+        run() { throw new Error('version subprocess must not run'); },
+    }));
 });
 
 test('rejects verify without literal network approval before subprocess execution', (t) => {

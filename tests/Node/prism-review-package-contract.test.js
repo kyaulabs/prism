@@ -17,7 +17,7 @@ test('CI verifies installed SDK baselines and latest compatibility rather than u
     assert.match(ci, /0\.85\.1/);
     assert.match(ci, /--sdk latest --network-approved=yes/);
     const smoke = fs.readFileSync(path.join(root, 'tests/Package/prism-review-smoke.js'), 'utf8');
-    assert.match(smoke, /pi-coding-agent@>=0\.84\.1 <=5\.0\.0/);
+    assert.match(smoke, /pi-coding-agent@latest/);
     assert.doesNotMatch(ci, /packaged CLI unexpectedly succeeded/);
 });
 
@@ -53,7 +53,8 @@ test('the installed-package smoke declares peer omission and explicit negative S
     assert.match(smoke, /--legacy-peer-deps/);
     assert.match(smoke, /SDK_MISSING/);
     assert.match(smoke, /SDK_API_UNSUPPORTED/);
-    assert.match(smoke, /SDK_VERSION_UNSUPPORTED/);
+    assert.match(smoke, /99\.0\.0-development/);
+    assert.doesNotMatch(smoke, /SDK_VERSION_UNSUPPORTED/);
     assert.match(smoke, /doctor/);
     assert.match(smoke, /--network-approved=yes/);
 });

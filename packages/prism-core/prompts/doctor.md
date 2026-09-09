@@ -14,7 +14,8 @@ does not guess their commands.
 
 ```bash
 set -o pipefail
-pi --version 2>/dev/null || echo "NOT_FOUND"
+command -v pi >/dev/null 2>&1 || echo "NOT_FOUND"
+pi --version 2>/dev/null || echo "VERSION_UNKNOWN"
 ```
 
 PASS requires pi to run. The harness prescribes no models (ADR-0067); model
@@ -35,16 +36,18 @@ command -v openssl >/dev/null 2>&1 && openssl version || echo "NOT_FOUND"
 command -v jq >/dev/null 2>&1 && jq --version || echo "OPTIONAL_NOT_FOUND"
 ```
 
-Floors: Bash >= 4 for the harness validator; Node.js >= 20; npm >= 9. `git`,
-`curl`, and `openssl` require maintained versions but have no project-pinned
-floor. `jq` is optional because Core launcher reports are already structured
-JSON and do not require a shell parsing dependency.
+These probes report metadata, not version floors (ADR-0114). A failed version
+probe alone is not `NOT_FOUND`: confirm executable presence with `command -v`
+and report an unknown version when it exists. Required commands and actual API
+capabilities must work; never reject Pi, Bash, Node, npm, Git, curl, or OpenSSL
+because of their version number. `jq` is optional because Core reports are
+already structured JSON.
 
 ## 3. Prism resources
 
-Run `prism-tool doctor`. It verifies mandatory Semgrep compatibility and the
+Run `prism-tool doctor`. It verifies mandatory Semgrep availability and the
 installed `prism-review doctor --json` readiness contract: trust-root provenance,
-SDK compatibility, model metadata, Core policy, and active adapter provider.
+SDK import/API capabilities, model metadata, Core policy, and active adapter provider.
 It makes no live inference request. Authentication failures surface only at an
 authorized review attempt. Never install or configure tools automatically.
 Consent does not authorize review and does not block doctor. Never migrate,

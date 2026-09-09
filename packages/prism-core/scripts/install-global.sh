@@ -443,7 +443,7 @@ verify_review_sdk() {
     if ! result=$(env -u NODE_OPTIONS -u NODE_PATH node - "$REVIEW_CLI" 2>/dev/null <<'JSEOF'
 const {spawnSync} = require('node:child_process');
 const allowed = new Set(['SDK_MISSING', 'SDK_METADATA_INVALID', 'SDK_PROVENANCE_INVALID',
-    'SDK_VERSION_UNSUPPORTED', 'SDK_API_UNSUPPORTED', 'SDK_LOAD_FAILED', 'RUNTIME_READINESS_FAILED']);
+    'SDK_API_UNSUPPORTED', 'SDK_LOAD_FAILED', 'RUNTIME_READINESS_FAILED']);
 try {
     const child = spawnSync(process.execPath, [process.argv[2], 'sdk', '--json'], {
         encoding: 'utf8', timeout: 10000, maxBuffer: 65536,
@@ -455,7 +455,9 @@ try {
         Object.keys(report).sort().join(',') === 'command,schemaVersion,sdk,status' &&
         report.sdk?.packageName === '@earendil-works/pi-coding-agent' &&
         Object.keys(report.sdk).sort().join(',') === 'packageName,version' &&
-        typeof report.sdk.version === 'string' && /^[0-9]+\.[0-9]+\.[0-9]+(?:\+[0-9A-Za-z.-]+)?$/.test(report.sdk.version)) {
+        (report.sdk.version === null || (typeof report.sdk.version === 'string' &&
+            report.sdk.version.length > 0 && report.sdk.version.length <= 128 &&
+            !/[\x00-\x1f\x7f]/.test(report.sdk.version)))) {
         process.exit(0);
     }
     if (report.status !== 'NO-GO' || child.status !== 3 ||

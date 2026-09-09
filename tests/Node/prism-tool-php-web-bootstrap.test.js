@@ -357,7 +357,8 @@ test('renders an application-free PHP and Pest readiness surface', (t) => {
     assert.match(read('tests/bootstrap.php'), /E_ALL/);
     assert.match(read('tests/Feature/fixtures/coverage_probe.php'), /function coverage_probe\(bool \$ready\): string/);
     assert.match(read('tests/Feature/CoverageProbeTest.php'), /toBe\('ready'\).*toBe\('not-ready'\)/s);
-    assert.match(read('tests/Feature/RuntimeSmokeTest.php'), /PHP_VERSION_ID.*80500/);
+    assert.match(read('tests/Feature/RuntimeSmokeTest.php'), /function_exists\('socket_create'\)/);
+    assert.doesNotMatch(read('tests/Feature/RuntimeSmokeTest.php'), /PHP_VERSION_ID|80500/);
     assert.match(read('tests/Browser/SmokeTest.php'), /Prism ready/);
     assert.match(read('tests/Unit/Harness/ArchTest.php'), /RecursiveDirectoryIterator/);
     assert.match(read('tests/Unit/Harness/RcsHeaderConventionTest.php'), /\$KYAULabs:/);

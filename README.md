@@ -30,16 +30,18 @@ layer.
 
 Install these before running Prism:
 
-- Node.js 22.19 or newer;
+- Node.js capable of running Prism and its dependencies;
 - [pi](https://pi.dev);
 - Git;
-- Semgrep `>=1.173.0 <2.0.0`;
-- PHP 8.5, Composer, MariaDB, nginx, and PCOV for PHP/web projects;
+- Semgrep;
+- PHP, Composer, MariaDB, nginx, and PCOV for PHP/web projects;
 - Gitleaks and Shellcheck for the repository hooks.
 
-Prism verifies Semgrep but never installs, configures, or authenticates
-them. The package toolchain contracts own all bundled and consumer-development
-tool versions.
+Prism verifies Semgrep availability but never installs, configures, or
+authenticates it. Non-Prism versions, including Pi's, are runtime observations,
+not rejection rules (ADR-0114). Required capabilities, real checks, audits,
+dependency pins, and Prism's own compatibility checks remain enforced. The
+package toolchain contracts retain reference dependency versions.
 
 ### Install Core
 

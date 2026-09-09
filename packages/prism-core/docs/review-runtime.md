@@ -71,16 +71,29 @@ checks runtime permissions and composition after review and before either PR
 route succeeds. Its diagnostics do not discard completed review evidence or
 authorize another review. See [Project manifest](project-manifest.md#read-only-health).
 
+## Non-Prism version observations
+
+ADR-0114 removes numeric readiness gates for external commands, bundled
+third-party tools, PHP, and the Pi SDK. Version probes are bounded metadata
+collection. Unknown external tool versions are null in validated quality
+reports and check receipts. The legacy `expected` readiness field and contract
+version declarations identify reference versions, not runtime rejection rules.
+Actual command failures and missing capabilities remain failures. Prism package,
+provider protocol, receipt schema, lock graph consistency, and audit checks are
+not relaxed.
+
 ## SDK prerequisite check
 
-`prism-review sdk --json` checks package-relative SDK import, version, and
+`prism-review sdk --json` checks package-relative SDK import and
 required public APIs without Git, model selection, credentials, or inference.
 It returns exit 0 with `GO`, or exit 3 with `NO-GO`, a stable `reason`, and static
 `remediation`. This does not establish review authority or authentication.
 
-Core supplies the SDK as a runtime dependency. Its SDK and host-peer metadata
-use `>=0.84.1 <=5.0.0`, including 5.0.0. An in-range version must also satisfy
-required runtime APIs; version acceptance alone never establishes compatibility.
+Core supplies the SDK as a runtime dependency. Dependency declarations and
+lockfiles remain installation inputs, but SDK version numbers never gate
+runtime readiness (ADR-0114). Any reported version may load; the required
+public APIs must actually exist. Missing or unsafe version observations are
+reported as null metadata, not a compatibility failure.
 
 Doctor additionally checks external provenance, the selected model, isolated
 resources, profiles, adapter providers, and receipt state. Authentication stays
@@ -89,9 +102,8 @@ resources, profiles, adapter providers, and receipt state. Authentication stays
 | Reason | Meaning |
 | --- | --- |
 | `SDK_MISSING` | Core cannot resolve its declared SDK |
-| `SDK_METADATA_INVALID` | SDK package/version evidence is unsafe or malformed |
+| `SDK_METADATA_INVALID` | SDK package metadata is unsafe or malformed |
 | `SDK_PROVENANCE_INVALID` | SDK code resolves inside the reviewed repository |
-| `SDK_VERSION_UNSUPPORTED` | Version is outside the supported stable interval |
 | `SDK_API_UNSUPPORTED` | A required public or returned-object API is missing |
 | `SDK_LOAD_FAILED` | The resolved SDK or a transitive dependency cannot load |
 | `MODEL_CONTROLS_INVALID` | Active Pi controls are absent or malformed |
@@ -118,7 +130,7 @@ independent consumer with peer installation and lifecycle scripts disabled,
 and replay the generated consumer lock with offline `npm ci`.
 
 The fixed lanes use SDK 0.84.1 and 0.85.1 on Linux and macOS with Node 24.
-A separate lane selects the latest stable SDK within `>=0.84.1 <=5.0.0` and
+A separate lane selects the SDK's `latest` registry tag without a version ceiling and
 records its exact version. It may equal a fixed baseline; it does not claim a
 newer release was tested when none exists. Missing versions and failed API or
 isolation checks fail the lane rather than silently skipping it.
@@ -126,7 +138,8 @@ isolation checks fail the lane rather than silently skipping it.
 Each smoke run exercises real SDK import and isolated doctor initialization
 without inference. A test-only guard detects credential-file access, including
 attempts caught by the SDK. Installed-copy negative cases must report
-`SDK_MISSING`, `SDK_API_UNSUPPORTED`, and `SDK_VERSION_UNSUPPORTED`.
+`SDK_MISSING` and `SDK_API_UNSUPPORTED`. A compatible installed SDK with an
+unfamiliar version label must still report GO.
 
 CI retains only the consumer manifest, generated lock, Core archive, and exact
 version report for replay. These tests do not replace fixed-baseline release
