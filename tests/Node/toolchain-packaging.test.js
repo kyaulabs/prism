@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
 
 'use strict';
 
@@ -253,8 +253,8 @@ test('packs the core package with every owned resource and executable modes', ()
     ]) {
         assert.equal(packed.files.has(`scripts/prism-tool/${module}.js`), true, module);
     }
-    for (const module of ['commit-create-guard.ts', 'fatal-commit-latch.ts']) {
-        assert.equal(packed.files.has(`extensions/safety/${module}`), true, module);
+    for (const module of ['commit-create-guard.ts', 'fatal-commit-latch.ts', 'denial-circuit-breaker.ts', 'pre-tool-use.ts']) {
+        assert.equal(packed.files.has(`extensions/safety/${module}`), false, module);
     }
     for (const resource of [
         'README.md', 'authorization.ts', 'browser.ts', 'cdp.ts', 'config.ts',
@@ -278,7 +278,9 @@ test('packs the core package with every owned resource and executable modes', ()
     ]) {
         assert.equal(packed.listing.includes(removed), false, `${removed} removed`);
     }
-    assert.equal(tarPaths(packed, 'package/extensions/safety/').length >= 6, true, 'safety extension data present');
+    for (const module of ['index.ts', 'tool-call-handler.ts', 'sensitive-paths.ts']) {
+        assert.equal(packed.files.has(`extensions/safety/${module}`), true, module);
+    }
     assert.equal(packed.files.has('scripts/check-commit-workflows.js'), true, 'commit drift checker packaged');
     assert.equal(tarPaths(packed, 'package/scripts/prism-tool/').length >= 6, true, 'tool CLI modules packaged');
     assert.equal(
@@ -490,27 +492,6 @@ test('documents human npm publication for managed lockstep package releases', ()
     assert.match(coreReadme, /Managed lockstep npm releases/);
     assert.match(coreReadme, /displays the exact package list/);
     assert.match(coreReadme, /explicit enablement and displayed-diff mutation approval/);
-});
-
-test('documents bounded diff-causal review chains', () => {
-    const coreReadme = fs.readFileSync(path.join(CORE_PKG, 'README.md'), 'utf8');
-    const publicReadme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
-    const harnessDocs = fs.readFileSync(path.join(root, 'CODING_HARNESS.md'), 'utf8');
-    const agents = fs.readFileSync(path.join(CORE_PKG, 'AGENTS.md'), 'utf8');
-    const gitignore = fs.readFileSync(path.join(root, '.gitignore'), 'utf8');
-
-    assert.match(coreReadme, /review chain/i);
-    assert.match(coreReadme, /repair delta/i);
-    assert.match(coreReadme, /Advisory findings do not block/i);
-    assert.match(coreReadme, /all four axes/i);
-    assert.match(coreReadme, /base or history changes/i);
-    assert.doesNotMatch(coreReadme, /--force-review|automatic waiver/i);
-    for (const document of [coreReadme, publicReadme, harnessDocs, agents]) {
-        assert.match(document, /standalone `?\/pr`?.*recover.*absent/is);
-        assert.match(document, /invalid review evidence still fails\s+closed/is);
-        assert.match(document, /third.*(?:fresh|approval)/is);
-    }
-    assert.match(gitignore, /^\.pi\/prism-tool\/$/m);
 });
 
 test('declares one compatible empty-project bootstrap protocol in the adapter package', () => {

@@ -164,9 +164,12 @@ will need retirement/replacement, not preservation through compatibility shims.
 
 Important current state:
 
-- Most runtime code is still the OLD implementation. In particular the safety
-  classifier/latches, reviewer, web consent, provisioning, catalogue and full
-  pre-commit readiness still exist. The new instructions do not remove them.
+- Most runtime code is still the OLD implementation: reviewer, web consent,
+  provisioning, catalogue and full pre-commit readiness remain. Safety's fatal
+  latch, denial counter, commit-exclusivity guard and destructive-command
+  classifier have been deleted. The extension is now stateless between calls
+  apart from additive path configuration. The old sensitive shell parser remains;
+  general syntax restrictions and setup exceptions still need replacement.
 - The first commit ran ordinary Git once with existing hooks and Git-configured
   signing. Pre-commit passed, including staged-secret scanning. No failed commit
   or session latch occurred.
@@ -176,6 +179,11 @@ Important current state:
 - No push, merge, publication, credential access or remote deletion was performed.
 - Full repository checks have NOT run. Focused tests passed; old policy-contract
   suites elsewhere may contradict the approved changes until their slices land.
-- Pi docs already inspected: skills.md, prompt-templates.md and protected-paths.ts
-  example completely; extensions.md through line 2231. Before extension work,
-  finish extensions.md from line 2232 and relevant linked documentation/examples.
+- Pi docs inspected completely: skills.md, prompt-templates.md, extensions.md and
+  the protected-paths.ts example. Follow relevant linked docs for further APIs.
+- Safety recovery was developed Red/Green through extension events: repeated
+  credential rejection, failed commits, ordinary Git/cleanup operations, and
+  edit/write credential protection. Retained credential-matcher tests pass.
+  Old latch/classifier tests were removed with their deleted policy; packaged
+  resource tests now assert those runtime files are absent. Remaining package
+  tests of obsolete review-chain prose were removed, not restored.
