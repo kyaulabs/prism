@@ -133,11 +133,11 @@ they remain useful. This checklist tracks execution, not additional approvals.
 - Actual tests/checks and any unverified work are reported, never inferred from
   document completion or replaced with fictitious PASS evidence.
 
-## Restart note
+## Execution progress
 
-Paused at the user's request after the always-on-instructions task. Continue
-implementation from this document; the interview and implementation authorization
-are complete. Ask only about consequential unresolved decisions, not these choices.
+Implementation resumed after the requested pause. The interview and implementation
+authorization are complete. Ask only about consequential unresolved decisions,
+not these choices.
 
 Completed:
 
@@ -151,9 +151,15 @@ Completed:
 - Rewrote `packages/prism-core/AGENTS.md`, `APPEND_SYSTEM.md` and root `AGENTS.md`
   to carry the approved proportional workflow rather than the old gate chain.
 
-Next task: replace the remaining development/review skills and their prompt
-callers, then implement the small secret guard and remove the obsolete engines
-in the checklist. Keep TDD for runtime behavior. Existing tests of deleted policy
+- Replaced `grilling`, `brainstorming`, `writing-plans`, `executing-plans`, `tdd`,
+  `to-spec`, `code-review`, `verification-before-completion` and
+  `finishing-a-development-branch`, plus `/router`, `/check` and `/pr`. All 12
+  changed resources pass frontmatter and Markdown validation. The old aggregate
+  skill validator expects removed Output-style/table wording and timed out; its
+  policy-specific assertions need replacement, not restoration of old instructions.
+
+Next tasks: implement the small secret guard and remove obsolete engines;
+finish specialist workflow/skill callers still using the old contracts. Keep TDD for runtime behavior. Existing tests of deleted policy
 will need retirement/replacement, not preservation through compatibility shims.
 
 Important current state:
