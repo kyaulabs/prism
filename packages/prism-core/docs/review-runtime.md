@@ -250,6 +250,15 @@ bounded diagnostic and do not advance the chain. Safe schema-one state is
 review within the shared attempt budget that succeeds. Malformed, symlinked, or otherwise untrusted state is
 `UNSAFE` and is never overwritten automatically.
 
+To migrate `LEGACY` state, keep the existing record in place, record current
+approved criteria, and obtain a matching PASS check from the installed reviewer.
+Then run `prism-review review authoritative --base-ref origin/develop --new-initial --json`
+(use `origin/main` for release or hotfix branches). This runs a fresh complete
+review, not a conversion of old findings into new evidence. Successful
+publication atomically replaces version one with version two; an Inconclusive
+attempt leaves the legacy bytes unchanged. Do not delete the legacy record to
+make `/pr` treat it as absent.
+
 Preflight accepts only valid schema version two and never combines evidence
 between versions. Version-two recovery from `ABSENT` is available only
 when exact approved criteria and current PASS check receipts already exist;
@@ -334,9 +343,14 @@ AGENTS files, or appended system text, and no built-in tools.
 Only immutable `read_file`, immutable `read_diff`, and one terminating
 submission tool are registered. Policy, evidence, source, diff, finding, and
 tool-result bytes are labelled as hostile data. The runtime rejects premature,
-missing, duplicate, malformed, and post-termination submissions. Context
-budgeting conservatively reserves one token for every UTF-8 input byte, then
-reserves the fixed output allowance and a twenty-percent safety margin.
+missing, duplicate, malformed, and post-termination submissions. The SDK's one
+successful `toolResult` message for the exact terminating tool call is a normal
+completion acknowledgement, not further model activity. Other message starts,
+repeated acknowledgements, new turns, and further tool activity still fail closed.
+Prism does not estimate a context budget, reserve hypothetical tokens, or reject reviews based
+on the model's advertised context window. Fixed byte limits on policy, evidence,
+source, schemas, and tool framing remain. Actual SDK/provider context failures
+produce an Inconclusive result; they do not trigger retries or model fallback.
 
 A review invokes the selected provider and may incur possible provider cost.
 `doctor --json` resolves model metadata and validates isolation without running
