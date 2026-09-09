@@ -102,7 +102,9 @@ Replace workflows end-to-end in tested logical slices; keep helpers only when
 they remain useful. This checklist tracks execution, not additional approvals.
 
 - [x] Record the approved design on a work branch.
-- [ ] Replace always-on policy and development/Git/review skills with lean rules.
+- [x] Replace always-on Core/bootstrap/project instructions with lean rules.
+- [x] Accept the two-trailer commit format and remove commit-msg readiness gating.
+- [ ] Replace remaining development/Git/review skills with lean rules.
 - [ ] Simplify the safety extension with tests for credential and commit safety,
       ordinary command freedom, and recovery after rejected/failed operations.
 - [ ] Remove web-consent gating while preserving search/fetch safety tests.
@@ -130,3 +132,44 @@ they remain useful. This checklist tracks execution, not additional approvals.
 - No active workflow depends on the deleted reviewer or catalogue repository.
 - Actual tests/checks and any unverified work are reported, never inferred from
   document completion or replaced with fictitious PASS evidence.
+
+## Restart note
+
+Paused at the user's request after the always-on-instructions task. Continue
+implementation from this document; the interview and implementation authorization
+are complete. Ask only about consequential unresolved decisions, not these choices.
+
+Completed:
+
+- Commit `68e3bcf9`: recorded this design; changed commitlint to require only
+  `Implemented-by` and `Signed-off-by`; replaced the commit-msg launcher/readiness
+  dependency with ordinary local/PATH commitlint; rewrote `conventional-commits`.
+- Replaced two obsolete shell commit suites with
+  `tests/Node/lean-commit-conventions.test.js`: 20 passing tests, including real
+  Git commits, merge/revert exemptions, missing tooling, rejected-message recovery
+  and issue-reference rules. Shellcheck passed for `.github/hooks/commit-msg`.
+- Rewrote `packages/prism-core/AGENTS.md`, `APPEND_SYSTEM.md` and root `AGENTS.md`
+  to carry the approved proportional workflow rather than the old gate chain.
+
+Next task: replace the remaining development/review skills and their prompt
+callers, then implement the small secret guard and remove the obsolete engines
+in the checklist. Keep TDD for runtime behavior. Existing tests of deleted policy
+will need retirement/replacement, not preservation through compatibility shims.
+
+Important current state:
+
+- Most runtime code is still the OLD implementation. In particular the safety
+  classifier/latches, reviewer, web consent, provisioning, catalogue and full
+  pre-commit readiness still exist. The new instructions do not remove them.
+- The first commit ran ordinary Git once with existing hooks and Git-configured
+  signing. Pre-commit passed, including staged-secret scanning. No failed commit
+  or session latch occurred.
+- No global installation/configuration was changed. Restart/reload reads the
+  checkout resources configured in `.pi/settings.json`, but installed global
+  context may still contain old text until the installer is updated/deployed.
+- No push, merge, publication, credential access or remote deletion was performed.
+- Full repository checks have NOT run. Focused tests passed; old policy-contract
+  suites elsewhere may contradict the approved changes until their slices land.
+- Pi docs already inspected: skills.md, prompt-templates.md and protected-paths.ts
+  example completely; extensions.md through line 2231. Before extension work,
+  finish extensions.md from line 2232 and relevant linked documentation/examples.

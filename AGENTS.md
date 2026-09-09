@@ -1,80 +1,59 @@
-# AGENTS.md — kyaulabs/prism (project layer)
+# Prism repository
 
-> **Thin project layer.** This repo *is* the prism harness. The authoritative
-> harness instruction set — hard boundaries, the engineering pipeline, git
-> workflow, model strategy, and the skills/commands index — lives in
-> **[`packages/prism-core/AGENTS.md`](packages/prism-core/AGENTS.md)**. Read
-> it first for any harness-affecting work. It is also what
-> `packages/prism-core/scripts/install-global.sh` deploys to
-> `~/.pi/agent/AGENTS.md` (global, loaded every session). pi concatenates the
-> global core and this project layer into the system prompt, so the two never
-> duplicate — this file carries only what is specific to *this* repository.
+Read `packages/prism-core/AGENTS.md` for the shared engineering defaults.
+This checkout develops and dogfoods the harness itself.
 
-## What this repo is
+## Active refactor
 
-`kyaulabs/prism` — the prism pi coding harness, shipped as two pi packages
-under `packages/` and **dogfooded** from this same checkout:
+`docs/specs/lean-prism.md` records the approved breaking redesign and execution
+checklist. Follow its decisions over superseded workflow prose. The refactor is
+in progress: older skills, runtime engines and tests still exist until their
+replacement slices land. Do not mistake the new policy for completed runtime
+implementation. Historical ADRs document the old system; they are not reasons
+to preserve machinery explicitly selected for removal.
 
-- **`packages/prism-core`** — language-agnostic core (global: skills, prompts,
-  safety and bounded web-access extensions, `AGENTS.md`, `APPEND_SYSTEM.md`).
-- **`packages/prism-php-web`** — PHP/web stack adapter (project-local).
+## Packages
 
-The bounded web-access extension exposes only `web_search` and `fetch_content`
-under independent standing consent managed by `/setup`.
+- `packages/prism-core`: global, language-agnostic skills, prompts and extensions.
+- `packages/prism-php-web`: project-local PHP/web skills and tooling. Keep this
+  modular boundary so future stack modules can be ordinary Pi packages.
+- `.pi/settings.json` loads both packages from this checkout for dogfooding.
+  Editing an extension on disk does not replace an already loaded instance;
+  reload or restart Pi to use the changed runtime.
 
-The repo also carries **PHP/Aurora project heritage** (`aurora/` submodule,
-`backend/`, `cdn/`, `tests/`), so it is itself a PHP project — the
-`php-web-stack` adapter skill applies (see Stack below).
+## PHP/web heritage
 
-## Stack — PHP/Aurora
+This repository includes `aurora/` (a submodule), `backend/`, `cdn/` and PHP tests,
+but is not a deployable application. There is no application webroot, root SQL
+schema or nginx deployment configuration.
 
-`composer.json` and `aurora/` are present, so load the **`php-web-stack`**
-skill for stack specifics: PHP 8.5+, MariaDB, nginx, SCSS → Dart Sass, vanilla
-JS, Pest 5 on PHPUnit 13, no-MVC, flat procedural PHP. The adapter's
-`tdd-php`, `rcs-header`, `aurora-page`, `scss-mobile-first`, `database`,
-`security-coding-php`, and related skills apply for PHP work in `backend/`,
-`cdn/`, `tests/`, and `aurora/`.
+For PHP/web changes, load `php-web-stack` and the relevant module skills. The
+stack is PHP 8.5+, MariaDB, nginx, SCSS/Dart Sass, vanilla JavaScript and Pest 5
+on PHPUnit 13. RCS headers and vim modelines are module conventions. The approved
+changed-file PHP coverage default is 90%; the implementation checklist tracks
+its migration from the old 80% gate.
 
-> This repo is **not** a deployable web app — there is no `<app>/` webroot,
-> `*.sql`, or `*.nginx.conf` at the root. `aurora/`, `backend/`, and `cdn/`
-> are heritage and test infrastructure. The production-env paths described in
-> `php-web-stack` refer to downstream consumers, not this checkout.
+Never edit generated `cdn/css/*.min.css` or `cdn/javascript/*.min.js`. Build
+assets from their SCSS/JavaScript sources when those sources change.
 
-## Dogfooding
+## Verification and Git
 
-[`.pi/settings.json`](.pi/settings.json) loads `prism-core` + `prism-php-web`
-skills/prompts/extension **from disk** (`../packages/...`), so a `pi` session
-opened here has the full harness + adapter available with no install step. The
-Core's **safety extension** is live and enforces the credential-path deny floor
-(ADR-0047) and the `rm -rf` safe-zone policy. Its **web-access extension**
-provides bounded public textual search and retrieval under standing consent.
+- Core JavaScript/TypeScript tests use Node's test runner under `tests/Node/`.
+  Run focused tests during TDD and broader relevant suites before completion.
+- PHP, shell, frontend and package checks live alongside their applicable
+  tooling. Do not require every installed tool for an unrelated change.
+- This checkout currently uses `.github/hooks`; retain secret scanning while
+  simplifying readiness, commit and workflow enforcement.
+- Use Conventional Commits with `Implemented-by` and `Signed-off-by` only.
+  Follow Git signing configuration and commit verified logical changes.
+- Keep work on the active refactor branch. No push or merge has been requested
+  for this refactor. The separate approved deletion of `kyaulabs/prism-adapters`
+  happens only after its consumers and dedicated automation are retired.
 
-## Repo-specific operations
+## References
 
-- **Fresh clone:** `git submodule update --init` (`aurora/` is a submodule:
-  `kyaulabs/aurora`, branch `main`).
-- **Automation:** the PHP/web adapter owns CI for pushes and pull requests
-  involving `develop` or `main`; Core owns the separate `main` to `develop`
-  back-merge workflow and repository tags/releases for merged release branches.
-- **Hooks:** `/setup` reconciles `pre-commit`, `commit-msg`,
-  `prepare-commit-msg`, and `pre-push` through the shared Core engine. The
-  compatibility installer delegates to that engine.
-- **Commits:** `prism-tool commit create` explicitly runs the effective
-  pre-commit hook before its staged snapshot; Git runs the hook again during
-  commit creation.
-- **Gate:** `/check` → delegates to `/check-php` (php-cs-fixer + stylelint +
-  eslint + Pest coverage ≥ 80%).
-- **Assets:** `/build-assets` (adapter command — Dart Sass + uglify-js) when
-  `cdn/sass` or `cdn/js` sources change. Never edit generated
-  `cdn/css/*.min.css` or `cdn/javascript/*.min.js`.
-- **Commits:** `prism-tool commit` resolves `Signed-off-by` from the optional
-  Prism identity override or Git config and fails closed when unavailable.
-
-## Deeper docs
-
-- [`CODING_HARNESS.md`](CODING_HARNESS.md) — orientation: pi mapping, pipeline overview.
-- [`CONTEXT.md`](CONTEXT.md) — domain glossary, entities, invariants.
-- [`adr/`](adr/) — Architecture Decision Records (0001–0054 opencode-era
-  frozen; 0055+ pi-era).
-- [`README.md`](README.md) — install + quickstart.
-- [`docs/follow-ups/`](docs/follow-ups/) — deferred work (evals, more adapters, publish).
+- `docs/specs/lean-prism.md`: approved design, checklist and restart progress.
+- `CONTEXT.md`: domain context; legacy sections are being updated by the refactor.
+- `README.md` and `CODING_HARNESS.md`: installation and orientation, also pending
+  migration to the approved design.
+- `adr/`: historical architectural decisions.
