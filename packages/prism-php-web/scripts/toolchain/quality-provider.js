@@ -181,12 +181,15 @@ function coverageCounts(xml, projectRoot) {
         } catch {
             continue;
         }
+        const total = {covered: 0, statements: 0};
+        counts.set(relative, total);
         for (const lineMatch of fileMatch[2].matchAll(linePattern)) {
             const type = /(?:^|\s)type="([^"]+)"/u.exec(lineMatch[1]);
             const number = /(?:^|\s)num="(\d+)"/u.exec(lineMatch[1]);
             const count = /(?:^|\s)count="(\d+)"/u.exec(lineMatch[1]);
             if (type?.[1] === 'stmt' && number !== null && count !== null) {
-                counts.set(`${relative}:${Number(number[1])}`, Number(count[1]));
+                total.statements += 1;
+                if (Number(count[1]) > 0) total.covered += 1;
             }
         }
     }
@@ -205,17 +208,12 @@ async function changedCoverage(options) {
         if (!Array.isArray(lines) || lines.length === 0) return skipped(id, command);
         const xml = await options.readArtifact('tests/coverage.xml', ARTIFACT_LIMIT);
         const counts = coverageCounts(xml, options.projectRoot);
-        const totals = new Map();
-        for (const {file, line} of lines) {
-            const relative = relativeFile(file);
-            const total = totals.get(relative) ?? {covered: 0, statements: 0};
-            total.statements += 1;
-            if (counts.get(`${relative}:${line}`) > 0) total.covered += 1;
-            totals.set(relative, total);
-        }
-        const passed = [...totals.values()].every(({covered, statements}) =>
-            covered * 100 >= statements * 80
-        );
+        if (counts.size === 0) throw new Error('coverage report has no instrumented files');
+        const changedFiles = new Set(lines.map(({file}) => relativeFile(file)));
+        const passed = [...changedFiles].every(file => {
+            const total = counts.get(file);
+            return total === undefined || total.covered * 100 >= total.statements * 80;
+        });
         return receipt(id, command, {
             passed,
             stdout: EMPTY,

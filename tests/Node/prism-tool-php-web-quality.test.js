@@ -178,6 +178,33 @@ test('executes only shell regression tests through the shell gate', async () => 
     assert.deepEqual(shellRequests, [['tests/Shell/example_test.sh']]);
 });
 
+test('measures instrumented files rather than treating comments and test edits as uncovered code', async () => {
+    const report = await adapter.runQualityProvider({
+        projectRoot: root, baseSha: '1'.repeat(40), headSha: '2'.repeat(40),
+        trackedPaths: ['backend/example.php', 'tests/Unit/ExampleTest.php'], packageScripts: [],
+        runCommand: success, runTool: success, runServer: success,
+        changedLines: async () => [{file: 'backend/example.php', line: 3}, {file: 'tests/Unit/ExampleTest.php', line: 1}],
+        readArtifact: async () => Buffer.from(
+            '<coverage><file name="backend/example.php"><line num="7" type="stmt" count="1"/></file></coverage>'),
+        verifySnapshot: async () => true,
+    });
+    assert.equal(report.gates.find(gate => gate.id === 'php-web.changed-file-coverage').status, 'PASS');
+});
+
+test('rejects low whole-file coverage and empty evidence even when the edited line is covered', async () => {
+    for (const xml of ['<coverage/>', '<coverage><file name="app/example.php">' +
+        '<line num="7" type="stmt" count="1"/><line num="8" type="stmt" count="0"/></file></coverage>']) {
+        const report = await adapter.runQualityProvider({
+            projectRoot: root, baseSha: '1'.repeat(40), headSha: '2'.repeat(40),
+            trackedPaths: ['app/example.php'], packageScripts: [],
+            runCommand: success, runTool: success, runServer: success,
+            changedLines: async () => [{file: 'app/example.php', line: 7}],
+            readArtifact: async () => Buffer.from(xml), verifySnapshot: async () => true,
+        });
+        assert.equal(report.gates.find(gate => gate.id === 'php-web.changed-file-coverage').status, 'FAIL');
+    }
+});
+
 test('ignores non-statement Clover lines in changed-file coverage', async () => {
     const report = await adapter.runQualityProvider({
         projectRoot: root,
@@ -195,7 +222,7 @@ test('ignores non-statement Clover lines in changed-file coverage', async () => 
         verifySnapshot: async () => true,
     });
 
-    assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'FAIL');
+    assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'PASS');
 });
 
 test('stops multi-file quality execution when combined output exceeds its bound', async () => {
