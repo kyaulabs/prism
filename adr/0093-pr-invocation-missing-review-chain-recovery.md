@@ -6,6 +6,9 @@ Date: 2026-08-27
 
 Accepted
 
+Review-attempt approval clauses partially superseded by
+[ADR-0112](0112-two-automatic-review-attempts.md). Other clauses remain in force.
+
 Extends ADR-0081's review-authorization sources for standalone `/pr`
 invocations. Retains its plan-approved automatic finalization, one-review
 limit, standing OCR consent boundary, fresh approval for additional reviews,

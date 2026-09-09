@@ -1,4 +1,4 @@
-// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: bootstrap-scaffold.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -378,8 +378,7 @@ jobs:
       - run: composer install --no-progress --no-interaction --no-scripts
       - run: npm ci --ignore-scripts
       - run: python3 -m venv /tmp/semgrep && /tmp/semgrep/bin/pip install 'semgrep>=1.173.0,<2.0.0'
-      - run: npm install -g --ignore-scripts '@alibaba-group/open-code-review@>=1.9.1 <2.0.0'
-      - run: npm install -g --ignore-scripts '@earendil-works/pi-coding-agent@0.84.1'
+      - run: npm install -g --ignore-scripts '@earendil-works/pi-coding-agent@0.85.1'
       - run: pi install npm:@kyaulabs/prism-core@${request.adapter.packageVersion}
       - run: pi install -l npm:@kyaulabs/prism-php-web@${request.adapter.packageVersion}
       - run: prism-tool doctor --local-only
@@ -486,8 +485,8 @@ it('exercises both readiness outcomes', function (): void {
 `;
     if (outputPath === 'tests/Feature/RuntimeSmokeTest.php') return `<?php
 declare(strict_types=1);
-it('runs on PHP 8.5 or newer', function (): void {
-    expect(PHP_VERSION_ID)->toBeGreaterThanOrEqual(80500);
+it('provides the required socket capability', function (): void {
+    expect(function_exists('socket_create'))->toBeTrue();
 });
 `;
     if (outputPath === 'tests/Browser/SmokeTest.php') return `<?php

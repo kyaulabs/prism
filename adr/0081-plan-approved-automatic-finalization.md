@@ -6,6 +6,9 @@ Date: 2026-08-23
 
 Accepted
 
+Review-attempt approval clauses partially superseded by
+[ADR-0112](0112-two-automatic-review-attempts.md). Other clauses remain in force.
+
 Selectively supersedes ADR-0074's one-attempt branch-finalization acceptance
 and restart clauses and ADR-0080's retained one-attempt acceptance clause.
 Retains standing OCR consent, exact attestation, bounded diff-causal review

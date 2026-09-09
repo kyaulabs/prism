@@ -1,4 +1,4 @@
-// $KYAULabs: check.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: check.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -103,7 +103,7 @@ function parseGate(value) {
     }
     const tools = value.tools.map((tool) => {
         exact(tool, ['id', 'version'], 'check gate tool');
-        if (!ID.test(tool.id ?? '') || !VERSION.test(tool.version ?? '')) {
+        if (!ID.test(tool.id ?? '') || (tool.version !== null && !VERSION.test(tool.version ?? ''))) {
             throw new Error('check gate tool is invalid');
         }
         return {...tool};

@@ -1,4 +1,4 @@
-// $KYAULabs: core-quality.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: core-quality.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -7,10 +7,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {TextDecoder} = require('node:util');
-const {loadCoreContract} = require('../prism-tool/core-toolchain');
+const {loadCoreContract, packageRootFor} = require('../prism-tool/core-toolchain');
 const {loadAdapterHandler} = require('../prism-tool/discovery');
 const {checkExternalTools, resolveExecutable} = require('../prism-tool/preflight');
-const {runBounded} = require('../prism-tool/process');
+const {extractVersion, runBounded} = require('../prism-tool/process');
 const {runIsolatedSemgrep} = require('../prism-tool/semgrep');
 const {runValidatedServer} = require('../prism-tool/server');
 const {
@@ -45,7 +45,7 @@ function tools(value) {
         if (tool === null || typeof tool !== 'object' || Array.isArray(tool) ||
             Object.keys(tool).sort().join(',') !== 'id,version' ||
             !/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(tool.id ?? '') ||
-            !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(tool.version ?? '')) {
+            (tool.version !== null && !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(tool.version ?? ''))) {
             throw new Error('Core quality tool is invalid');
         }
         return {...tool};
@@ -127,7 +127,12 @@ function defaultExecute(request, context) {
         command = process.execPath;
         args = [path.join(coreRoot, 'scripts', 'prism-tool.js'), ...executionCommand.slice(1)];
         const markdown = contract.components.find(({id}) => id === 'markdownlint-cli2');
-        commandTools = [{id: markdown.id, version: markdown.version}];
+        let version = null;
+        try {
+            const observed = packageRootFor(markdown.package, coreRoot).manifest.version;
+            if (typeof observed === 'string' && /^\d+\.\d+\.\d+$/.test(observed)) version = observed;
+        } catch { }
+        commandTools = [{id: markdown.id, version}];
     } else if (executionCommand[0] === 'semgrep') {
         const component = contract.components.find(({id}) => id === 'semgrep');
         const readiness = checkExternalTools({contract: {...contract, components: [component]}, env,
@@ -178,9 +183,7 @@ function requests(identity, trackedPaths = null) {
             '--', '.', ':!adr/**', ':!docs/plans/**',
         ]},
         {id: 'core.harness', command: ['bash', 'packages/prism-core/scripts/validate-harness.sh']},
-        {id: 'core.semgrep', command: semgrepCommand,
-            executionCommand: trackedPaths === null ? semgrepCommand : [...semgrepCommand, '--', ...trackedPaths],
-            skip: trackedPaths?.length === 0},
+        {id: 'core.semgrep', command: semgrepCommand, skip: trackedPaths?.length === 0},
     ];
 }
 
@@ -374,10 +377,12 @@ function commandVersion(id, executablePath, context, env) {
         maxBuffer: OUTPUT_LIMIT + 1,
         timeout: 30000,
     });
-    const output = versionOutput(result);
-    const version = result.error ? null : patterns[id].exec(output)?.[1] ?? null;
-    if (result.status !== 0 || version === null) throw new Error('quality command version is invalid');
-    return version;
+    if (result.error || result.status !== 0) return null;
+    try {
+        return patterns[id].exec(versionOutput(result))?.[1] ?? null;
+    } catch {
+        return null;
+    }
 }
 
 function toolVersion(component, executablePath, context, env) {
@@ -388,14 +393,12 @@ function toolVersion(component, executablePath, context, env) {
         maxBuffer: OUTPUT_LIMIT + 1,
         timeout: 30000,
     });
-    const output = versionOutput(result);
-    const versions = [...output.matchAll(/(?:^|[^0-9])(\d+\.\d+\.\d+)(?=$|[^0-9])/gu)]
-        .map((match) => match[1]);
-    const version = result.error || !versions.includes(component.version) ? null : component.version;
-    if (result.status !== 0 || version === null) {
-        throw new Error('quality tool version is invalid');
+    if (result.error || result.status !== 0) return null;
+    try {
+        return extractVersion(versionOutput(result));
+    } catch {
+        return null;
     }
-    return version;
 }
 
 function snapshotMatches(identity, context) {

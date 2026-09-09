@@ -1,4 +1,4 @@
-// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: toolchain-packaging.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -86,9 +86,6 @@ function fakeExternalRun(invocations) {
         if (name === 'semgrep') {
             return {status: 0, stdout: '1.173.0', stderr: '', error: undefined};
         }
-        if (name === 'ocr') {
-            return {status: 0, stdout: 'open-code-review v1.9.1 linux/amd64', stderr: '', error: undefined};
-        }
         if (command === 'php') {
             return {status: 0, stdout: '{"version":"8.5.0","sockets":true}', stderr: '', error: undefined};
         }
@@ -96,17 +93,26 @@ function fakeExternalRun(invocations) {
     };
 }
 
-test('declares the bounded review executable and Pi SDK peer', () => {
+test('Core supplies its standalone SDK even when peer installation is disabled', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(CORE_PKG, 'package.json'), 'utf8'));
+    const sdk = '@earendil-works/pi-coding-agent';
 
+    assert.equal(manifest.dependencies[sdk], '>=0.84.1 <=5.0.0');
+    assert.equal(manifest.peerDependencies[sdk], '>=0.84.1 <=5.0.0');
     assert.deepEqual(manifest.bin, {
         'prism-review': 'scripts/prism-review.js',
         'prism-tool': 'scripts/prism-tool.js',
     });
-    assert.equal(
-        manifest.peerDependencies['@earendil-works/pi-coding-agent'],
-        '>=0.84.1 <0.85.0'
-    );
+});
+
+test('pins the development SDK baseline in the manifest and npm lock', () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
+    const sdk = '@earendil-works/pi-coding-agent';
+
+    assert.equal(manifest.devDependencies[sdk], '0.85.1');
+    assert.equal(lock.packages[''].devDependencies[sdk], '0.85.1');
+    assert.equal(lock.packages[`node_modules/${sdk}`].version, '0.85.1');
 });
 
 test('keeps review private state ignored with only its work directory recursively removable', () => {
@@ -171,6 +177,7 @@ test('packs the core package with every owned resource and executable modes', ()
     assert.equal(packed.files.has('safe-dirs.json'), true);
     assert.equal(packed.files.has('AGENTS.md'), true);
     assert.equal(packed.files.has('APPEND_SYSTEM.md'), true);
+    assert.equal(packed.files.has('prompts/handoff.md'), false);
     assert.equal(packed.files.has('skills/distill/SKILL.md'), true, 'Distill skill packaged');
     assert.equal(
         packed.files.has('skills/distill/references/patterns.md'),
@@ -237,9 +244,9 @@ test('packs the core package with every owned resource and executable modes', ()
         'bootstrap-profile-providers', 'bootstrap-providers', 'bootstrap-release-provider',
         'bootstrap-source',
         'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
-        'catalogue-publication-readiness', 'cli', 'code-review', 'commit', 'core-toolchain', 'hook',
+        'catalogue-publication-readiness', 'cli', 'commit', 'core-toolchain', 'hook',
         'consent', 'contract', 'discovery', 'managed-record', 'markdown',
-        'preflight', 'process', 'review-chain', 'setup-entry', 'setup-route',
+        'preflight', 'process', 'setup-entry', 'setup-route',
         'web-access-browser', 'web-access-config',
         'supported-adapters', 'template-source', 'template-source-http',
         'template-source-validation',
@@ -499,9 +506,9 @@ test('documents bounded diff-causal review chains', () => {
     assert.match(coreReadme, /base or history changes/i);
     assert.doesNotMatch(coreReadme, /--force-review|automatic waiver/i);
     for (const document of [coreReadme, publicReadme, harnessDocs, agents]) {
-        assert.match(document, /standalone `?\/pr`?.*one complete initial review.*absent/is);
-        assert.match(document, /invalid.*review chain.*fail closed/is);
-        assert.match(document, /second review.*fresh explicit approval/is);
+        assert.match(document, /standalone `?\/pr`?.*recover.*absent/is);
+        assert.match(document, /invalid review evidence still fails\s+closed/is);
+        assert.match(document, /third.*(?:fresh|approval)/is);
     }
     assert.match(gitignore, /^\.pi\/prism-tool\/$/m);
 });

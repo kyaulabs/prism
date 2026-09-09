@@ -16,7 +16,7 @@ Core owns:
 - global `AGENTS.md` and `APPEND_SYSTEM.md` resources;
 - the safety enforcement and bounded web-access extensions;
 - the `prism-tool` launcher and Core toolchain contract;
-- the `prism-review` ad hoc runtime, dormant authority compatibility bridge,
+- the `prism-review` ad hoc runtime, installed version-two authority,
   and closed Core review policy;
 - strict-empty setup orchestration and generic project-provider composition;
 - repository creation, canonical hooks, root-seed preparation, and recovery;
@@ -33,9 +33,8 @@ The package archive includes `extensions/`, `skills/`, `prompts/`, `scripts/`,
 
 ## Install
 
-Semgrep `>=1.173.0 <2.0.0` and OpenCodeReview (`ocr`)
-`>=1.9.1 <2.0.0` must already be installed. Prism verifies them but never
-installs, configures, authenticates, or reads their credentials.
+Semgrep must already be installed. Its version is informational; Prism verifies availability but
+never installs, configures, authenticates, or reads its credentials.
 
 From a Prism checkout:
 
@@ -58,16 +57,23 @@ overwrite an unrelated launcher. Remove the Prism-owned launcher set with:
 bash packages/prism-core/scripts/install-global.sh --uninstall-launcher
 ```
 
-Installation runs `doctor --local-only`, creates neither standing OCR nor
-web-access consent, and makes no live provider or public-web request. A
-readiness failure leaves the package, launcher, and context resources installed
-for remediation.
+Before deploying launchers or context resources, installation verifies the
+packaged review executable and runs `prism-review sdk --json`. SDK failure
+stops deployment and cannot count as installation readiness success; an
+already-downloaded package may remain for remediation. Model, profile, and
+authentication availability are not installer prerequisites.
 
-After installation, run `/setup` to manage independent standing OCR and
-web-access consent, optional closed web-access configuration, and optional pi
-session defaults. Revoke either consent through `/setup` with
-`prism-tool consent revoke-ocr` or `prism-tool consent revoke-web`. Provider
-login and model selection remain pi operations; Prism does not prescribe them.
+After deployment, installation runs `prism-tool doctor --local-only`, creates
+no web-access consent, and makes no live provider or
+public-web request. Failure at this toolchain check leaves the package,
+launchers, and context resources installed for remediation.
+
+After installation, run `/setup` to manage standing web-access consent, optional
+closed web configuration, and optional Pi session defaults. Revoke web consent
+with `prism-tool consent revoke-web`. Only explicitly approved setup migration
+converts legacy consent to web-only schema three. Review has two automatic attempts per active task, then asks before each later
+attempt; it does not use standing consent. Provider login and model selection remain
+Pi operations; Prism does not prescribe them.
 
 Install a stack adapter in the consumer project. For PHP/web:
 
@@ -79,7 +85,7 @@ pi install -l npm:@kyaulabs/prism-php-web
 
 `toolchain.json` declares exact bundled Core tools and compatible external
 prerequisites. Core bundles commitlint, git-cliff, and `markdownlint-cli2`.
-Semgrep and OCR remain mandatory external tools. Routine gates never install or
+Semgrep remains the mandatory external tool. Routine gates never install or
 update tools.
 
 Run offline readiness with:
@@ -88,16 +94,16 @@ Run offline readiness with:
 prism-tool doctor --local-only
 ```
 
-Full `/doctor` validates standing OCR consent before one connectivity test and
-reports web-access readiness without a live request. Reviewed-code egress is
-available only through the dedicated `prism-tool code-review ocr` operation.
-CI provisions compatible tools in its ephemeral environment but creates no
-consent and runs neither OCR review nor web access.
+Full `/doctor` verifies installed reviewer trust, SDK API capabilities, model
+metadata, Core policy, and the active adapter without inference. Non-Prism
+version numbers, including Pi's, never block runtime readiness (ADR-0114).
+Dependency pins, audits, and Prism identity/protocol checks remain. Optional web
+readiness is reported separately. CI creates no consent and runs no provider
+review or web access.
 
-`prism-review` provides bounded ad hoc staged, commit, branch, and tracked-path
-reports through isolated Pi SDK sessions. Ad hoc reports are non-authoritative.
-This release also carries a dormant authority compatibility bridge with exact
-commands including:
+The installed `prism-review` engine owns criteria, deterministic checks, and
+version-two review authority. Ad hoc staged, commit, branch, and path reports
+remain non-authoritative. Authoritative commands include:
 
 ```text
 prism-review criteria record --source ROLE:COMMIT:PATH [--source ROLE:COMMIT:PATH ...] --json
@@ -110,11 +116,14 @@ prism-review review repair --base-ref origin/develop|origin/main --closures RELA
 The bridge can author schema-version-two evidence only from installed Core
 outside the reviewed repository and, when an adapter is active, a matching
 external installed adapter. Checkout Core cannot author that evidence. The
-bridge does not replace OCR-backed `code-review` or normal finalization in this
-release. Humans must release, publish, and install matching packages before
-using it deliberately. See [Review runtime and authority compatibility
-bridge](docs/review-runtime.md) for the complete grammar, state model, limits,
-provider cost, and dual-read preflight behavior.
+engine is the only finalization authority. Humans release, publish, and install
+matching packages outside the reviewed checkout. See [Review runtime](docs/review-runtime.md)
+for grammar, receipt state, limits, provider cost, and fail-closed preflight.
+
+Use `prism-review sdk --json` to check Core’s runtime SDK dependency without
+model selection, credentials, or inference. See [SDK prerequisite checks and
+readiness diagnostics](docs/review-runtime.md#sdk-prerequisite-check) before
+running the consumer-specific doctor.
 
 The Core Markdown profile checks changed ADRs, `docs/`, maintained root docs,
 package READMEs and package docs, and maintained extension READMEs:
@@ -347,7 +356,7 @@ Pre-durable failures restore strict emptiness when ownership remains provable.
 Post-durable failures retain one exact resume action. Operational state is
 private beneath `.pi/prism-tool/` and is never staged into the root seed.
 
-Registry access, consumer mutation, standing OCR consent, standing web-access
+Registry access, consumer mutation, review-attempt authorization, standing web-access
 consent, reviewed-code egress, hook activation, and complete project-plan
 application are distinct approval boundaries. Local readiness, installation
 checks, hooks, and CI do not create consent.
@@ -360,19 +369,20 @@ A failed, unsafe, ambiguous, or non-exclusive attempt blocks all tools until
 Branch completion uses one finalization acceptance for synchronization,
 attestation, `/check`, all four axes, SHA revalidation, and automatic `/pr`
 preparation. One complete initial review starts the review chain. After a
-Blocking repair, fresh acceptance reviews only the repair delta. Advisory
+Blocking repair, review covers only the repair delta within the shared budget. Advisory
 findings do not block `/pr`. Advisory findings do not block publication or need
 a waiver. Base or history changes, discontinuity, incomplete axes, malformed
 state, or a `HEAD` mismatch require a new complete initial review. Managed health
 runs after review and before PR readiness without discarding completed evidence
-or authorizing another OCR attempt. A health-only failure does not invalidate
+or authorizing another review attempt. A health-only failure does not invalidate
 unchanged reviewed identities; repairs that change those identities follow the
-existing review-chain rules. Any additional review requires fresh finalization acceptance.
+existing review-chain rules. After two attempts, each additional review requires fresh explicit approval.
 
-A standalone `/pr` invocation may authorize one complete initial review only
-when deterministic preflight classifies the review chain as absent. Invalid
-review chain evidence continues to fail closed. A failed or second review
-requires fresh explicit approval. `/pr` remains preparation-only.
+Standalone `/pr` recovers only an absent review chain with matching criteria,
+checks, and synchronization evidence. It shares the active task's two automatic
+review attempts; the third and every later attempt require fresh approval for
+one attempt. Failed attempts count and re-entry does not reset the budget.
+Invalid review evidence still fails closed. `/pr` remains preparation-only.
 
 `/pr` is preparation-only. Humans push branches, create pull requests, and
 merge.

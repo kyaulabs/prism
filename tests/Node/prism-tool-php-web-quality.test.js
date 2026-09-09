@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-php-web-quality.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-tool-php-web-quality.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -178,6 +178,33 @@ test('executes only shell regression tests through the shell gate', async () => 
     assert.deepEqual(shellRequests, [['tests/Shell/example_test.sh']]);
 });
 
+test('measures instrumented files rather than treating comments and test edits as uncovered code', async () => {
+    const report = await adapter.runQualityProvider({
+        projectRoot: root, baseSha: '1'.repeat(40), headSha: '2'.repeat(40),
+        trackedPaths: ['backend/example.php', 'tests/Unit/ExampleTest.php'], packageScripts: [],
+        runCommand: success, runTool: success, runServer: success,
+        changedLines: async () => [{file: 'backend/example.php', line: 3}, {file: 'tests/Unit/ExampleTest.php', line: 1}],
+        readArtifact: async () => Buffer.from(
+            '<coverage><file name="backend/example.php"><line num="7" type="stmt" count="1"/></file></coverage>'),
+        verifySnapshot: async () => true,
+    });
+    assert.equal(report.gates.find(gate => gate.id === 'php-web.changed-file-coverage').status, 'PASS');
+});
+
+test('rejects low whole-file coverage and empty evidence even when the edited line is covered', async () => {
+    for (const xml of ['<coverage/>', '<coverage><file name="app/example.php">' +
+        '<line num="7" type="stmt" count="1"/><line num="8" type="stmt" count="0"/></file></coverage>']) {
+        const report = await adapter.runQualityProvider({
+            projectRoot: root, baseSha: '1'.repeat(40), headSha: '2'.repeat(40),
+            trackedPaths: ['app/example.php'], packageScripts: [],
+            runCommand: success, runTool: success, runServer: success,
+            changedLines: async () => [{file: 'app/example.php', line: 7}],
+            readArtifact: async () => Buffer.from(xml), verifySnapshot: async () => true,
+        });
+        assert.equal(report.gates.find(gate => gate.id === 'php-web.changed-file-coverage').status, 'FAIL');
+    }
+});
+
 test('ignores non-statement Clover lines in changed-file coverage', async () => {
     const report = await adapter.runQualityProvider({
         projectRoot: root,
@@ -195,7 +222,7 @@ test('ignores non-statement Clover lines in changed-file coverage', async () => 
         verifySnapshot: async () => true,
     });
 
-    assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'FAIL');
+    assert.equal(report.gates.find(({id}) => id === 'php-web.changed-file-coverage').status, 'PASS');
 });
 
 test('stops multi-file quality execution when combined output exceeds its bound', async () => {
@@ -224,7 +251,8 @@ test('stops multi-file quality execution when combined output exceeds its bound'
     assert.equal(syntaxCalls, 2);
 });
 
-test('records the exact PHP CS Fixer invocation in its receipt', async () => {
+test('lets PHP CS Fixer discover configured files without overriding its finder', async () => {
+    const requests = [];
     const report = await adapter.runQualityProvider({
         projectRoot: root,
         baseSha: '1'.repeat(40),
@@ -232,7 +260,7 @@ test('records the exact PHP CS Fixer invocation in its receipt', async () => {
         trackedPaths: ['app/example.php'],
         packageScripts: [],
         runCommand: success,
-        runTool: success,
+        runTool: async request => { requests.push(request); return success(request); },
         runServer: success,
         changedLines: async () => [],
         readArtifact: async () => Buffer.from('<coverage/>'),
@@ -240,7 +268,27 @@ test('records the exact PHP CS Fixer invocation in its receipt', async () => {
     });
 
     assert.deepEqual(report.gates.find(({id}) => id === 'php-web.php-cs-fixer').command,
-        ['php-cs-fixer', 'fix', '--dry-run', '--diff', 'TRACKED_PHP_FILES']);
+        ['php-cs-fixer', 'fix', '--dry-run', '--diff', '--using-cache=no']);
+    assert.deepEqual(requests.find(request => request.toolId === 'php-cs-fixer').args,
+        ['fix', '--dry-run', '--diff', '--using-cache=no']);
+});
+
+test('lists standalone Playwright suites only when a Playwright config is tracked', async () => {
+    for (const configured of [false, true]) {
+        const requests = [];
+        const report = await adapter.runQualityProvider({
+            projectRoot: root, baseSha: '1'.repeat(40), headSha: '2'.repeat(40),
+            trackedPaths: ['tests/Browser/SmokeTest.php', ...(configured ? ['playwright.config.ts'] : [])],
+            packageScripts: [], runCommand: success,
+            runTool: async request => { requests.push(request); return success(request); },
+            runServer: success, changedLines: async () => [],
+            readArtifact: async () => Buffer.from('<coverage/>'), verifySnapshot: async () => true,
+        });
+        assert.equal(report.gates.find(gate => gate.id === 'php-web.playwright-list').status,
+            configured ? 'PASS' : 'SKIPPED');
+        assert.equal(requests.some(request => request.toolId === 'playwright'), configured);
+        assert.equal(report.gates.find(gate => gate.id === 'php-web.pest-coverage').status, 'PASS');
+    }
 });
 
 test('fails closed when execution output overflows or the snapshot drifts', async () => {

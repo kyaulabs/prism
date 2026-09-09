@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+# $KYAULabs: commit_template_footer_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # commit_template_footer_test.sh — contract test that first-party commit
 # templates produce messages the fail-closed commit-msg hook accepts
@@ -21,7 +21,7 @@ if grep -qF 'prism-tool commit create --type chore --scope release' "$RELEASE" \
 	&& ! grep -qF -- '--plan' "$RELEASE" \
 	&& ! grep -qiF 'exact commit message' "$RELEASE" \
 	&& ! grep -qE '^[[:space:]]*git commit([[:space:]]|$)' "$RELEASE" \
-	&& ! grep -qF 'resolve-ocr-model.sh' "$RELEASE" \
+	&& ! grep -qF 'resolve-identity.sh' "$RELEASE" \
 	&& ! grep -qF 'resolve-identity.sh' "$RELEASE"; then
 	pass "release.md delegates one approval-free signed commit to prism-tool"
 else

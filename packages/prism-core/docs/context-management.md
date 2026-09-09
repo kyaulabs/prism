@@ -1,95 +1,45 @@
 # Context management
 
-Use this guide when a long pi session starts losing focus, repeating work, or
-burying the current task under old output. Prism runs planning, implementation,
-tests, and review in one agent context, so context management is part of
-execution discipline.
+Continue well-defined work in the current Pi session. Use native compaction to
+reduce conversation history; session length alone is not a reason to stop.
 
-## Observable thresholds
+## Preserve current state
 
-Treat these as operating thresholds, not measurements of model capacity:
+Keep the active task, approved scope, interfaces, latest verification result,
+remaining blocker, and next unchecked step in the workflow's existing owned
+artifacts. Update plan checkboxes after verified tasks. Do not introduce another
+continuation document or persistence mechanism.
 
-| Context use | Action |
-| --- | --- |
-| 0-30% | Continue normally and keep reads focused |
-| 30-40% | Prepare a compaction note and persist current evidence |
-| 40-50% | Compact with a task-specific prompt |
-| 50-60% | Compact immediately or write a handoff |
-| Above 60% | Write a handoff and continue in a new session |
+After compaction, reload the relevant skill and current plan task when needed.
+Verify repository state before acting on old evidence. Compaction does not
+renew approval, turn a failed check into a pass, or change review authority.
 
-Act earlier for architecture work, debugging, or large refactors. Warning signs
-matter more than the percentage: repeated questions, forgotten constraints,
-contradictory edits, broad rereads, or difficulty naming the next test all mean
-the active context is degrading.
+## Native compaction
 
-## Choose the recovery action
+Pi can compact during an active run and continue within the same session. The
+human can also use `/compact` with instructions to preserve the active task,
+approvals, exact paths, interfaces, verification evidence, and next action.
 
-| Situation | Action |
-| --- | --- |
-| A recent attempt was wrong | Rewind with `/tree` and retry from before it |
-| The task is clear but history is noisy | Run `/compact` with a focused prompt |
-| State must survive compaction | Update the plan, task list, or durable note first |
-| The session is long but continuation is well-defined | Run `/handoff` |
-| The next task is unrelated | Start a new session |
-| Only one code question remains | Use a focused read or `explore` |
+Prism sets no fixed context-percentage stop threshold and does not change Pi's
+compaction settings. Do not claim to invoke `/compact` through Bash or an
+unavailable tool. Keep reads focused and avoid repeating large completed-task
+outputs merely to reconstruct history.
 
-## Rewind
+## Recovery and blockers
 
-Prefer rewind to layering corrections over a failed attempt. Use `/tree` to
-return to the point before the wrong action, then retry with the new fact. This
-removes failed reasoning and tool output from the active branch of the
-conversation.
+A fatal tool or safety state follows its existing reload/recovery contract.
+Missing approval, an external blocker, or invalidated plan assumptions still
+stop unsafe work. Report the specific blocker rather than treating a new
+session as a repair. The human may explicitly choose another session.
 
-Do not rewind past durable repository mutations unless the workflow explicitly
-permits it. Git history, plans, issue state, and transaction journals remain the
-source of truth.
-
-## Compact
-
-Compact before automatic overflow. State the active task and what must survive:
-
-```text
-/compact preserve the active plan task, interfaces, open decisions, failing or passing test evidence, exact paths, and the next unchecked step; drop completed-task detail and broad exploration output
-```
-
-A compaction prompt should preserve:
-
-- the current task and acceptance criteria;
-- exact interfaces and paths;
-- the last Red or Green command and result;
-- unresolved decisions or blockers;
-- the next action;
-- commit and branch state when relevant.
-
-## Persist execution state
-
-Before compaction or handoff:
-
-1. update task status;
-2. record the last verified command and result;
-3. keep current interface names and invariants explicit;
-4. identify the next unchecked task;
-5. note staged, committed, or untracked repository state.
-
-Do not rely on conversation memory for facts that another session must use.
-Write durable facts to the approved plan, issue, ADR, `CONTEXT.md`, or handoff
-surface owned by the workflow.
-
-## Handoff and new session
-
-Use `/handoff` when compaction would remove important constraints or when the
-session is already degraded. A handoff should contain the goal, decisions,
-completed work, active task, blockers, verification evidence, repository state,
-and exact next steps.
-
-Start a fresh session for unrelated work. Old context is useful only when it
-reduces rereading without importing obsolete assumptions.
+Pi's `/tree` can revisit conversation branches, but it does not undo durable
+Git commits, tracker mutations, or filesystem changes. Do not navigate across
+such effects as though they had been rolled back.
 
 ## Rules
 
-- Check context after every three plan tasks and before a large new slice.
-- Prefer the smallest useful read range.
-- Keep test evidence and task status durable.
-- Rewind failed attempts instead of narrating over them.
-- Compact before overflow.
-- Use a handoff rather than pushing through visible degradation.
+- Continue executable work across task and skill boundaries.
+- Preserve current facts in existing workflow-owned records.
+- Use native compaction rather than a session-length stop rule.
+- Recheck stale evidence after compaction.
+- Preserve all approval, verification, and fatal-state recovery gates.

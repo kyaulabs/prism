@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/09/06 -0700 Exp $
+// $KYAULabs: prism-tool-php-web-bootstrap.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -357,7 +357,8 @@ test('renders an application-free PHP and Pest readiness surface', (t) => {
     assert.match(read('tests/bootstrap.php'), /E_ALL/);
     assert.match(read('tests/Feature/fixtures/coverage_probe.php'), /function coverage_probe\(bool \$ready\): string/);
     assert.match(read('tests/Feature/CoverageProbeTest.php'), /toBe\('ready'\).*toBe\('not-ready'\)/s);
-    assert.match(read('tests/Feature/RuntimeSmokeTest.php'), /PHP_VERSION_ID.*80500/);
+    assert.match(read('tests/Feature/RuntimeSmokeTest.php'), /function_exists\('socket_create'\)/);
+    assert.doesNotMatch(read('tests/Feature/RuntimeSmokeTest.php'), /PHP_VERSION_ID|80500/);
     assert.match(read('tests/Browser/SmokeTest.php'), /Prism ready/);
     assert.match(read('tests/Unit/Harness/ArchTest.php'), /RecursiveDirectoryIterator/);
     assert.match(read('tests/Unit/Harness/RcsHeaderConventionTest.php'), /\$KYAULabs:/);
@@ -867,16 +868,16 @@ test('renders pinned create-only CI that invokes the shared quality gate', (t) =
     assert.match(workflow, /setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);
     assert.match(workflow, /composer install .*--no-scripts/);
     assert.match(workflow, /npm ci --ignore-scripts/);
-    assert.match(workflow, /pi-coding-agent@0\.84\.1/);
+    assert.match(workflow, /pi-coding-agent@0\.85\.1/);
     assert.equal(workflow.includes(`prism-core@${ADAPTER_VERSION}`), true);
     assert.equal(workflow.includes(`prism-php-web@${ADAPTER_VERSION}`), true);
     assert.match(workflow, /semgrep>=1\.173\.0,<2\.0\.0/);
-    assert.match(workflow, /open-code-review@>=1\.9\.1 <2\.0\.0/);
+    assert.doesNotMatch(workflow, /open-code-review/);
     assert.match(workflow, /doctor --local-only/);
     assert.match(workflow, /run playwright -- install --with-deps chromium/);
     assert.match(workflow, /4b825dc642cb6eb9a060e54bf8d69288fbee4904/);
     assert.match(workflow, /check-php\.sh --ci --base=/);
-    assert.doesNotMatch(workflow, /npx|vendor\/bin|ocr (?:review|llm test)|persist-credentials: true/);
+    assert.doesNotMatch(workflow, /npx|vendor\/bin|persist-credentials: true/);
 });
 
 test('propagates a supervised Pest failure without invoking a direct PHP server', (t) => {

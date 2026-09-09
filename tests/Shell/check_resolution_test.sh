@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: check_resolution_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: check_resolution_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # ── Tests for pre-commit hook CS-fixer resolution ──────────────────────────
 # Covers:
@@ -24,7 +24,7 @@ HOOK="$REPO_ROOT/.github/hooks/pre-commit"
 
 # Route declared tools through the fake prism-tool boundary (Task 8). The fake
 # delegates to the fixture's real linters when present; fake in-range
-# Semgrep/OCR sit on PATH for the mandatory doctor check.
+# Semgrep sit on PATH for the mandatory doctor check.
 export PRISM_TOOL="$REPO_ROOT/tests/Shell/fixtures/fake-prism-tool.sh"
 export PATH="$REPO_ROOT/tests/Shell/fixtures/bin:$PATH"
 

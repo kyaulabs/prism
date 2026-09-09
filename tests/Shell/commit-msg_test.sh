@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: commit-msg_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: commit-msg_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # ── Tests for commit-msg hook ───────────────────────────────────────────────
 # Covers:
@@ -37,7 +37,7 @@ copy_commitlint_config() {
 }
 
 # install_launcher_hook <dir> — git-init a fixture, install the real hook, and
-# stage fake in-range Semgrep/OCR executables so the real source CLI's local
+# stage fake in-range Semgrep executables so the real source CLI's local
 # doctor passes. Git commits in the fixture must run with PRISM_TOOL pointing
 # at the source CLI and the fixture toolchain bin first on PATH.
 # shellcheck disable=SC2030,SC2031  # PRISM_TOOL/PATH exports are intentional and scoped to each fixture subshell
@@ -46,8 +46,7 @@ install_launcher_hook() {
 	git_init_test_repo "$dir"
 	mkdir -p "$dir/toolchain-bin"
 	cp "$REPO_ROOT/tests/Shell/fixtures/bin/semgrep" "$dir/toolchain-bin/semgrep"
-	cp "$REPO_ROOT/tests/Shell/fixtures/bin/ocr" "$dir/toolchain-bin/ocr"
-	chmod +x "$dir/toolchain-bin/semgrep" "$dir/toolchain-bin/ocr"
+	chmod +x "$dir/toolchain-bin/semgrep"
 	cp "$REAL_HOOK" "$dir/.git/hooks/commit-msg"
 	chmod +x "$dir/.git/hooks/commit-msg"
 }

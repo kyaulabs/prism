@@ -226,12 +226,10 @@ map remains reliable in context. Ticket boundaries are not session boundaries.
 After recording one resolution, reassess the frontier and claim the next
 eligible ticket immediately.
 
-Start a new session only for a specific reason:
-
-- the user explicitly requests one;
-- context has materially degraded and a `/handoff` is required;
-- a fatal tool or safety state requires reload/recovery; or
-- an unresolved external blocker prevents useful progress.
+Use Pi's native compaction for long-running maps. Keep decisions and the next
+eligible frontier in the existing map records. The human may request another
+session. Fatal tool or safety states retain their reload/recovery contract;
+unresolved external blockers still stop unsafe progress.
 
 Do not create a session boundary merely because a frontier closed, the map was
 just charted, or another skill must be loaded.

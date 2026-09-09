@@ -594,7 +594,7 @@ Use this fixed order. Do not skip planning on a current or repeat invocation:
     Report automation `GO` only after automation verification, hook
     reconciliation, and this proof all pass. Distinguish applied, current,
     declined, conflict, and recovery-required state. Then continue at
-    **1. Pre-flight**. OCR consent and bounded-web consent remain independent
+    **1. Pre-flight**. Bounded-web consent remains independent
     later stages and never authorize repository automation.
 
 Strict-empty setup follows the same applicability rules inside its complete
@@ -656,43 +656,20 @@ declared tools:
 prism-tool doctor --local-only
 ```
 
-If Semgrep or OCR is missing or out of range (ADR-0063: Semgrep
-`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`), report the human-run remediation —
-never install, configure, or authenticate either tool and never ask for or
-accept an API key.
+If Semgrep is missing or out of range (`>=1.173.0 <2.0.0`), report
+human-run remediation. Never install, configure, authenticate, or accept keys.
 
-Inspect both standing-consent capabilities without reading the managed record
-directly:
+Inspect `prism-tool consent status --json`. Require schema version three with
+boolean `webAccess` and `legacy` fields. Unsafe consent disables optional web
+access and requires human remediation, but does not block mandatory review or
+doctor. Never overwrite, chmod, revoke, or remove unsafe state.
 
-```bash
-prism-tool consent status --json
-```
-
-Require schema version 2 and boolean `ocr` and `webAccess` fields. If the
-status is `UNSAFE`, stop and report that the managed consent record requires
-human remediation. Never overwrite, chmod, revoke, or remove it automatically.
-
-Manage OCR consent first:
-
-- When `ocr` is `true`, ask no OCR question. If the human explicitly requests
-  revocation, run `prism-tool consent revoke-ocr`. Never revoke automatically.
-- When `ocr` is `false`, explain that this global consent authorizes only
-  `ocr llm test` connectivity and transmission of code selected by Prism's
-  dedicated OCR review operation. It does not authorize registry access,
-  package mutation, credential access, pushes, PR creation, or merges. Then
-  ask exactly one question:
-
-  ```text
-  Grant standing OCR consent for connectivity checks and reviewed-code egress? (yes/no)
-  ```
-
-  Accept only literal `yes`; on approval run:
-
-  ```bash
-  prism-tool consent grant-ocr --approval=yes
-  ```
-
-  A decline makes the mandatory toolchain NO-GO for this setup.
+When `legacy=true`, display the preserved web-access choice and ask for explicit
+migration approval. Only `/setup` may run
+`prism-tool consent migrate --approval=yes`. Migration preserves an enabled
+web choice in schema three or removes an all-false record through the managed
+record boundary. Decline leaves readable legacy state unchanged; do not try
+grant or revoke to bypass that decision. Legacy fields never authorize review.
 
 Manage standing web-access consent independently and in a separate turn:
 
@@ -703,7 +680,7 @@ Manage standing web-access consent independently and in a separate turn:
   only the Core `web_search` and `fetch_content` tools: fixed keyless search,
   optional loopback SearXNG, and guarded public textual fetches. It does not
   authorize API-key providers, authentication, cookies, arbitrary browser use,
-  uploads, writes, package access, OCR, or other tools. Then ask exactly:
+  uploads, writes, package access, review, or other tools. Then ask exactly:
 
   ```text
   Grant standing web-access consent for bounded search and public textual fetches? (yes/no)
@@ -718,15 +695,8 @@ Manage standing web-access consent independently and in a separate turn:
   A decline leaves web access disabled but does not make the mandatory Core
   toolchain fail.
 
-After OCR consent is granted, run the full doctor without another OCR
-question:
-
-```bash
-prism-tool doctor
-```
-
-A failed OCR connectivity test makes the mandatory toolchain NO-GO. Web-access
-readiness remains a separately reported optional capability.
+Run `prism-tool doctor` to verify installed reviewer readiness without live
+inference. Web-access readiness remains an independent optional capability.
 
 ## 4. Optional: your model preferences
 
@@ -904,7 +874,7 @@ without mutation:
 prism-tool setup inspect --json
 ```
 
-Ask exactly one question for registry access (separate from standing OCR
+Ask exactly one question for registry access (separate from standing web-access
 consent above):
 
 ```text
@@ -1066,7 +1036,6 @@ consumer reconciliation project       not applicable / applied / declined / conf
 package releases      project         preserved / enabled / current / declined / conflict / no candidates
 stack adapter         project-local   source-active / installed / declined / missing / invalid / not detected
 Git hooks             project         preserved / current / declined / conflict / unavailable
-OCR consent           global          granted / declined / unsafe
 web consent           global          granted / declined / unsafe
 web config            global          absent / configured / unsafe
 browser search        global          available FAMILY / disabled / optional unavailable

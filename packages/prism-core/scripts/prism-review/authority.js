@@ -1,4 +1,4 @@
-// $KYAULabs: authority.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: authority.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -277,6 +277,7 @@ async function runAuthoritativeReview(input, context = {}) {
     });
     const identities = planIdentities(coreProfile, adapterProfile, plan);
     const active = await (context.resolveActiveModel ?? resolveActiveModel)({
+        repositoryRoot: resolved.repositoryRoot,
         env: context.env ?? process.env, loadSdk: context.loadSdk,
     });
     const model = active.metadata;

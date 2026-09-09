@@ -33,16 +33,20 @@ and **progress** (GitHub Progress field) — with optional **wayfinder** and
 Tools resolve through the `prism-tool` launcher, never from a consumer's
 `node_modules`/`vendor`/PATH. Scope is owned by the package toolchain
 contracts: bundled core tools (commitlint, git-cliff), mandatory external
-prerequisites that Prism verifies but never installs (Semgrep
-`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0` — ADR-0063), and consumer-development
+prerequisites that Prism verifies but never installs (Semgrep — ADR-0114), and consumer-development
 adapter tools (Pest 5/PHPUnit 13 baseline and the frontend toolchain).
 Registry access and consumer mutation remain separate operation-specific
-approvals. `/setup` solely manages independent standing OCR and web-access
-consent. OCR consent covers connectivity and reviewed-code egress through the
-dedicated review operation; web consent covers only bounded `web_search` and
-`fetch_content`. Full `/doctor` validates readiness without granting consent.
-Installation, hooks, and CI use local-only readiness and never establish
-consent (ADR-0074, ADR-0091).
+approvals. `/setup` solely manages standing web-access consent, which covers only bounded
+`web_search` and `fetch_content`. Full `/doctor` validates installed reviewer
+readiness without inference or granting consent. Review uses the stable
+installed `prism-review` authority, never the reviewed checkout. One approved
+attempt authorizes its bounded reviewed-code egress. Installation, hooks, and
+CI use local-only readiness and never establish consent (ADR-0103).
+
+Non-Prism versions, including Pi's SDK version, are observations, never runtime
+compatibility gates (ADR-0114). Missing tools, missing APIs, real command failures,
+and vulnerability audits still block. Dependency pins/lock consistency and
+Prism package, protocol, and receipt compatibility checks remain enforced.
 
 Harness scripts resolve the same way: run `prism-tool resolve scripts` (or
 `prism-tool resolve skills`) in one tool call, retain the returned absolute
@@ -130,14 +134,14 @@ branch and hands off to planning; bootstrap branches also require `/check`
 and the `code-review` skill plus the wayfinder map's immutable bootstrap-spec
 link in Notes before ADR-0027 cleanup.
 
-→  **brainstorming** (brainstorming / to-spec / prototype (if needed)) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → finishing-a-development-branch → /check loop → one four-axis review → /pr
+→  **brainstorming** (brainstorming / to-spec / prototype (if needed)) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → finishing-a-development-branch → /check loop → budgeted four-axis review → /pr
 
 `/router` maps a free-form request to the right on-ramp. Trivial
 zero-behavior-delta changes (typos, docs, RCS headers, style-only, patch deps,
 test-only fixes) skip the pipeline — see the brainstorming skill's fast-path.
 
 ```text
-brainstorming / to-spec → prototype (if needed) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → finishing-a-development-branch → /check loop → one four-axis review → /pr
+brainstorming / to-spec → prototype (if needed) → architect (if cross-cutting) → /issue (tickets) or writing-plans → executing-plans → tdd (per task) → verification-before-completion → finishing-a-development-branch → /check loop → budgeted four-axis review → /pr
 ```
 
 1. **Brainstorm** the change (load the `brainstorming` skill — its sole owner, ADR-0054) → spec in `docs/specs/`, or synthesize a settled design with `to-spec`.
@@ -149,23 +153,42 @@ brainstorming / to-spec → prototype (if needed) → architect (if cross-cuttin
 7. **Finalize automatically** (finishing-a-development-branch skill) → clean matching artifacts, synchronize, attest, rerun `/check` without limit until green, run the plan-authorized four-axis review, revalidate, and invoke preparation-only `/pr`.
 
 Plan approval authorizes the initial finalization path, including cleanup
-commits, target fetch/merge synchronization, unlimited local `/check` runs, one
-four-axis review, and automatic `/pr`. Standing OCR consent remains the sole
-authority for reviewed-code egress. Every additional review attempt requires
-fresh explicit approval; `/check` reruns do not.
+commits, target fetch/merge synchronization, unlimited local `/check` runs,
+required four-axis review, and automatic `/pr`. The active task includes two
+automatic review attempts with provider cost and reviewed-code egress; do not
+ask separate review permission for either. The third and every later attempt
+require fresh explicit approval for one attempt. Failed, incomplete, and
+interrupted attempts count. Local checks and verified receipt reuse do not.
+Follow `packages/prism-core/docs/review-attempt-policy.md` (ADR-0112). Preserve
+the count through fixes, new commits, `/pr`, compaction, `/reload`, and task
+resumption; uncertain history requires approval, not a fresh allowance.
+
+Before cleanup, preserve immutable approved criteria through the installed reviewer.
+`/check` publishes deterministic exact-attestation receipts. Only version-two
+review receipts satisfy finalization; legacy state never passes preflight.
+Both commit model trailers use the validated active Pi model.
+
+Exception: direct human approval may authorize ADR-0113's exact-revision
+bootstrap PR route when independent reviewer authority cannot bootstrap itself.
+`/pr` then runs fresh local gates and discloses `USER_WAIVED`, never a review
+PASS. Explicit approval must also cover missing installed-authority receipts
+and the committed approved specification. No persistent toggle is created;
+changed branch, HEAD, or base requires fresh approval. Unsafe evidence, failed
+local checks, signing, safety, and human-only publication remain non-waivable.
 
 Finalization records one complete initial review across all four axes in a
-bounded chain. After a Blocking repair, a freshly approved review covers only
+bounded chain. After a Blocking repair, a review within the shared budget covers only
 the continuous repair delta and records closure evidence. Advisory findings
 remain visible but do not block `/pr` or require waivers; base or history changes,
 discontinuity, malformed state, incomplete axes, or mismatched HEAD invalidate
-the chain and require the next approved review to be a new complete initial
+the chain and require the next budgeted review to be a new complete initial
 review. `/pr` remains preparation-only; humans push and mutate GitHub.
 
-A standalone `/pr` invocation may authorize one complete initial review only
-when deterministic preflight classifies the review chain as absent. Invalid
-review chain evidence continues to fail closed. A failed or second review
-requires fresh explicit approval. `/pr` remains preparation-only.
+Standalone `/pr` may recover an initial review only when deterministic preflight
+classifies the chain as absent with exact matching prerequisites. It shares the
+active task's remaining automatic attempts, never resets their count, and asks
+before the third or any later attempt. Invalid review evidence still fails
+closed. `/pr` remains preparation-only.
 
 For non-trivial or cross-cutting changes, run the `architect` skill after the
 spec and before ticketing/planning — it returns a go/no-go plus a parseable
@@ -307,7 +330,7 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `tdd` | Language-agnostic Red → Green → Refactor discipline for any new feature or bug fix requiring tests (load the adapter's `tdd-<lang>` for the test framework/coverage/lint) |
 | `ticketing` | Creating a GitHub issue/ticket or decomposing a plan or spec into an epic with vertical-slice task sub-issues |
 | `finding-duplicate-functions` | Scanning for semantic duplication — two-phase (classical extraction + LLM intent-clustering), complements /improve-architecture's deletion test |
-| `finishing-a-development-branch` | When a feature branch is complete — consume plan approval for cleanup, synchronization, unlimited `/check`, one four-axis review, revalidation, and automatic preparation-only `/pr`; require fresh approval for additional reviews |
+| `finishing-a-development-branch` | Finalize with cleanup, synchronization, unlimited `/check`, required review, revalidation, and preparation-only `/pr`; share two automatic review attempts and ask before each later attempt |
 | `verification-before-completion` | Before declaring a task done — verifies tests pass, no debug artifacts, lint clean |
 | `wayfinder` | Work too big for one specification or too foggy for sharp questions — chart a shared GitHub issue map, process eligible frontiers continuously, and merge to `to-spec` |
 | `receiving-code-review` | Triaging and responding to `code-review` findings — severity triage matrix, anti-over-compliance rules, deferral discipline |
@@ -361,10 +384,9 @@ global; adapter skills (`php-web-stack`, `tdd-php`, `rcs-header`,
 | `/research` | Cited research via bounded `web_search` and `fetch_content` tools |
 | `/security` | SAST scan + dependency CVE audit in one pass |
 | `/improve-architecture` | Scan codebase for deepening opportunities → Obsidian markdown report |
-| `/handoff` | Compact current conversation into a handoff document for another session |
-| `/setup` | Interactive project configurator and sole manager of independent standing OCR and web-access consent |
+| `/setup` | Interactive project configurator and sole manager of standing web-access consent |
 | `/setup-labels` | Idempotently create/update standardized issue labels on the GitHub repo via `gh label` |
 | `/setup-rulesets` | Dry-run, confirm, apply, and verify the pr-only-integration GitHub ruleset and merge settings |
-| `/doctor` | Full readiness check — verifies version floors and, with valid standing consent, runs one OCR connectivity test without another prompt |
+| `/doctor` | Full local readiness check — verifies Semgrep, installed reviewer trust, SDK, model metadata, and adapter compatibility without inference |
 | `/teach` | Explain recently completed work at the user's level — what changed, why this approach, what trade-offs were considered |
 | `/issue` | Create a single issue, or decompose a plan/spec into an epic with vertical-slice tasks. Aliases: `/ticket`, `/issues`, `/tickets` |

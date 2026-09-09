@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-seed.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -2040,9 +2040,6 @@ test('runs the public Core-only seed sequence without publication', (t) => {
         if (command === 'bash' && path.basename(args[0]) === 'resolve-identity.sh') {
             return {status: 0, stdout: 'Test User <test@example.invalid>\n', stderr: '', error: undefined};
         }
-        if (command === 'bash' && path.basename(args[0]) === 'resolve-ocr-model.sh') {
-            return {status: 0, stdout: 'review-model\n', stderr: '', error: undefined};
-        }
         if (command === 'git' && args[0] === 'verify-commit') {
             return {status: 0, stdout: '', stderr: '', error: undefined};
         }
@@ -2091,7 +2088,7 @@ test('runs the public Core-only seed sequence without publication', (t) => {
     assert.equal(git(projectRoot, ['status', '--porcelain=v1']), '');
     assert.equal(git(projectRoot, ['remote']), '');
     assert.equal(fs.existsSync(path.join(projectRoot, '.pi')), false);
-    const forbidden = /^(?:gh|npm|pnpm|composer|ocr)$/;
+    const forbidden = /^(?:gh|npm|pnpm|composer)$/;
     const forbiddenGit = new Set(['clone', 'fetch', 'pull', 'push', 'merge', 'tag']);
     assert.equal(invocations.some(({command, args}) =>
         forbidden.test(path.basename(command)) ||

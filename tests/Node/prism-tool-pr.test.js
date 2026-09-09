@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: prism-tool-pr.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -11,7 +11,6 @@ const {execFileSync} = require('node:child_process');
 const {applyManagedHooks} = require('../../packages/prism-core/scripts/prism-tool/managed-hooks');
 const {renderCoreAutomationProvider} = require('../../packages/prism-core/scripts/prism-tool/automation-providers');
 const {renderProjectManifest} = require('../../packages/prism-core/scripts/prism-tool/project-manifest');
-const {recordReviewSegment} = require('../../packages/prism-core/scripts/prism-tool/review-chain');
 const {runBounded} = require('../../packages/prism-core/scripts/prism-tool/process');
 const {makeTempDir} = require('./helpers');
 const {main} = require('../../packages/prism-core/scripts/prism-tool/cli');
@@ -95,42 +94,35 @@ function managedPreflightFixture(t) {
     git('add', '--', 'note.txt');
     commit();
     const headSha = git('rev-parse', 'HEAD');
-    const context = {projectRoot, cwd: projectRoot, coreRoot: CORE_ROOT, env, run(command, args, options) {
-        if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') return completed(0);
-        assert.ok(command === 'git' || command === 'bash', 'preflight must not run another review');
-        return runBounded(command, args, {...options, env});
-    }};
+    const context = {projectRoot, cwd: projectRoot, coreRoot: CORE_ROOT, env,
+        inspectCriteria: () => ({state: 'VALID'}), inspectCheck: () => ({state: 'VALID'}),
+        verifyCriteria: () => ({digest: 'c'.repeat(64)}), verifyCheck: () => ({digest: 'd'.repeat(64)}),
+        run(command, args, options) {
+            if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') return completed(0);
+            assert.ok(command === 'git' || command === 'bash', 'preflight must not run another review');
+            return runBounded(command, args, {...options, env});
+        }};
     return {context, baseSha, headSha};
 }
 
-test('both PR routes block post-review managed drift without changing completed evidence or repeating review', (t) => {
-    const {context, baseSha, headSha} = managedPreflightFixture(t);
-    const record = recordReviewSegment({schemaVersion: 1, kind: 'initial', branch: 'fix/tester-abcd-health',
-        baseRef: 'origin/develop', baseSha, from: baseSha, to: headSha,
-        axes: {tooling: 'COMPLETE', standards: 'COMPLETE', spec: 'COMPLETE', sast: 'COMPLETE'},
-        findings: [], closures: []}, context);
-    const evidence = fs.readFileSync(record.path);
-    const before = fs.lstatSync(record.path);
-    const hook = path.join(context.projectRoot, '.github/hooks/pre-commit');
+test('both PR routes reject post-review managed drift without rerunning review', (t) => {
+    const {context} = managedPreflightFixture(t);
+    const reviewed = {...context,
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+        verifyReviewChainV2: () => ({advisoryFindings: []}),
+    };
+    const hook = path.join(context.projectRoot, '.github', 'hooks', 'pre-commit');
     for (const operation of ['preflight', 'review-preflight']) {
-        const healthy = captureWrites(() => main(['pr', operation], context));
-        assert.equal(healthy.status, 0, healthy.stderr);
         fs.chmodSync(hook, 0o777);
-
-        const blocked = captureWrites(() => main(['pr', operation], context));
-
-        assert.equal(blocked.status, 4, operation);
+        const blocked = captureWrites(() => main(['pr', operation], reviewed));
+        assert.equal(blocked.status, 4);
         assert.equal(blocked.stdout, '');
-        assert.match(blocked.stderr, /managed project health failed.*permissions are invalid.*pre-commit/);
-        assert.equal(fs.lstatSync(hook).mode & 0o7777, 0o777);
-        assert.deepEqual(fs.readFileSync(record.path), evidence);
-        const after = fs.lstatSync(record.path);
-        for (const field of ['dev', 'ino', 'uid', 'gid', 'size', 'mode', 'mtimeMs', 'ctimeMs']) {
-            assert.equal(after[field], before[field], field);
-        }
+        assert.match(blocked.stderr, /managed project health failed/);
+        assert.equal(fs.statSync(hook).mode & 0o777, 0o777);
         fs.chmodSync(hook, 0o755);
-        const restored = captureWrites(() => main(['pr', operation], context));
+        const restored = captureWrites(() => main(['pr', operation], reviewed));
         assert.equal(restored.status, 0, restored.stderr);
+        assert.match(restored.stdout, /REVIEW_CHAIN_VERSION\t2/);
     }
 });
 
@@ -152,45 +144,15 @@ test('absent-chain recovery blocks on managed drift without creating review evid
     assert.match(restored.stdout, /REVIEW_CHAIN\tABSENT/);
 });
 
-test('pr preflight reports the exact branch attestation', (t) => {
-    const run = makePreflightRun();
-
+test('pr preflight rejects legacy authority without invoking its old verifier', (t) => {
     const result = captureWrites(() => main(['pr', 'preflight'], {
-        coreRoot: CORE_ROOT,
-        cwd: unconfiguredFixture(t),
-        env: process.env,
-        run,
-        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
-        verifyCriteria: () => assert.fail('legacy chains must not verify criteria'),
-        verifyCheck: () => assert.fail('legacy chains must not verify checks'),
-        verifyReviewChainV2: () => assert.fail('legacy chains must not use version-two verification'),
-        verifyReviewChain: (expected) => {
-            assert.deepEqual(expected, {
-                branch: 'fix/tester-abcd-example',
-                baseRef: 'origin/develop',
-                baseSha: '1111111111111111111111111111111111111111',
-                headSha: '2222222222222222222222222222222222222222',
-            });
-            return {advisoryFindings: [{summary: 'follow-up cleanup'}]};
-        },
+        coreRoot: CORE_ROOT, cwd: unconfiguredFixture(t), env: process.env,
+        run: makePreflightRun(), inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
+        verifyReviewChain: () => assert.fail('legacy authority is retired'),
     }));
-
-    assert.equal(result.status, 0);
-    assert.equal(result.stderr, '');
-    assert.equal(result.stdout, [
-        'BRANCH\tfix/tester-abcd-example',
-        'TARGET_BRANCH\tdevelop',
-        'BASE_REF\torigin/develop',
-        'BASE_SHA\t1111111111111111111111111111111111111111',
-        'HEAD_SHA\t2222222222222222222222222222222222222222',
-        'MERGE_BASE\t1111111111111111111111111111111111111111',
-        'COMMIT_COUNT\t2',
-        'NON_MERGE_COUNT\t2',
-        'REVIEW_CHAIN\tVALID',
-        'REVIEW_CHAIN_VERSION\t1',
-        'ADVISORY_COUNT\t1',
-        '',
-    ].join('\n'));
+    assert.equal(result.status, 4);
+    assert.equal(result.stdout, '');
+    assert.match(result.stderr, /unsafe or invalid/);
 });
 
 test('pr preflight selects a complete version-two chain as one unit', (t) => {
@@ -265,10 +227,8 @@ test('pr review-preflight reports an absent review chain', (t) => {
         verifyReviewChain: () => assert.fail('absent chain must not be verified'),
     }));
 
-    assert.equal(result.status, 0);
-    assert.match(result.stdout, /REVIEW_CHAIN\tABSENT/);
-    assert.match(result.stdout, /V2_RECOVERY\tUNDECLARED/);
-    assert.doesNotMatch(result.stdout, /REVIEW_CHAIN_VERSION|ADVISORY_COUNT/);
+    assert.equal(result.status, 4);
+    assert.equal(result.stdout, '');
 });
 
 test('pr review-preflight reports ready only for both exact version-two receipts', (t) => {
@@ -378,8 +338,10 @@ test('pr review-preflight verifies a present chain', (t) => {
         cwd: unconfiguredFixture(t),
         env: process.env,
         run: makePreflightRun(),
-        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
-        verifyReviewChain: () => ({
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+        verifyCriteria: () => ({digest: 'c'.repeat(64)}),
+        verifyCheck: () => ({digest: 'd'.repeat(64)}),
+        verifyReviewChainV2: () => ({
             advisoryFindings: [{summary: 'follow-up cleanup'}],
         }),
     }));
@@ -408,8 +370,10 @@ test('pr review-preflight rejects unusable present review-chain evidence', () =>
         cwd: '/repo',
         env: process.env,
         run: makePreflightRun(),
-        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
-        verifyReviewChain: () => { throw new Error('CANARY'); },
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+        verifyCriteria: () => ({digest: 'c'.repeat(64)}),
+        verifyCheck: () => ({digest: 'd'.repeat(64)}),
+        verifyReviewChainV2: () => { throw new Error('CANARY'); },
     }));
 
     assert.equal(result.status, 4);
@@ -435,8 +399,10 @@ test('pr preflight accepts SHA-256 object ids', (t) => {
         cwd: unconfiguredFixture(t),
         env: process.env,
         run,
-        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
-        verifyReviewChain: () => ({advisoryFindings: []}),
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+        verifyCriteria: () => ({digest: 'c'.repeat(64)}),
+        verifyCheck: () => ({digest: 'd'.repeat(64)}),
+        verifyReviewChainV2: () => ({advisoryFindings: []}),
     }));
 
     assert.equal(result.status, 0);
@@ -461,8 +427,10 @@ test('pr preflight fails closed with stable diagnostics', () => {
             cwd: '/repo',
             env: process.env,
             run: makePreflightRun(new Map([[key, response]])),
-            inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
-            verifyReviewChain: () => ({advisoryFindings: []}),
+            inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+            verifyCriteria: () => ({digest: 'c'.repeat(64)}),
+            verifyCheck: () => ({digest: 'd'.repeat(64)}),
+            verifyReviewChainV2: () => ({advisoryFindings: []}),
         }));
 
         assert.notEqual(result.status, 0, key);
@@ -477,8 +445,10 @@ test('pr preflight rejects invalid review-chain evidence', () => {
         cwd: '/repo',
         env: process.env,
         run: makePreflightRun(),
-        inspectReviewChainV2: () => ({state: 'LEGACY', version: 1}),
-        verifyReviewChain: () => { throw new Error('CANARY'); },
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
+        verifyCriteria: () => ({digest: 'c'.repeat(64)}),
+        verifyCheck: () => ({digest: 'd'.repeat(64)}),
+        verifyReviewChainV2: () => { throw new Error('CANARY'); },
     }));
 
     assert.equal(result.status, 4);
@@ -499,9 +469,6 @@ test('pr title validation preserves title data and writes synthetic trailers', (
         }
         if (command === 'bash' && path.basename(args[0]) === 'resolve-identity.sh') {
             return completed(0, 'Test User <test@example.com>\n');
-        }
-        if (command === 'bash' && path.basename(args[0]) === 'resolve-ocr-model.sh') {
-            return completed(0, 'review-model\n');
         }
         assert.equal(command, process.execPath);
         assert.deepEqual(args, [
@@ -536,7 +503,7 @@ test('pr title validation preserves title data and writes synthetic trailers', (
         'feat(core): preserve inert $(payload) text',
         '',
         'Implemented-by: implementation-model',
-        'Tested-by: review-model',
+        'Tested-by: implementation-model',
         'Signed-off-by: Test User <test@example.com>',
         '',
     ].join('\n'));
@@ -598,9 +565,6 @@ test('pr title validation rejects an empty model id segment', (t) => {
             if (command === 'bash' && path.basename(args[0]) === 'resolve-identity.sh') {
                 return completed(0, 'Test User <test@example.com>\n');
             }
-            if (command === 'bash' && path.basename(args[0]) === 'resolve-ocr-model.sh') {
-                return completed(0, 'review-model\n');
-            }
             return completed(0);
         },
     }));
@@ -637,39 +601,6 @@ test('pr title validation rejects malformed identity output', (t) => {
 
     assert.equal(result.status, 2);
     assert.match(result.stderr, /identity could not be resolved/);
-    assert.equal(fs.existsSync(validationFile), false);
-});
-
-test('pr title validation rejects malformed OCR model output', (t) => {
-    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pr-test-'));
-    t.after(() => fs.rmSync(workDir, {recursive: true, force: true}));
-    const titleFile = path.join(workDir, 'title.txt');
-    const validationFile = path.join(workDir, 'validation.txt');
-    fs.writeFileSync(titleFile, 'feat(core): safe title\n', {mode: 0o600});
-
-    const result = captureWrites(() => main([
-        'pr',
-        'validate-title',
-        '--title-file',
-        titleFile,
-        '--validation-file',
-        validationFile,
-    ], {
-        coreRoot: CORE_ROOT,
-        cwd: '/repo',
-        env: {...process.env, PI_MODEL: 'provider/model'},
-        run(command, args) {
-            if (command === process.execPath) return completed(0);
-            if (path.basename(args[0]) === 'resolve-identity.sh') {
-                return completed(0, 'Test User <test@example.com>\n');
-            }
-            assert.equal(path.basename(args[0]), 'resolve-ocr-model.sh');
-            return completed(0, 'review-model\nInjected-by: attacker\n');
-        },
-    }));
-
-    assert.equal(result.status, 2);
-    assert.match(result.stderr, /OCR model could not be resolved/);
     assert.equal(fs.existsSync(validationFile), false);
 });
 
@@ -731,9 +662,6 @@ test('pr title validation removes its output when commitlint rejects the title',
             }
             if (command === 'bash' && path.basename(args[0]) === 'resolve-identity.sh') {
                 return completed(0, 'Test User <test@example.com>\n');
-            }
-            if (command === 'bash' && path.basename(args[0]) === 'resolve-ocr-model.sh') {
-                return completed(0, 'review-model\n');
             }
             return completed(1);
         },

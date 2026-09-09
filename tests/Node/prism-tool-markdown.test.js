@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-markdown.test.js kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: prism-tool-markdown.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -20,7 +20,6 @@ function readyExternalEnvironment(directory) {
     fs.mkdirSync(bin, {recursive: true});
     for (const [name, output] of [
         ['semgrep', '1.173.0'],
-        ['ocr', 'open-code-review v1.9.1 linux/amd64'],
     ]) {
         const executable = path.join(bin, name);
         fs.writeFileSync(
@@ -63,9 +62,7 @@ function invalidMarkdown(title = 'Guide') {
 
 function readyProbe(executable) {
     const name = path.basename(executable);
-    const stdout = name === 'semgrep'
-        ? '1.173.0\n'
-        : 'open-code-review v1.9.1 linux/amd64\n';
+    const stdout = '1.173.0\n';
     return {error: null, status: 0, stderr: '', stdout, timedOut: false};
 }
 

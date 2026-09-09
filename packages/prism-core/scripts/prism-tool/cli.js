@@ -1,4 +1,4 @@
-// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: cli.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -56,7 +56,7 @@ const {
     inspectProvisionedBootstrapAttempt,
     provisionBootstrapAdapter,
 } = require('./bootstrap-adapter');
-const {checkExternalTools, resolveExecutable, testOcrConnectivity} = require('./preflight');
+const {checkExternalTools, resolveExecutable} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {runIsolatedSemgrep} = require('./semgrep');
 const {prCommand} = require('./pr');
@@ -65,9 +65,8 @@ const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
 const {verifyManagedProject} = require('./managed-project');
 const {markdownCommand} = require('./markdown');
-const {STATE: CONSENT_STATE, consentCommand, inspectConsent} = require('./consent');
+const {consentCommand} = require('./consent');
 const {webAccessCommand} = require('./web-access-config');
-const {codeReviewCommand} = require('./code-review');
 const {
     cataloguePublicationReadinessCommand,
 } = require('./catalogue-publication-readiness');
@@ -183,22 +182,22 @@ function doctor(args, context) {
         renderDoctor(checks, parsed.json);
         return EXIT.OK;
     }
-    const consent = inspectConsent(context);
-    if (consent.state !== CONSENT_STATE.GRANTED) {
-        checks.push({
-            id: 'ocr-consent',
-            status: 'FAIL',
-            message: 'run /setup to grant standing OCR consent',
-        });
-        renderDoctor(checks, parsed.json);
-        return EXIT.READINESS;
-    }
     const env = context.env ?? process.env;
-    const executable = resolveExecutable('ocr', env);
-    const run = executable
-        ? (_command, liveArgs, options) => (context.run ?? runBounded)(executable, liveArgs, {...options, env})
-        : () => ({status: null, error: {code: 'ENOENT'}});
-    checks.push(testOcrConnectivity({run}));
+    const executable = resolveExecutable('prism-review', env);
+    let ready = false;
+    if (executable) {
+        try {
+            const result = (context.run ?? runBounded)(executable, ['doctor', '--json'], {
+                cwd: context.cwd ?? context.projectRoot ?? process.cwd(),
+                env, maxBuffer: 1048576, timeout: 60000,
+            });
+            const report = JSON.parse(result.stdout);
+            ready = !result.error && result.status === 0 && report.schemaVersion === 1 &&
+                report.command === 'doctor' && report.status === 'GO' && report.eligibleForAuthority === true;
+        } catch { ready = false; }
+    }
+    checks.push({id: 'review-runtime', status: ready ? 'PASS' : 'FAIL',
+        message: ready ? 'installed reviewer readiness verified' : 'installed reviewer is not ready'});
     renderDoctor(checks, parsed.json);
     return checks.every((check) => check.status === 'PASS') ? EXIT.OK : EXIT.READINESS;
 }
@@ -1717,10 +1716,6 @@ function runDeclaredTool(args, context) {
         process.stderr.write('prism-tool: unknown tool id\n');
         return EXIT.USAGE;
     }
-    if (component.id === 'ocr') {
-        process.stderr.write('prism-tool: OCR requires the dedicated code-review operation\n');
-        return EXIT.USAGE;
-    }
     if (component.id === 'markdownlint-cli2') {
         process.stderr.write('prism-tool: markdownlint-cli2 requires the dedicated markdown operation\n');
         return EXIT.USAGE;
@@ -2051,7 +2046,6 @@ function main(argv, context = {}) {
     if (command === 'markdown') return markdownCommand(args, context);
     if (command === 'consent') return consentCommand(args, context);
     if (command === 'web-access') return webAccessCommand(args, context);
-    if (command === 'code-review') return codeReviewCommand(args, context);
     if (command === 'catalogue-publication') {
         return cataloguePublicationReadinessCommand(args, context);
     }

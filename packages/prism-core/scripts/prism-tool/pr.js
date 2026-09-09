@@ -1,4 +1,4 @@
-// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: pr.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -12,7 +12,6 @@ const {
 } = require('../prism-review/review-chain-v2');
 const {REVIEW_STATE} = require('../prism-review/review-state');
 const {runBounded} = require('./process');
-const {verifyReviewChain} = require('./review-chain');
 const {verifyManagedProject} = require('./managed-project');
 
 const EXIT = Object.freeze({OK: 0, USAGE: 2, READINESS: 3, TOOL: 4});
@@ -41,6 +40,8 @@ function unlinkQuietly(file) {
 }
 
 function prCommand(args, context = {}) {
+    if (args[0] === 'bootstrap-preflight') return bootstrapPreflight(args.slice(1), context);
+    if (args[0] === 'bootstrap-checks') return require('./bootstrap-exception').bootstrapChecks(args.slice(1), context);
     if (args.length === 1 && args[0] === 'preflight') {
         return preflight(context, {allowAbsentReviewChain: false});
     }
@@ -50,7 +51,9 @@ function prCommand(args, context = {}) {
     if (args[0] === 'validate-title') return validateTitle(args.slice(1), context);
     process.stderr.write(
         'usage: prism-tool pr preflight | prism-tool pr review-preflight | ' +
-        'prism-tool pr validate-title --title-file PATH --validation-file PATH\n'
+        'prism-tool pr validate-title --title-file PATH --validation-file PATH | ' +
+        'prism-tool pr bootstrap-preflight --approval=yes --branch BRANCH --head-sha SHA ' +
+        '--base-sha SHA --criteria-commit SHA --criteria-path docs/specs/SPEC.md\n'
     );
     return EXIT.USAGE;
 }
@@ -112,14 +115,8 @@ function validateTitle(args, context) {
         process.stderr.write('PR title validation failed: identity could not be resolved\n');
         return EXIT.USAGE;
     }
-    const ocrModel = invoke('bash', [path.join(coreRoot, 'scripts', 'resolve-ocr-model.sh')]);
-    const ocrModelValue = ocrModel.stdout.trim();
-    if (ocrModel.error || ocrModel.status !== 0 || !/^[A-Za-z0-9._-]+$/.test(ocrModelValue)) {
-        process.stderr.write('PR title validation failed: OCR model could not be resolved\n');
-        return EXIT.USAGE;
-    }
     const content = `${title}\n\nImplemented-by: ${modelId}\n` +
-        `Tested-by: ${ocrModelValue}\nSigned-off-by: ${identityValue}\n`;
+        `Tested-by: ${modelId}\nSigned-off-by: ${identityValue}\n`;
     let validationFd;
     let validationCreated = false;
     const removeValidationFile = () => {
@@ -184,6 +181,28 @@ function verifyVersionTwoEvidence(expected, context) {
     };
 }
 
+function bootstrapPreflight(args, context) {
+    const {parseBootstrapApproval, validLocalProof} = require('./bootstrap-exception');
+    const approval = parseBootstrapApproval(args);
+    if (approval === null) return failure('exact bootstrap approval arguments required', EXIT.USAGE);
+    const options = {bootstrapException: approval, quiet: true};
+    const before = preflight(context, options);
+    if (before !== EXIT.OK) return before;
+    const coreRoot = context.coreRoot ?? path.resolve(__dirname, '../..');
+    const result = (context.run ?? runBounded)(process.execPath,
+        [path.join(coreRoot, 'scripts/prism-tool.js'), 'pr', 'bootstrap-checks', ...args], {
+            cwd: context.cwd ?? process.cwd(), env: context.env ?? process.env,
+            timeout: 1800000, maxBuffer: 1048576,
+        });
+    try {
+        if (result.error || result.status !== 0 || !validLocalProof(JSON.parse(result.stdout), approval,
+            {...context, projectRoot: context.cwd ?? process.cwd()})) throw new Error();
+    } catch {
+        return failure('fresh local bootstrap checks failed; no exception accepted');
+    }
+    return preflight(context, {...options, quiet: false});
+}
+
 function preflight(context, options = {}) {
     const allowAbsentReviewChain = options.allowAbsentReviewChain === true;
     const run = context.run ?? runBounded;
@@ -246,6 +265,22 @@ function preflight(context, options = {}) {
     if (diff.status === 0) return failure('branch has no net diff against its merge-base');
 
     const expected = {branch, baseRef, baseSha, headSha};
+    const exception = options.bootstrapException;
+    let criteriaOid;
+    if (exception) {
+        if (targetBranch !== 'develop' || exception.branch !== branch ||
+            exception.headSha !== headSha || exception.baseSha !== baseSha || mergeBase !== baseSha) {
+            return failure('bootstrap approval does not match the synchronized revision');
+        }
+        const ancestor = invoke('git', ['merge-base', '--is-ancestor', exception.criteriaCommit, headSha]);
+        const source = `${exception.criteriaCommit}:${exception.criteriaPath}`;
+        const type = invoke('git', ['cat-file', '-t', source]);
+        const mode = invoke('git', ['ls-tree', '--format=%(objectmode)', exception.criteriaCommit, '--', exception.criteriaPath]);
+        criteriaOid = readValue(['rev-parse', source], SHA_RE);
+        if (ancestor.error || ancestor.status !== 0 || mode.error || mode.status !== 0 ||
+            !/^100(?:644|755)$/.test(mode.stdout.trim()) || type.error || type.status !== 0 ||
+            type.stdout.trim() !== 'blob' || criteriaOid === null) return failure('approved specification is unavailable');
+    }
     const inspect = context.inspectReviewChainV2 ?? inspectReviewChainV2;
     let inspected;
     try {
@@ -256,11 +291,20 @@ function preflight(context, options = {}) {
     let reviewChainState;
     let reviewChainVersion;
     let advisoryCount;
-    let ocrExemptSegments;
     let v2Recovery;
 
     try {
-        if (inspected.state === REVIEW_STATE.VALID && inspected.version === 2) {
+        if (exception) {
+            if (![REVIEW_STATE.ABSENT, REVIEW_STATE.LEGACY].includes(inspected.state)) {
+                return failure('bootstrap exception cannot replace unsafe or version-two review evidence');
+            }
+            for (const inspectReceipt of [context.inspectCriteria ?? inspectCriteria, context.inspectCheck ?? inspectCheck]) {
+                if (![REVIEW_STATE.ABSENT, REVIEW_STATE.VALID].includes(inspectReceipt({...context, projectRoot: cwd}).state)) {
+                    return failure('bootstrap exception cannot bypass unsafe receipts');
+                }
+            }
+            reviewChainState = 'USER_WAIVED';
+        } else if (inspected.state === REVIEW_STATE.VALID && inspected.version === 2) {
             const evidence = (context.verifyReviewEvidence ?? verifyVersionTwoEvidence)(
                 expected, {...context, projectRoot: cwd}
             );
@@ -268,16 +312,6 @@ function preflight(context, options = {}) {
             reviewChainState = REVIEW_STATE.VALID;
             reviewChainVersion = 2;
             advisoryCount = String(review.advisoryFindings.length);
-        } else if (inspected.state === REVIEW_STATE.LEGACY && inspected.version === 1) {
-            const review = (context.verifyReviewChain ?? verifyReviewChain)(
-                expected, {...context, projectRoot: cwd}
-            );
-            reviewChainState = REVIEW_STATE.VALID;
-            reviewChainVersion = 1;
-            advisoryCount = String(review.advisoryFindings.length);
-            ocrExemptSegments = review.record?.segments.filter(
-                (segment) => segment.axes.tooling === 'COMPLETE_NO_OCR'
-            ).length ?? 0;
         } else if (inspected.state === REVIEW_STATE.ABSENT && allowAbsentReviewChain) {
             const criteriaState = (context.inspectCriteria ?? inspectCriteria)(
                 {...context, projectRoot: cwd}
@@ -285,9 +319,7 @@ function preflight(context, options = {}) {
             const checkState = (context.inspectCheck ?? inspectCheck)(
                 {...context, projectRoot: cwd}
             );
-            if (criteriaState.state === REVIEW_STATE.ABSENT && checkState.state === REVIEW_STATE.ABSENT) {
-                v2Recovery = 'UNDECLARED';
-            } else if (criteriaState.state === REVIEW_STATE.VALID && checkState.state === REVIEW_STATE.VALID) {
+            if (criteriaState.state === REVIEW_STATE.VALID && checkState.state === REVIEW_STATE.VALID) {
                 (context.verifyCriteria ?? verifyCriteria)({branch}, {...context, projectRoot: cwd});
                 (context.verifyCheck ?? verifyCheck)(expected, {...context, projectRoot: cwd});
                 v2Recovery = 'READY';
@@ -327,8 +359,15 @@ function preflight(context, options = {}) {
     if (reviewChainVersion !== undefined) fields.push(['REVIEW_CHAIN_VERSION', String(reviewChainVersion)]);
     if (v2Recovery !== undefined) fields.push(['V2_RECOVERY', v2Recovery]);
     if (advisoryCount !== undefined) fields.push(['ADVISORY_COUNT', advisoryCount]);
-    if (ocrExemptSegments > 0) fields.push(['OCR_EXEMPT_SEGMENTS', String(ocrExemptSegments)]);
-    for (const [key, value] of fields) process.stdout.write(`${key}\t${value}\n`);
+    if (exception) fields.push(
+        ['BOOTSTRAP_EXCEPTION', 'USER_APPROVED_EXACT_REVISION'],
+        ['LOCAL_CHECKS', 'PASS'],
+        ['CRITERIA_COMMIT', exception.criteriaCommit],
+        ['CRITERIA_PATH', exception.criteriaPath],
+        ['CRITERIA_BLOB', criteriaOid],
+        ['REVIEW_DISCLOSURE', 'Automated review and installed-authority receipts waived by user for this exact revision; local checks passed.']
+    );
+    if (!options.quiet) for (const [key, value] of fields) process.stdout.write(`${key}\t${value}\n`);
     return EXIT.OK;
 }
 

@@ -30,17 +30,18 @@ layer.
 
 Install these before running Prism:
 
-- Node.js 22.19 or newer;
+- Node.js capable of running Prism and its dependencies;
 - [pi](https://pi.dev);
 - Git;
-- Semgrep `>=1.173.0 <2.0.0`;
-- OpenCodeReview (`ocr`) `>=1.9.1 <2.0.0`;
-- PHP 8.5, Composer, MariaDB, nginx, and PCOV for PHP/web projects;
+- Semgrep;
+- PHP, Composer, MariaDB, nginx, and PCOV for PHP/web projects;
 - Gitleaks and Shellcheck for the repository hooks.
 
-Prism verifies Semgrep and OCR but never installs, configures, or authenticates
-them. The package toolchain contracts own all bundled and consumer-development
-tool versions.
+Prism verifies Semgrep availability but never installs, configures, or
+authenticates it. Non-Prism versions, including Pi's, are runtime observations,
+not rejection rules (ADR-0114). Required capabilities, real checks, audits,
+dependency pins, and Prism's own compatibility checks remain enforced. The
+package toolchain contracts retain reference dependency versions.
 
 ### Install Core
 
@@ -59,7 +60,7 @@ bash ~/.pi/agent/npm/@kyaulabs/prism-core/scripts/install-global.sh
 
 The installer deploys the global
 `AGENTS.md` and anti-drift prompt, then runs local-only readiness. It creates
-neither OCR nor web-access consent and makes no provider or public-web request.
+no web-access consent and makes no provider or public-web request.
 
 ### Install the PHP/web adapter
 
@@ -84,7 +85,7 @@ Open pi in the project and run `/setup`.
 
 Established projects keep their existing files and enter the established setup
 path. Setup inspects the active adapter, optional capabilities, package-release
-state, and independent global OCR and web-access consent before proposing any
+state, and global web-access consent before proposing any
 mutation.
 
 Strict-empty `/setup` offers Template, Blank, or Cancel before adapter
@@ -100,11 +101,11 @@ signed root seed. Setup creates no hosted repository or remote. The human
 creates or configures the hosted repository, adds the remote, pushes `develop`,
 and configures post-push rulesets.
 
-`/setup` solely manages independent standing OCR and web-access consent. OCR
-consent covers one connectivity test and reviewed-code egress through the
-dedicated review operation. Web consent covers only bounded `web_search` and
-`fetch_content`. Revoke either through `/setup` with
-`prism-tool consent revoke-ocr` or `prism-tool consent revoke-web`.
+`/setup` solely manages standing web-access consent for bounded `web_search`
+and `fetch_content`. Revoke it with `prism-tool consent revoke-web`. Legacy
+consent stays readable until explicit setup migration preserves its web choice
+in schema three. Review uses two automatic attempts per active task, then asks before each later
+attempt; it does not use standing consent.
 
 ## Daily development
 
@@ -123,9 +124,12 @@ and invokes preparation-only `/pr`.
 See [Coding Harness](CODING_HARNESS.md) for the on-ramps, fast path, architecture
 gates, TDD cycle, review chain, and finalization rules.
 
-Core also ships a non-authoritative `prism-review` foundation for bounded ad hoc
-review. It does not replace the current OCR-backed `code-review` or write review
-chain state. See [Review runtime foundation](packages/prism-core/docs/review-runtime.md).
+The installed `prism-review` engine owns immutable criteria, deterministic
+checks, and version-two four-axis review receipts. Ad hoc reports remain
+non-authoritative. See [Review runtime](packages/prism-core/docs/review-runtime.md).
+Use `prism-review sdk --json` for a model-independent installed SDK check;
+[readiness diagnostics](packages/prism-core/docs/review-runtime.md#sdk-prerequisite-check)
+explain its limits and doctor’s additional checks.
 
 Ordinary commits use one standalone launcher call after exact staging:
 
@@ -143,8 +147,8 @@ or create pull requests.
 
 | Command | Purpose |
 | --- | --- |
-| `/setup` | Configure a project and manage independent standing OCR and web-access consent |
-| `/doctor` | Run full readiness and the consented OCR connectivity test |
+| `/setup` | Configure a project and manage standing web-access consent |
+| `/doctor` | Run full readiness and installed reviewer readiness without inference |
 | `/prime` | Draft or refresh `CONTEXT.md` |
 | `/router` | Route free-form work to the correct on-ramp or fast path |
 | `/issue` | Create one issue or decompose an approved spec or plan |
@@ -154,7 +158,6 @@ or create pull requests.
 | `/improve-architecture` | Report structural improvement opportunities |
 | `/release` | Prepare a release branch, changelog, and human publication steps |
 | `/pr` | Recover an absent initial review chain, then prepare a conventional title, complete body, and human-run `gh pr create` command |
-| `/handoff` | Save bounded continuation context for another session |
 | `/teach` | Explain completed work at the requested level |
 
 Core prompt templates live in `packages/prism-core/prompts/`. The PHP/web
@@ -187,10 +190,10 @@ work:
 prism-tool doctor --local-only
 ```
 
-Full `/doctor` validates standing OCR consent, runs one OCR connectivity test,
-and reports web-access readiness without a live request. CI provisions
-compatible Semgrep and OCR versions only inside its ephemeral environment. It
-creates no consent and performs neither OCR review nor web access.
+Full `/doctor` validates installed reviewer trust, SDK compatibility, model
+metadata, and adapter readiness without inference. CI provisions compatible
+Semgrep only in its ephemeral environment. It creates no consent and performs
+neither provider review nor web access.
 
 Declared tools run through `prism-tool`. Core bundles commitlint, git-cliff,
 and `markdownlint-cli2`; the PHP/web adapter resolves its development tools
@@ -222,16 +225,17 @@ secret scanning, RCS headers, commit messages, branch names, protected-branch
 policy, and fast-forward pushes.
 
 Finalization records one complete initial review across tooling, structural,
-requirement, and security axes. A fresh finalization acceptance is required
+requirement, and security axes. The shared two-attempt budget applies
 after repair. The next review covers only the continuous repair delta when the
 review chain remains valid. Advisory findings do not block `/pr`; they remain
 visible for disclosure. Blocking findings, missing axes, a dirty tree, a HEAD
 mismatch, or base or history changes stop preparation.
 
-A standalone `/pr` invocation may authorize one complete initial review only
-when deterministic preflight classifies the review chain as absent. Invalid
-review chain evidence continues to fail closed. A failed or second review
-requires fresh explicit approval. `/pr` remains preparation-only.
+Standalone `/pr` recovers only an absent review chain with matching criteria,
+checks, and synchronization evidence. It shares the active task's two automatic
+review attempts; the third and every later attempt require fresh approval for
+one attempt. Failed attempts count and re-entry does not reset the budget.
+Invalid review evidence still fails closed. `/pr` remains preparation-only.
 
 `/release` authors the release branch and changelog. After the release PR merges,
 CI creates the repository tag and GitHub Release, reconciles package tags, and
@@ -267,4 +271,4 @@ source, copyright, and notice obligations.
 
 The main upstream methods and tools are credited in [NOTICE](NOTICE), including
 pi, Aurora, Pest, Superpowers, Distill's pstack provenance, Semgrep, Gitleaks,
-commitlint, git-cliff, and OpenCodeReview (`ocr`).
+commitlint, git-cliff, and the Core-owned Prism reviewer.

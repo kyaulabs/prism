@@ -11,7 +11,7 @@ tool. Do not push or commit anything.
 prism-tool doctor --local-only
 ```
 
-A missing launcher or failed Semgrep/OCR readiness is blocking; report the
+A missing launcher or failed Semgrep readiness is blocking; report the
 remediation and stop.
 
 ## 1. PHP code style

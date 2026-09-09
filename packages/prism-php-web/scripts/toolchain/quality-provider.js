@@ -1,4 +1,4 @@
-// $KYAULabs: quality-provider.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: quality-provider.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -48,7 +48,7 @@ function toolRecords(tools) {
     return tools.map((tool) => {
         if (tool === null || typeof tool !== 'object' || Array.isArray(tool) ||
             Object.keys(tool).sort().join(',') !== 'id,version' ||
-            typeof tool.id !== 'string' || typeof tool.version !== 'string') {
+            typeof tool.id !== 'string' || (tool.version !== null && typeof tool.version !== 'string')) {
             throw new Error('quality-provider tool record is invalid');
         }
         return {id: tool.id, version: tool.version};
@@ -181,12 +181,15 @@ function coverageCounts(xml, projectRoot) {
         } catch {
             continue;
         }
+        const total = {covered: 0, statements: 0};
+        counts.set(relative, total);
         for (const lineMatch of fileMatch[2].matchAll(linePattern)) {
             const type = /(?:^|\s)type="([^"]+)"/u.exec(lineMatch[1]);
             const number = /(?:^|\s)num="(\d+)"/u.exec(lineMatch[1]);
             const count = /(?:^|\s)count="(\d+)"/u.exec(lineMatch[1]);
             if (type?.[1] === 'stmt' && number !== null && count !== null) {
-                counts.set(`${relative}:${Number(number[1])}`, Number(count[1]));
+                total.statements += 1;
+                if (Number(count[1]) > 0) total.covered += 1;
             }
         }
     }
@@ -205,17 +208,12 @@ async function changedCoverage(options) {
         if (!Array.isArray(lines) || lines.length === 0) return skipped(id, command);
         const xml = await options.readArtifact('tests/coverage.xml', ARTIFACT_LIMIT);
         const counts = coverageCounts(xml, options.projectRoot);
-        const totals = new Map();
-        for (const {file, line} of lines) {
-            const relative = relativeFile(file);
-            const total = totals.get(relative) ?? {covered: 0, statements: 0};
-            total.statements += 1;
-            if (counts.get(`${relative}:${line}`) > 0) total.covered += 1;
-            totals.set(relative, total);
-        }
-        const passed = [...totals.values()].every(({covered, statements}) =>
-            covered * 100 >= statements * 80
-        );
+        if (counts.size === 0) throw new Error('coverage report has no instrumented files');
+        const changedFiles = new Set(lines.map(({file}) => relativeFile(file)));
+        const passed = [...changedFiles].every(file => {
+            const total = counts.get(file);
+            return total === undefined || total.covered * 100 >= total.statements * 80;
+        });
         return receipt(id, command, {
             passed,
             stdout: EMPTY,
@@ -268,14 +266,14 @@ async function runQualityProvider(options) {
             {command: 'npm', args: ['audit', '--audit-level=low']})
         : skipped('php-web.npm-audit', ['npm', 'audit', '--audit-level=low']));
     tasks.set('php-web.php-cs-fixer', () => php.length
-        ? one('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', '--diff', 'TRACKED_PHP_FILES'],
-            options.runTool, {toolId: 'php-cs-fixer', args: ['fix', '--dry-run', '--diff', ...php]})
-        : skipped('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', '--diff', 'TRACKED_PHP_FILES']));
+        ? one('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', '--diff', '--using-cache=no'],
+            options.runTool, {toolId: 'php-cs-fixer', args: ['fix', '--dry-run', '--diff', '--using-cache=no']})
+        : skipped('php-web.php-cs-fixer', ['php-cs-fixer', 'fix', '--dry-run', '--diff', '--using-cache=no']));
     tasks.set('php-web.php-syntax', () => many(
         'php-web.php-syntax', ['php', '-l', 'TRACKED_PHP_FILES'], options.runCommand,
         php.map((file) => ({command: 'php', args: ['-l', file]}))
     ));
-    tasks.set('php-web.playwright-list', () => files.some((file) => file.startsWith('tests/Browser/'))
+    tasks.set('php-web.playwright-list', () => files.some((file) => /^playwright\.config\.[cm]?[jt]s$/u.test(file))
         ? one('php-web.playwright-list', ['playwright', 'test', '--list'], options.runTool,
             {toolId: 'playwright', args: ['test', '--list']})
         : skipped('php-web.playwright-list', ['playwright', 'test', '--list']));

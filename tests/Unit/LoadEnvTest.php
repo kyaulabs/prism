@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: LoadEnvTest.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: LoadEnvTest.php kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 require_once __DIR__ . '/../../backend/env.php';
 
@@ -429,7 +429,7 @@ test('load_env non-secret keys still dual-populate $_ENV and getenv', function (
 });
 test('load_env no-ops on a .env larger than 1 MiB', function () {
     // 3000 lines x ~400 bytes — over the 1 MiB size cap but under the
-    // 10000-line cap, so only the size cap can trip (OCR round 4).
+    // 10000-line cap, so only the size cap can trip (review round 4).
     $path = env_fixture(str_repeat("A=" . str_repeat("0", 396) . "\n", 3000));
 
     try {

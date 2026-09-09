@@ -21,12 +21,14 @@ Select only these structured fields:
 
 [optional Fixes: #NN or Refs: #NN]
 Implemented-by: <active-model-id>
-Tested-by: <review-model-id>
+Tested-by: <active-model-id>
 Signed-off-by: <human identity>
 ```
 
 The launcher owns all three attribution values and their canonical order.
-Callers never resolve or interpolate them.
+Both model trailers use the validated active `PI_MODEL` ID. Exact review model
+provenance remains in the version-two receipt. Callers never resolve or
+interpolate attribution values.
 
 ### Types
 

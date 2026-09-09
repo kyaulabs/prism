@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-server.test.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: prism-tool-server.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -90,7 +90,7 @@ function writeServerAdapter(t, options = {}) {
     writeJson(path.join(projectRoot, '.pi', 'settings.json'), {
         skills: ['../adapter/skills'],
     });
-    for (const executable of ['fixture-server', 'fixture-health', 'semgrep', 'ocr']) {
+    for (const executable of ['fixture-server', 'fixture-health', 'semgrep']) {
         if (!options.omitExecutables?.includes(executable)) {
             writeExecutable(path.join(bin, executable), 'exit 0');
         }
@@ -106,14 +106,6 @@ function writeServerAdapter(t, options = {}) {
             const name = path.basename(command);
             if (name === 'semgrep') {
                 return {status: 0, stdout: '1.173.0\n', stderr: '', error: undefined};
-            }
-            if (name === 'ocr') {
-                return {
-                    status: 0,
-                    stdout: 'open-code-review v1.9.1 linux/amd64\n',
-                    stderr: '',
-                    error: undefined,
-                };
             }
             throw new Error('unexpected process call');
         },

@@ -14,7 +14,8 @@ does not guess their commands.
 
 ```bash
 set -o pipefail
-pi --version 2>/dev/null || echo "NOT_FOUND"
+command -v pi >/dev/null 2>&1 || echo "NOT_FOUND"
+pi --version 2>/dev/null || echo "VERSION_UNKNOWN"
 ```
 
 PASS requires pi to run. The harness prescribes no models (ADR-0067); model
@@ -35,25 +36,22 @@ command -v openssl >/dev/null 2>&1 && openssl version || echo "NOT_FOUND"
 command -v jq >/dev/null 2>&1 && jq --version || echo "OPTIONAL_NOT_FOUND"
 ```
 
-Floors: Bash >= 4 for the harness validator; Node.js >= 20; npm >= 9. `git`,
-`curl`, and `openssl` require maintained versions but have no project-pinned
-floor. `jq` is optional because Core launcher reports are already structured
-JSON and do not require a shell parsing dependency.
+These probes report metadata, not version floors (ADR-0114). A failed version
+probe alone is not `NOT_FOUND`: confirm executable presence with `command -v`
+and report an unknown version when it exists. Required commands and actual API
+capabilities must work; never reject Pi, Bash, Node, npm, Git, curl, or OpenSSL
+because of their version number. `jq` is optional because Core reports are
+already structured JSON.
 
 ## 3. Prism resources
 
-Run the contract-owned readiness check without asking an OCR question (never
-install or configure Semgrep/OCR):
-
-```bash
-prism-tool doctor
-```
-
-This performs mandatory Semgrep/OCR version verification (ADR-0063: Semgrep
-`>=1.173.0 <2.0.0`, OCR `>=1.9.1 <2.0.0`) and runs `ocr llm test` only when
-the global standing-consent record is valid. Missing or unsafe consent returns
-NO-GO with `/setup` as the remediation. Never grant, revoke, repair, or remove
-consent from `/doctor`.
+Run `prism-tool doctor`. It verifies mandatory Semgrep availability and the
+installed `prism-review doctor --json` readiness contract: trust-root provenance,
+SDK import/API capabilities, model metadata, Core policy, and active adapter provider.
+It makes no live inference request. Authentication failures surface only at an
+authorized review attempt. Never install or configure tools automatically.
+Consent does not authorize review and does not block doctor. Never migrate,
+grant, revoke, or repair consent from `/doctor`.
 
 ```bash
 pi list
@@ -140,14 +138,12 @@ Do not run `web_search`, `fetch_content`, or any live public request from
 
 Report these results separately from mandatory Core readiness:
 
-- OCR consent must be granted for full doctor and OCR review readiness.
 - Missing standing web-access consent is `OPTIONAL_DISABLED`, not a mandatory
   Core failure. Direct the human to `/setup` if they want `web_search` or
   `fetch_content`.
-- An unsafe consent record is mandatory `NO-GO` because OCR consent is not
-  readable, and it also makes web access `WEB_ACCESS_NO-GO`. An unsafe
-  web-access configuration alone is `WEB_ACCESS_NO-GO`. Both require human
-  remediation; never overwrite, chmod, revoke, or remove either record.
+- Unsafe consent or web configuration disables optional web access and requires
+  human remediation, without blocking mandatory Core readiness. Never overwrite,
+  chmod, revoke, or remove either record automatically.
 - An absent web-access configuration is valid: browser auto-detection remains
   enabled, loopback SearXNG is absent, and guarded direct fallback is available
   only after consent.

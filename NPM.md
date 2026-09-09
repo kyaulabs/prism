@@ -22,9 +22,11 @@ Both packages currently declare:
 - public scoped-package access;
 - package-specific README and NOTICE files.
 
-Core alone declares pi as a peer dependency because its TypeScript safety
-extension imports pi's runtime API. The PHP/web adapter has no extension and
-needs no pi peer dependency.
+Core's extensions declare Pi as a host peer. The standalone reviewer also
+requires the Pi SDK as a runtime dependency: Pi-managed installation omits
+peers, and extension-loader aliases do not apply to a separate Node process.
+Both declarations use `>=0.84.1 <=5.0.0`. The PHP/web adapter imports no host
+API and needs no Pi peer.
 
 ## Publication-readiness checks
 
@@ -166,11 +168,15 @@ commit.
 | Symptom | Action |
 | --- | --- |
 | npm reports private scoped-package payment requirements | Confirm `publishConfig.access: public` and publish with `--access public` |
-| Core cannot import pi in a consumer install | Confirm Core's pi peer dependency and test the packed archive |
+| Core cannot import Pi in a consumer install | Run `prism-review sdk --json` and restore Core's verified runtime dependency graph |
 | npm requests a one-time code | Complete the account's write-authentication challenge |
 | `npm pack` includes tests or checkout files | Correct the package `files` array before release |
 | `pi update` does not move a package | Inspect whether the package is version-pinned and reinstall it at the intended version |
 | One lockstep package is missing | Publish the missing configured package at the existing release version without moving tags |
+
+For an installed reviewer import failure, run `prism-review sdk --json`.
+Reinstall a verified Core release through the supported installer rather than
+adding checkout paths or `NODE_PATH` to the process.
 
 ## First-publication checklist
 

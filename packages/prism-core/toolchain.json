@@ -64,23 +64,6 @@
       "versionArguments": ["--version"],
       "executionTimeoutMs": 600000,
       "argumentPolicy": {"mode": "first-token", "allowed": ["scan"]}
-    },
-    {
-      "id": "ocr",
-      "kind": "command",
-      "ecosystem": "npm",
-      "package": "@alibaba-group/open-code-review",
-      "versionRequirement": {
-        "mode": "range",
-        "minimum": "1.9.1",
-        "maximumExclusive": "2.0.0"
-      },
-      "provisioning": "external",
-      "authentication": "required",
-      "executable": "ocr",
-      "versionArguments": ["--version"],
-      "executionTimeoutMs": 600000,
-      "argumentPolicy": {"mode": "first-token", "allowed": ["review", "scan"]}
     }
   ]
 }

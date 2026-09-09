@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: prism-tool-bootstrap-plan.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -2280,14 +2280,6 @@ test('runs selected-adapter effects only after the scaffold is durable', (t) => 
         `${path.join(projectRoot, 'node_modules', '.bin', 'playwright')} install chromium`,
         'composer audit --locked --format=json',
         'npm audit --package-lock-only --json',
-        `${path.join(projectRoot, 'vendor', 'bin', 'php-cs-fixer')} --version`,
-        `${path.join(projectRoot, 'vendor', 'bin', 'pest')} --version`,
-        `${path.join(projectRoot, 'node_modules', '.bin', 'sass')} --version`,
-        `${path.join(projectRoot, 'node_modules', '.bin', 'uglifyjs')} --version`,
-        `${path.join(projectRoot, 'node_modules', '.bin', 'eslint')} --version`,
-        `${path.join(projectRoot, 'node_modules', '.bin', 'stylelint')} --version`,
-        `${path.join(projectRoot, 'node_modules', '.bin', 'tsc')} --version`,
-        `${path.join(projectRoot, 'node_modules', '.bin', 'playwright')} --version`,
     ]);
     const journal = readBootstrapJournal({projectRoot, attemptId: ATTEMPT_ID});
     assert.equal(journal.resumePhase, 'REPOSITORY_BOOTSTRAP');
@@ -2470,7 +2462,7 @@ test('retains the durable scaffold when provider byte verification fails', (t) =
         coreRoot: CORE_ROOT,
         run: (command, args, options) => {
             const outcome = run(command, args, options);
-            if (path.basename(command) === 'playwright' && args[0] === '--version') {
+            if (command === 'npm' && args[0] === 'audit') {
                 fs.appendFileSync(path.join(projectRoot, 'composer.json'), ' ');
             }
             return outcome;
@@ -2608,7 +2600,7 @@ test('resumes provider inventory verification without rerunning dependency effec
         coreRoot: CORE_ROOT,
         run: (command, args, options) => {
             const outcome = firstRun(command, args, options);
-            if (path.basename(command) === 'playwright' && args[0] === '--version') {
+            if (command === 'npm' && args[0] === 'audit') {
                 fs.appendFileSync(composerPath, ' ');
             }
             return outcome;

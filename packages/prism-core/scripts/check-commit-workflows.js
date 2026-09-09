@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// $KYAULabs: check-commit-workflows.js kyau@aura.kyaulabs 2026/08/19 -0700 Exp $
+// $KYAULabs: check-commit-workflows.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -80,7 +80,7 @@ function checkFile(root, file) {
         if (/git\s+commit[^\n]*\$'/.test(line)) {
             diagnostics.push(`${relative}:${index + 1}: ANSI-C commit-message guidance`);
         }
-        if (/(?:\$\(|\bbash\s+).*resolve-(?:ocr-model|identity)\.sh/.test(line)) {
+        if (/(?:\$\(|\bbash\s+).*resolve-identity\.sh/.test(line)) {
             diagnostics.push(`${relative}:${index + 1}: direct attribution resolver recipe`);
         }
         if (/prism-tool\s+commit\s+prepare(?:\s|$)/.test(line)) {

@@ -6,6 +6,10 @@ Date: 2026-08-14
 
 Accepted
 
+Runtime non-Prism version gating is superseded by
+[ADR-0114](0114-non-prism-versions-are-observations.md). Required executables,
+capabilities, package ownership, pins, and audit boundaries remain.
+
 Supersedes ADR-0062. Depends on ADR-0025, ADR-0047, ADR-0048, ADR-0056,
 ADR-0058, ADR-0060, ADR-0061, and ADR-0062.
 

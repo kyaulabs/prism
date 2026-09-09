@@ -1,4 +1,4 @@
-// $KYAULabs: quality-provider.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: quality-provider.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -197,7 +197,7 @@ function validateGate(value, expectedIds) {
     }
     const tools = value.tools.map((tool) => {
         exact(tool, ['id', 'version'], 'quality gate tool');
-        if (!ID.test(tool.id ?? '') || !PACKAGE_VERSION.test(tool.version ?? '')) {
+        if (!ID.test(tool.id ?? '') || (tool.version !== null && !PACKAGE_VERSION.test(tool.version ?? ''))) {
             throw new Error('quality gate tool is invalid');
         }
         return {...tool};

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: prism-tool-run.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -22,7 +22,6 @@ function readyExternalEnvironment(directory) {
     fs.mkdirSync(bin, {recursive: true});
     for (const [name, output] of [
         ['semgrep', '1.173.0'],
-        ['ocr', 'open-code-review v1.9.1 linux/amd64'],
     ]) {
         const executable = path.join(bin, name);
         fs.writeFileSync(
@@ -196,13 +195,7 @@ test('rejects undeclared, library, malformed, and policy-bypassing runs', (t) =>
     const invocations = [
         ['run', 'missing', '--'],
         ['run', 'commitlint-config-conventional', '--'],
-        ['run', 'ocr', '--', 'config'],
-        ['run', 'ocr', '--', 'llm', 'test'],
         ['run', 'semgrep', '--', 'login'],
-        ['run', 'ocr', '--code-egress-approved=true', '--', 'review'],
-        ['run', 'ocr', '--', 'review', '--audience', 'agent', '--format', 'json'],
-        ['run', 'ocr', '--code-egress-approved=yes', '--', 'review', '--audience', 'agent', '--format', 'json'],
-        ['run', 'ocr', '--', 'scan', '.'],
         ['run', 'git-cliff', '--version'],
     ];
 
@@ -267,7 +260,7 @@ test('rejects contract and package manifest drift before execution', async (t) =
     assert.equal(fs.existsSync(marker), false);
 });
 
-test('rejects a bundled package version that differs from its contract', async (t) => {
+test('runs an available bundled package despite a differing installed version', async (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
     const marker = path.join(directory, 'executed');
@@ -283,9 +276,8 @@ test('rejects a bundled package version that differs from its contract', async (
         input: '',
     }));
 
-    assert.equal(result.status, 4);
-    assert.match(result.stderr, /bundled tool is unavailable/);
-    assert.equal(fs.existsSync(marker), false);
+    assert.equal(result.status, 0);
+    assert.equal(fs.existsSync(marker), true);
 });
 
 test('fails closed without relaying output that exceeds the bound', async (t) => {
@@ -488,7 +480,7 @@ Promise.resolve(runDeclaredTool(['semgrep', '--', 'scan', '--help'], {
     assert.equal(scanned.stdin, '');
     assert.notEqual(scanned.cwd, directory);
     assert.equal(fs.existsSync(scanned.cwd), false);
-    assert.deepEqual(calls, [['--version'], ['--version']]);
+    assert.deepEqual(calls, [['--version']]);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-core-quality.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: prism-review-core-quality.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -50,6 +50,7 @@ test('records actual versions for bounded adapter command callbacks', async (t) 
     const bin = makeTempDir();
     t.after(() => fs.rmSync(bin, {recursive: true, force: true}));
     fs.writeFileSync(path.join(bin, 'composer'), '#!/bin/sh\nexit 0\n', {mode: 0o755});
+    let versionAvailable = true;
     const callbacks = createQualityCallbacks({
         branch: 'develop', baseRef: 'develop', baseSha: head, headSha: head,
     }, {
@@ -64,18 +65,27 @@ test('records actual versions for bounded adapter command callbacks', async (t) 
             argumentPolicy: {mode: 'passthrough'},
         }], serverProfiles: []}},
         handler: {resolveTool: () => path.join(root, 'vendor', 'bin', 'php-cs-fixer')},
-        run: (command, args) => args.includes('--version')
-            ? {status: 0, stdout: path.basename(command) === 'composer'
-                ? 'Composer version 2.8.1 2026-01-01'
-                : 'PHP CS Fixer 3.95.18 running on PHP runtime 8.5.9', stderr: '', error: undefined}
-            : {status: 0, stdout: '', stderr: '', error: undefined},
+        run: (command, args) => args.includes('--version') && !versionAvailable
+            ? {status: 2, stdout: '', stderr: 'unsupported version option'}
+            : args.includes('--version')
+                ? {status: 0, stdout: path.basename(command) === 'composer'
+                    ? 'Composer version 2.8.1 2026-01-01'
+                    : 'PHP CS Fixer 3.94.0', stderr: '', error: undefined}
+                : {status: 0, stdout: '', stderr: '', error: undefined},
     });
 
     const result = await callbacks.runCommand({command: 'composer', args: ['audit', '--locked']});
     const tool = await callbacks.runTool({toolId: 'php-cs-fixer', args: ['fix', '--dry-run']});
 
     assert.deepEqual(result.tools, [{id: 'composer', version: '2.8.1'}]);
-    assert.deepEqual(tool.tools, [{id: 'php-cs-fixer', version: '3.95.18'}]);
+    assert.deepEqual(tool.tools, [{id: 'php-cs-fixer', version: '3.94.0'}]);
+    versionAvailable = false;
+    const unknown = await callbacks.runTool({toolId: 'php-cs-fixer', args: ['fix', '--dry-run']});
+    assert.equal(unknown.status, 0);
+    assert.deepEqual(unknown.tools, [{id: 'php-cs-fixer', version: null}]);
+    const unknownRuntime = await callbacks.runCommand({command: 'node', args: ['--help']});
+    assert.equal(unknownRuntime.status, 0);
+    assert.deepEqual(unknownRuntime.tools, [{id: 'node', version: null}]);
 });
 
 test('derives bounded adapter inputs from the immutable Git range', async (t) => {
@@ -144,7 +154,7 @@ test('applies process-level sensitive paths to the tracked quality scope', (t) =
         handler: {resolveTool() {}}}), /sensitive/);
 });
 
-test('passes only validated tracked paths to the default Semgrep gate', async (t) => {
+test('scans an isolated tracked snapshot without overriding Semgrep ignore rules', async (t) => {
     const root = makeTempDir();
     const bin = makeTempDir();
     t.after(() => fs.rmSync(root, {recursive: true, force: true}));
@@ -209,7 +219,9 @@ fs.writeFileSync(${JSON.stringify(invocation)}, JSON.stringify({cwd: process.cwd
     assert.equal(report.status, 'PASS');
     assert.deepEqual(snapshot(), before);
     const scanned = JSON.parse(fs.readFileSync(invocation, 'utf8'));
-    assert.deepEqual(scanned.args.slice(-4), ['--', ...trackedPaths]);
+    assert.deepEqual(scanned.args, ['scan', '--config', './.semgrep/kyaulabs.yml', '--config', 'p/php',
+        '--config', 'p/secrets', '--config', 'p/javascript', '--error', '--metrics', 'off', '--disable-version-check',
+        '--baseline-commit', baseline]);
     assert.equal(scanned.ignored, false);
     assert.notEqual(scanned.cwd, root);
     assert.equal(fs.existsSync(scanned.cwd), false);

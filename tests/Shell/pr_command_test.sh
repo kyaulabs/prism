@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+# $KYAULabs: pr_command_test.sh kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 # $KYAULabs$
 
@@ -105,110 +105,6 @@ assert_no_obsolete_title_flag() {
 	[ "$obsolete" -eq 0 ]
 }
 
-make_standard_fixture() {
-	local fixture="$1"
-	mkdir -p "$fixture/packages/prism-core/scripts"
-	git_init_test_repo "$fixture"
-	printf '.pi/\nreview-segment.json\n' >> "$fixture/.git/info/exclude"
-	cp "$REPO_ROOT/packages/prism-core/scripts/validate-branch-name.sh" "$fixture/packages/prism-core/scripts/"
-	chmod +x "$fixture/packages/prism-core/scripts/validate-branch-name.sh"
-	(
-		cd "$fixture"
-		git branch -M develop
-		git add packages
-		git commit --quiet -m 'chore: add branch validator'
-		printf 'base-1\n' > state.txt
-		git add state.txt
-		git commit --quiet -m 'chore: first base'
-		printf 'base-2\n' >> state.txt
-		git add state.txt
-		git commit --quiet -m 'chore: second base'
-		git update-ref refs/remotes/origin/develop HEAD
-		git branch main HEAD
-		git update-ref refs/remotes/origin/main HEAD
-		git switch --quiet -c feat/tester-abcd-pr-command
-		printf 'feature\n' > feature.txt
-		git add feature.txt
-		git commit --quiet -m 'feat(commands): prepare pull request'
-	)
-}
-
-record_review_chain() {
-	local fixture="$1" branch base_ref base_sha head_sha segment
-	branch=$(git -C "$fixture" branch --show-current)
-	case "$branch" in
-		feat/*|fix/*|patch/*|docs/*|style/*|refactor/*|perf/*|test/*|build/*|ci/*|chore/*|hotfix/*|release/*) ;;
-		*) return 0 ;;
-	esac
-	case "$branch" in
-		hotfix/*|release/*) base_ref='origin/main' ;;
-		*) base_ref='origin/develop' ;;
-	esac
-	if ! git -C "$fixture" rev-parse --verify --quiet "$base_ref^{commit}" >/dev/null; then return 0; fi
-	base_sha=$(git -C "$fixture" rev-parse "$base_ref")
-	head_sha=$(git -C "$fixture" rev-parse HEAD)
-	segment="$fixture/review-segment.json"
-	rm -rf "$fixture/.pi/prism-tool/code-review"
-	printf '{"schemaVersion":1,"kind":"initial","branch":"%s","baseRef":"%s","baseSha":"%s","from":"%s","to":"%s","axes":{"tooling":"COMPLETE","standards":"COMPLETE","spec":"COMPLETE","sast":"COMPLETE"},"findings":[],"closures":[]}\n' \
-		"$branch" "$base_ref" "$base_sha" "$base_sha" "$head_sha" > "$segment"
-	(
-		cd "$fixture"
-		PATH="$TOOLCHAIN_PATH" prism-tool code-review chain record --input review-segment.json --json >/dev/null
-	)
-}
-
-run_preflight() {
-	local fixture="$1" script="$2" output="$3"
-	record_review_chain "$fixture"
-	(
-		cd "$fixture"
-		PATH="$TOOLCHAIN_PATH" bash "$script"
-	) > "$output" 2>&1
-}
-
-# new_standard_fixture <varname> — build a standard fixture in its own
-# registered temp dir and set <varname> in the CALLER's shell to its path.
-# Must be called directly, never via command substitution: a subshell's
-# register_temp_dir() is invisible to the parent, so the EXIT-trap cleanup
-# would silently skip the dir (same subshell-tracking bug as issue #322).
-# The caller variable must not be named 'path' (the function's own local).
-new_standard_fixture() {
-	local var="$1" path
-	path=$(mktemp -d)
-	register_temp_dir "$path"
-	make_standard_fixture "$path"
-	printf -v "$var" '%s' "$path"
-}
-
-# preflight_value <key> <output> — extract a tab-delimited preflight field.
-preflight_value() {
-	local key="$1" output="$2"
-	awk -F'\t' -v key="$key" '$1 == key { print $2 }' "$output"
-}
-
-assert_preflight_field() {
-	local label="$1" output="$2" key="$3" expected="$4" actual
-	actual=$(preflight_value "$key" "$output")
-	if [ "$actual" = "$expected" ]; then
-		pass "$label"
-	else
-		fail "$label — expected '$expected', got '$actual'"
-	fi
-}
-
-assert_preflight_failure() {
-	local label="$1" fixture="$2" diagnostic="$3" output rc
-	output=$(mktemp)
-	rc=0
-	run_preflight "$fixture" "$PREFLIGHT_SCRIPT" "$output" || rc=$?
-	if [ "$rc" -ne 0 ] && grep -Fq -- "$diagnostic" "$output"; then
-		pass "$label"
-	else
-		fail "$label — exit=$rc, missing diagnostic '$diagnostic'"
-	fi
-	rm -f "$output"
-}
-
 # ── 1. command file exists ─────────────────────────────────────────────────
 
 if [ -f "$COMMAND_FILE" ]; then
@@ -277,152 +173,13 @@ assert_contains "$COMMAND_FILE" 'Use only unchecked TODO task-list items' \
 assert_contains "$COMMAND_FILE" '- [ ] `command` — reason to run' \
 	'Test Plan documents the required command and reason format'
 
-# ── 6. baseline standard fixture ────────────────────────────────────────────
+# ── 6. version-two preflight behavior ────────────────────────────────────────
 
-baseline_fixture=
-new_standard_fixture baseline_fixture
-case " $TEMP_DIRS " in
-	*" $baseline_fixture "*) pass 'standard fixture is tracked in TEMP_DIRS' ;;
-	*) fail 'standard fixture was not tracked in TEMP_DIRS' ;;
-esac
-baseline_output=$(mktemp)
-rc=0
-run_preflight "$baseline_fixture" "$PREFLIGHT_SCRIPT" "$baseline_output" || rc=$?
-if [ "$rc" -eq 0 ]; then
-	pass 'standard fixture passes preflight'
+if node --test "$REPO_ROOT/tests/Node/prism-tool-pr.test.js" >/dev/null; then
+    pass 'PR preflight verifies exact version-two evidence and rejects legacy recovery'
 else
-	fail "standard fixture preflight exited $rc"
+    fail 'version-two preflight regressions'
 fi
-expected_base=$(cd "$baseline_fixture" && git rev-parse 'origin/develop^{commit}')
-expected_head=$(cd "$baseline_fixture" && git rev-parse HEAD)
-assert_preflight_field 'preflight reports BRANCH' "$baseline_output" BRANCH 'feat/tester-abcd-pr-command'
-assert_preflight_field 'preflight reports TARGET_BRANCH develop' "$baseline_output" TARGET_BRANCH develop
-assert_preflight_field 'preflight reports BASE_REF origin/develop' "$baseline_output" BASE_REF origin/develop
-assert_preflight_field 'preflight reports exact BASE_SHA' "$baseline_output" BASE_SHA "$expected_base"
-assert_preflight_field 'preflight reports exact HEAD_SHA' "$baseline_output" HEAD_SHA "$expected_head"
-assert_preflight_field 'preflight reports exact MERGE_BASE' "$baseline_output" MERGE_BASE "$expected_base"
-assert_preflight_field 'preflight reports non-zero COMMIT_COUNT' "$baseline_output" COMMIT_COUNT 1
-assert_preflight_field 'preflight reports non-zero NON_MERGE_COUNT' "$baseline_output" NON_MERGE_COUNT 1
-rm -f "$baseline_output"
-
-health_fixture=
-new_standard_fixture health_fixture
-record_review_chain "$health_fixture"
-cp "$REPO_ROOT/packages/prism-core/config/bootstrap/hooks/pre-commit" "$health_fixture/.git/hooks/pre-commit"
-chmod 700 "$health_fixture/.git/hooks/pre-commit"
-health_before=$(find "$health_fixture/.pi/prism-tool/code-review" -type f -exec sha256sum {} +)
-for script in "$REVIEW_PREFLIGHT_SCRIPT" "$PREFLIGHT_SCRIPT"; do
-	health_output="$WORK_DIR/health-output"
-	rc=0
-	(cd "$health_fixture" && PATH="$TOOLCHAIN_PATH" bash "$script") > "$health_output" 2>&1 || rc=$?
-	health_after=$(find "$health_fixture/.pi/prism-tool/code-review" -type f -exec sha256sum {} +)
-	if [ "$rc" -ne 0 ] \
-		&& grep -Fq 'managed project health failed: project manifest is missing' "$health_output" \
-		&& [ -z "$(preflight_value HEAD_SHA "$health_output")" ] \
-		&& [ "$health_before" = "$health_after" ] \
-		&& [ ! -e "$health_fixture/.prism/project.json" ]; then
-		pass "$(basename "$script") blocks broken managed state without replacing review evidence"
-	else
-		fail "$(basename "$script") bypassed managed health or changed review evidence"
-	fi
-done
-
-# ── 7. hotfix branch targets main ───────────────────────────────────────────
-
-hotfix_fixture=
-new_standard_fixture hotfix_fixture
-(
-	cd "$hotfix_fixture"
-	git switch --quiet -c hotfix/tester-abcd-urgent
-)
-hotfix_output=$(mktemp)
-rc=0
-run_preflight "$hotfix_fixture" "$PREFLIGHT_SCRIPT" "$hotfix_output" || rc=$?
-hotfix_target=$(preflight_value TARGET_BRANCH "$hotfix_output")
-hotfix_base=$(preflight_value BASE_REF "$hotfix_output")
-if [ "$rc" -eq 0 ] && [ "$hotfix_target" = main ] && [ "$hotfix_base" = origin/main ]; then
-	pass 'hotfix branch targets main'
-else
-	fail 'hotfix branch does not target main'
-fi
-rm -f "$hotfix_output"
-
-# ── 8. release branch targets main despite develop origin ───────────────────
-
-release_fixture=
-new_standard_fixture release_fixture
-(
-	cd "$release_fixture"
-	git switch --quiet -c release/1.2.3-rc.1
-)
-release_output=$(mktemp)
-rc=0
-run_preflight "$release_fixture" "$PREFLIGHT_SCRIPT" "$release_output" || rc=$?
-release_target=$(preflight_value TARGET_BRANCH "$release_output")
-release_base=$(preflight_value BASE_REF "$release_output")
-if [ "$rc" -eq 0 ] && [ "$release_target" = main ] && [ "$release_base" = origin/main ]; then
-	pass 'release branch targets main despite develop origin'
-else
-	fail 'release branch does not target main'
-fi
-rm -f "$release_output"
-
-# ── 9. preflight failures with specific diagnostics ─────────────────────────
-
-fixture=
-new_standard_fixture fixture
-(cd "$fixture" && git switch --quiet --detach HEAD)
-assert_preflight_failure 'detached HEAD is rejected' "$fixture" 'detached HEAD; switch to a work branch'
-
-fixture=
-new_standard_fixture fixture
-(cd "$fixture" && git switch --quiet develop)
-assert_preflight_failure 'protected develop is rejected' "$fixture" 'branch is protected or does not satisfy ADR-0028'
-
-fixture=
-new_standard_fixture fixture
-(cd "$fixture" && git switch --quiet -c feature/tester-abcd-invalid)
-assert_preflight_failure 'invalid branch family is rejected' "$fixture" 'branch is protected or does not satisfy ADR-0028'
-
-fixture=
-new_standard_fixture fixture
-(cd "$fixture" && printf 'dirty\n' >> state.txt)
-assert_preflight_failure 'dirty working tree is rejected' "$fixture" 'working tree is not clean'
-
-fixture=
-new_standard_fixture fixture
-(cd "$fixture" && git update-ref -d refs/remotes/origin/develop)
-assert_preflight_failure 'missing remote base ref is rejected' "$fixture" 'missing synchronized remote-tracking ref origin/develop'
-
-fixture=
-new_standard_fixture fixture
-(cd "$fixture" && git switch --quiet -c feat/tester-abcd-zero-ahead origin/develop)
-assert_preflight_failure 'zero-ahead branch is rejected' "$fixture" 'no commits ahead of origin/develop'
-
-fixture=
-new_standard_fixture fixture
-(
-	cd "$fixture"
-	parent1=$(git rev-parse 'origin/develop^')
-	parent2=$(git rev-parse 'origin/develop^{commit}')
-	tree=$(git rev-parse 'origin/develop^{tree}')
-	merge_sha=$(git commit-tree "$tree" -p "$parent1" -p "$parent2" -m 'merge: only merge commit')
-	git switch --quiet -c feat/tester-abcd-merge-only "$merge_sha"
-)
-assert_preflight_failure 'merge-only range is rejected' "$fixture" 'branch range contains no non-merge commit'
-
-fixture=
-new_standard_fixture fixture
-(
-	cd "$fixture"
-	git switch --quiet -c feat/tester-abcd-net-empty origin/develop
-	printf 'net\n' > net.txt
-	git add net.txt
-	git commit --quiet -m 'feat: add transient file'
-	git rm --quiet net.txt
-	git commit --quiet -m 'feat: remove transient file'
-)
-assert_preflight_failure 'net-empty range is rejected' "$fixture" 'branch has no net diff against its merge-base'
 
 # ── 10. title validation behavior ───────────────────────────────────────────
 
@@ -457,7 +214,6 @@ else
 	printf 'feat(commands): prepare pull request\n' > "$title_file"
 	rc=0
 	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
-		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	validation_title=""
@@ -477,7 +233,6 @@ else
 	rm -f "$validation_file"
 	rc=0
 	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
-		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	if [ "$rc" -ne 0 ]; then
@@ -494,7 +249,6 @@ PR_TITLE_PAYLOAD
 	rm -f "$validation_file"
 	rc=0
 	(cd "$REPO_ROOT" && PATH="$TOOLCHAIN_PATH" \
-		PRISM_OCR_CONFIG="$REPO_ROOT/tests/Shell/fixtures/ocr-config.json" \
 		TITLE_FILE="$title_file" VALIDATION_FILE="$validation_file" \
 		bash "$TITLE_SCRIPT") >/dev/null 2>&1 || rc=$?
 	title_after=""
@@ -638,14 +392,14 @@ if [ "$review_probe_line" -lt "$strict_preflight_line" ]; then
 else
 	fail 'review-chain probe does not precede strict preflight'
 fi
-assert_contains "$COMMAND_FILE" 'authorizes one complete initial four-axis review' \
-	'pr invocation authorizes one absent-chain review'
+assert_contains "$COMMAND_FILE" "Share the active task's two automatic attempts" \
+	'pr recovery shares the existing two-attempt budget'
 assert_contains "$COMMAND_FILE" 'REVIEW_CHAIN=ABSENT' \
 	'pr recognizes only an absent chain as recoverable'
-assert_contains "$COMMAND_FILE" 'Load the `code-review` skill' \
+assert_contains "$COMMAND_FILE" 'Load `code-review`' \
 	'pr delegates missing-chain review to code-review'
-assert_contains "$COMMAND_FILE" 'does not authorize repairs or a second review' \
-	'pr forbids automatic review retries'
+assert_contains "$COMMAND_FILE" 'Never retry blindly or grant two more attempts on re-entry' \
+	'pr prevents unlimited retries and budget resets'
 assert_contains "$COMMAND_FILE" 'Strict `prism-tool pr preflight`' \
 	'pr reruns strict preflight after review'
 assert_contains "$COMMAND_FILE" 'active finalization authorization' \
@@ -660,20 +414,14 @@ assert_contains "$COMMAND_FILE" 'ordinary repair may preserve a valid chain' \
 	'command preserves continuous review evidence after repairs'
 assert_contains "$COMMAND_FILE" 'review of only the continuous repair delta' \
 	'command scopes repair review to the delta'
-assert_contains "$COMMAND_FILE" 'V2_RECOVERY=UNDECLARED' \
-	'absent state without receipts retains OCR version-one recovery'
 assert_contains "$COMMAND_FILE" 'V2_RECOVERY=READY' \
 	'absent state with exact receipts selects version-two recovery'
-assert_contains "$COMMAND_FILE" 'prism-review review authoritative --base-ref "$BASE_REF" --json' \
+assert_contains "$COMMAND_FILE" 'prism-review review authoritative --base-ref origin/develop --json' \
 	'version-two recovery consumes one installed authoritative attempt'
-assert_contains "$COMMAND_FILE" 'Partial, stale, or unsafe version-two recovery evidence' \
+assert_contains "$COMMAND_FILE" 'or stale state stops preparation' \
 	'partial or invalid version-two evidence stops without fallback'
-assert_contains "$COMMAND_FILE" 'REVIEW_CHAIN_VERSION=1' \
-	'valid version-one chains retain OCR Advisory inspection'
 assert_contains "$COMMAND_FILE" 'REVIEW_CHAIN_VERSION=2' \
 	'valid version-two chains select engine Advisory inspection'
-assert_contains "$COMMAND_FILE" 'prism-tool code-review chain inspect --json' \
-	'command inspects version-one Advisory evidence for disclosure'
 assert_contains "$COMMAND_FILE" 'prism-review chain inspect --json' \
 	'command inspects version-two Advisory evidence for disclosure'
 assert_not_contains "$COMMAND_FILE" 'prism-review criteria' \
@@ -685,9 +433,6 @@ assert_contains "$COMMAND_FILE" 'changed SHA or dirty tree invalidates' \
 assert_not_contains "$COMMAND_FILE" '--force-review' \
 	'command has no blanket review bypass'
 
-assert_contains "$COMMAND_FILE" 'OCR_EXEMPT_SEGMENTS' 'pr consumes verified exemption disclosure'
-assert_contains "$COMMAND_FILE" 'OCR not applicable: verified Markdown-only range' 'pr discloses non-applicability explicitly'
-assert_contains "$COMMAND_FILE" 'Never describe an exempt segment as a completed external OCR review' 'pr never fabricates OCR completion'
 
 # ── Summary ─────────────────────────────────────────────────────────────────
 

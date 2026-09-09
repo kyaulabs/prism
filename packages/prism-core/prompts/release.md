@@ -25,7 +25,7 @@ to its digits: when present, the release commit footer is exactly
 Stop immediately (exit 1) if any of these hold:
 
 ```bash
-# Mandatory local readiness (fail-closed; missing launcher or Semgrep/OCR failure blocks)
+# Mandatory local readiness (fail-closed; missing launcher or Semgrep failure blocks)
 prism-tool doctor --local-only || exit 1
 ```
 

@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-cli.test.js kyau@aura.kyaulabs 2026/09/04 -0700 Exp $
+// $KYAULabs: prism-review-cli.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -15,6 +15,7 @@ const CORE_VERSION = JSON.parse(
 ).version;
 const {main} = require('../../packages/prism-core/scripts/prism-review/cli');
 const {EXIT} = require('../../packages/prism-core/scripts/prism-review/constants');
+const {readinessError} = require('../../packages/prism-core/scripts/prism-review/readiness');
 
 function capture() {
     let stdout = '';
@@ -111,6 +112,7 @@ test('prints the closed command grammar without touching runtime boundaries', as
     assert.equal(status, 0);
     assert.equal(output.result().stderr, '');
     assert.match(output.result().stdout, /^usage: prism-review/m);
+    assert.match(output.result().stdout, /sdk --json/);
     assert.match(output.result().stdout, /review staged --json/);
     assert.match(output.result().stdout, /review commit --commit SHA --json/);
     assert.match(output.result().stdout, /review branch --base SHA --head SHA --json/);
@@ -129,6 +131,23 @@ test('prints the closed command grammar without touching runtime boundaries', as
         /review authoritative --base-ref origin\/develop\|origin\/main --new-initial --json/);
     assert.match(output.result().stdout,
         /review repair --base-ref origin\/develop\|origin\/main --closures RELATIVE_PATH --json/);
+});
+
+test('sdk readiness is independent of repository, model, and authentication', async () => {
+    const output = capture();
+    const status = await main(['sdk', '--json'], {
+        ...output.context,
+        inspectSdk: async () => ({version: '0.85.1'}),
+        run() { throw new Error('Git must not run'); },
+        inspectIsolatedRuntime() { throw new Error('model runtime must not run'); },
+    });
+
+    assert.equal(status, EXIT.OK);
+    assert.deepEqual(JSON.parse(output.result().stdout), {
+        schemaVersion: 1, command: 'sdk', status: 'GO',
+        sdk: {packageName: '@earendil-works/pi-coding-agent', version: '0.85.1'},
+    });
+    assert.equal(output.result().stderr, '');
 });
 
 test('classifies checkout Core as ineligible for authority', () => {
@@ -171,6 +190,9 @@ test('rejects every command outside the closed grammar before dependencies run',
         [],
         ['unknown'],
         ['--help', '--help'],
+        ['sdk'],
+        ['sdk', '--json', '--json'],
+        ['sdk', '--json', 'extra'],
         ['doctor'],
         ['doctor', '--json', '--json'],
         ['review', 'staged'],
@@ -323,6 +345,18 @@ test('records exact criteria sources only through an eligible authority root', a
         reason: null,
     });
     assert.doesNotMatch(output.result().stdout, /private|canary/);
+});
+
+test('chain inspection exposes validated receipt data for PR disclosure', async () => {
+    const output = capture();
+    const record = {schemaVersion: 2, findings: [{summary: 'Follow up', classification: 'ADVISORY'}]};
+    const status = await main(['chain', 'inspect', '--json'], {
+        ...output.context, projectRoot: process.cwd(),
+        classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+        inspectReviewChainV2: () => ({state: 'VALID', version: 2, record}),
+    });
+    assert.equal(status, EXIT.OK);
+    assert.deepEqual(JSON.parse(output.result().stdout).record, record);
 });
 
 test('dispatches each exact bridge operation with closed results', async (t) => {
@@ -690,7 +724,8 @@ test('fails readiness when the mandatory Core review profile is absent', async (
         schemaVersion: 1,
         command: 'doctor',
         status: 'NO-GO',
-        reason: 'RUNTIME_READINESS_FAILED',
+        reason: 'PROFILE_INVALID',
+        remediation: 'Restore the matching package-owned review profile and policy resources.',
     });
 });
 
@@ -752,6 +787,7 @@ test('fails readiness without echoing invalid model environment values', async (
         const status = await main(['doctor', '--json'], {
             ...output.context,
             projectRoot: repositoryRoot,
+            classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
             env,
         });
         assert.equal(status, EXIT.READINESS);
@@ -759,7 +795,8 @@ test('fails readiness without echoing invalid model environment values', async (
             schemaVersion: 1,
             command: 'doctor',
             status: 'NO-GO',
-            reason: 'RUNTIME_READINESS_FAILED',
+            reason: 'MODEL_CONTROLS_INVALID',
+            remediation: 'Select the provider, model, and reasoning level in Pi, then retry.',
         });
         assert.equal(output.result().stderr, '');
         assert.doesNotMatch(output.result().stdout, /bad|extreme/);
@@ -842,7 +879,8 @@ test('dispatches every review scope through snapshot, planning, and orchestratio
                 calls.push(['plan', options.changedPaths]);
                 return plan;
             },
-            async resolveActiveModel() {
+            async resolveActiveModel(options) {
+                assert.equal(options.repositoryRoot, repositoryRoot);
                 calls.push(['model']);
                 return {metadata: {provider: 'fixture', id: 'model'}};
             },
@@ -871,6 +909,84 @@ test('uses readiness exit three before an attempt and review exit four for Incon
     }), EXIT.READINESS);
     assert.equal(JSON.parse(readiness.result().stdout).reason, 'RUNTIME_READINESS_FAILED');
     assert.doesNotMatch(readiness.result().stdout, /private readiness canary/);
+});
+
+test('doctor and SDK commands preserve branded failures and redact unknown exceptions', async () => {
+    for (const code of ['SDK_MISSING', 'SDK_API_UNSUPPORTED', 'MODEL_UNAVAILABLE', 'RUNTIME_READINESS_FAILED']) {
+        for (const command of ['sdk', 'doctor']) {
+            const output = capture();
+            const fail = async () => {
+                throw code === 'RUNTIME_READINESS_FAILED' ? new Error('PRIVATE_CANARY') : readinessError(code);
+            };
+            const status = await main([command, '--json'], {
+                ...output.context, projectRoot: path.resolve(__dirname, '../..'),
+                classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+                inspectSdk: fail, inspectIsolatedRuntime: fail,
+            });
+            assert.equal(status, EXIT.READINESS);
+            const report = JSON.parse(output.result().stdout);
+            assert.equal(report.reason, code, command);
+            assert.equal(typeof report.remediation, 'string');
+            assert.ok(report.remediation.length > 0);
+            assert.doesNotMatch(output.result().stdout + output.result().stderr, /PRIVATE_CANARY/);
+            assert.equal(output.result().stderr, '');
+        }
+    }
+});
+
+test('doctor assigns failures to their owning prerequisite stages', async () => {
+    const fail = () => { throw new Error('PRIVATE_CANARY'); };
+    const adapter = {reviewPath: '/PRIVATE_CANARY'};
+    const cases = [
+        ['AUTHORITY_INELIGIBLE', {classifyTrustRoot: () => ({eligibleForAuthority: false})}],
+        ['PROFILE_INVALID', {coreProfilePresent: false}],
+        ['PROFILE_INVALID', {loadCoreProfile: fail}],
+        ['PROFILE_INVALID', {discoverOptionalAdapter: fail}],
+        ['PROFILE_INVALID', {discoverOptionalAdapter: () => adapter, loadAdapterProfile: fail}],
+        ['ADAPTER_PROVIDER_INVALID', {discoverOptionalAdapter: () => adapter, resolveDoctorIdentity: fail}],
+        ['ADAPTER_PROVIDER_INVALID', {discoverOptionalAdapter: () => adapter, resolveQualityProvider: fail}],
+        ['ADAPTER_PROVIDER_INVALID', {discoverOptionalAdapter: () => adapter,
+            loadAdapterProfile: ({registration}) => ({profileDigest: registration === adapter ? 'a' : 'b'})}],
+        ['RECEIPT_STATE_UNSAFE', {inspectCriteria: fail}],
+        ['RECEIPT_STATE_UNSAFE', {inspectCheck: fail}],
+        ['RECEIPT_STATE_UNSAFE', {inspectCriteria: () => ({state: 'UNSAFE'})}],
+        ['RECEIPT_STATE_UNSAFE', {inspectCheck: () => ({state: 'UNSAFE'})}],
+    ];
+    for (const [reason, overrides] of cases) {
+        const output = capture();
+        const status = await main(['doctor', '--json'], {
+            ...output.context, projectRoot: path.resolve(__dirname, '../..'),
+            classifyTrustRoot: () => ({eligibleForAuthority: true, sourceClass: 'INSTALLED_EXTERNAL'}),
+            inspectIsolatedRuntime: async () => ({}), coreProfilePresent: true,
+            loadCoreProfile: () => ({profileDigest: 'a', policyDigest: 'b'}),
+            discoverOptionalAdapter: () => null,
+            resolveDoctorIdentity: () => ({baseSha: 'a'.repeat(40)}),
+            resolveQualityProvider: () => ({registration: {reviewPath: '/installed'}, identity: {}}),
+            loadAdapterProfile: () => ({profileDigest: 'a', policyDigest: 'b'}),
+            inspectCriteria: () => ({state: 'ABSENT'}), inspectCheck: () => ({state: 'ABSENT'}),
+            ...overrides,
+        });
+        assert.equal(status, EXIT.READINESS);
+        const report = JSON.parse(output.result().stdout);
+        assert.equal(report.reason, reason);
+        assert.ok(report.remediation.length > 0);
+        assert.doesNotMatch(output.result().stdout + output.result().stderr, /PRIVATE_CANARY/);
+    }
+});
+
+test('bridge and ad hoc readiness reports retain branded diagnostics', async () => {
+    const fail = () => { throw readinessError('SDK_MISSING'); };
+    for (const argv of [['chain', 'inspect', '--json'], ['review', 'staged', '--json']]) {
+        const output = capture();
+        const status = await main(argv, {...output.context,
+            projectRoot: path.resolve(__dirname, '../..'), inspectReviewChainV2: fail, createSnapshot: fail});
+        assert.equal(status, EXIT.READINESS);
+        const report = JSON.parse(output.result().stdout);
+        assert.equal(report.reason, 'SDK_MISSING');
+        assert.equal(report.remediation, 'Reinstall Core with its declared runtime dependencies using the supported installer.');
+        assert.equal(report.status, 'NO-GO');
+        assert.equal(report.outcome, 'INCONCLUSIVE');
+    }
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

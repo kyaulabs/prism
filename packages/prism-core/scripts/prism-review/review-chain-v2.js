@@ -1,4 +1,4 @@
-// $KYAULabs: review-chain-v2.js kyau@aura.kyaulabs 2026/09/03 -0700 Exp $
+// $KYAULabs: review-chain-v2.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -10,7 +10,7 @@ const {
     inspectAuthorityRecord,
     publishAuthorityRecord,
 } = require('./review-state');
-const {validateRecordShape: validateVersionOneRecord} = require('../prism-tool/review-chain');
+const {validateRecordShape: validateVersionOneRecord} = require('./legacy-review-chain');
 
 const FILE_LIMIT = 131072;
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
