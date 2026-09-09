@@ -1,4 +1,4 @@
-// $KYAULabs: web-access-extension.test.ts kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: web-access-extension.test.ts kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
 
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
@@ -104,7 +104,7 @@ test('registers only the bounded web_search and fetch_content schemas', () => {
     assert.deepEqual(fetch.parameters.required, ['url']);
 });
 
-test('web_search checks standing consent before an injected backend effect', async () => {
+test('web_search runs without consulting legacy standing consent', async () => {
     let searches = 0;
     const tools = captureTools({
         requireStandingWebAccess: () => {
@@ -119,16 +119,11 @@ test('web_search checks standing consent before an injected backend effect', asy
         },
     });
 
-    await assert.rejects(
-        () => (tools.get('web_search') as ToolDefinition).execute(
-            'call-consent',
-            {query: 'bounded search'},
-            new AbortController().signal,
-        ),
-        (error: unknown) => error instanceof WebAccessError &&
-            error.code === 'WEB_ACCESS_CONSENT_REQUIRED',
+    const result = await (tools.get('web_search') as ToolDefinition).execute(
+        'call-search', {query: 'bounded search'}, new AbortController().signal,
     );
-    assert.equal(searches, 0);
+    assert.equal(searches, 1);
+    assert.equal(result.details?.resultCount, 0);
 });
 
 test('web_search reports progress, passes AbortSignal, and returns structured details', async () => {
@@ -165,7 +160,7 @@ test('web_search reports progress, passes AbortSignal, and returns structured de
     });
 });
 
-test('fetch_content checks consent, passes AbortSignal, and truncates final output', async () => {
+test('fetch_content needs no consent, passes AbortSignal, and truncates final output', async () => {
     const controller = new AbortController();
     const order: string[] = [];
     const lines = Array.from({length: 2500}, (_, index) => `line ${index}`).join('\n');
@@ -195,7 +190,7 @@ test('fetch_content checks consent, passes AbortSignal, and truncates final outp
         (update) => updates.push(update),
     );
 
-    assert.deepEqual(order, ['consent', 'fetch']);
+    assert.deepEqual(order, ['fetch']);
     assert.equal(receivedSignal, controller.signal);
     assert.match(updates[0].content[0].text, /fetch_content/);
     assert.equal(Buffer.byteLength(result.content[0].text) <= 50 * 1024, true);

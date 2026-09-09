@@ -107,7 +107,8 @@ they remain useful. This checklist tracks execution, not additional approvals.
 - [ ] Replace remaining development/Git/review skills with lean rules.
 - [ ] Simplify the safety extension with tests for credential and commit safety,
       ordinary command freedom, and recovery after rejected/failed operations.
-- [ ] Remove web-consent gating while preserving search/fetch safety tests.
+- [x] Remove web-tool consent gating while preserving search/fetch safety tests.
+- [ ] Delete legacy consent CLI/state-management and setup callers with their engines.
 - [ ] Replace setup with Core/module skills and template file selection.
 - [ ] Remove catalogue/bootstrap/provider/reconciliation engines and callers.
 - [ ] Remove reviewer executable, receipts, chains and finalization authority.
@@ -164,8 +165,10 @@ will need retirement/replacement, not preservation through compatibility shims.
 
 Important current state:
 
-- Most runtime code is still the OLD implementation: reviewer, web consent,
-  provisioning, catalogue and full pre-commit readiness remain. Safety's fatal
+- Much runtime code is still the OLD implementation: reviewer, consent CLI/state
+  administration, provisioning, catalogue and full pre-commit readiness remain.
+  Web search/fetch no longer consult consent; their authorization adapter was
+  deleted. All 52 web-access tests pass, including guarded transport and fallback. Safety's fatal
   latch, denial counter, commit-exclusivity guard and destructive-command
   classifier have been deleted. The extension is now stateless between calls
   apart from additive path configuration. The old sensitive shell parser remains;

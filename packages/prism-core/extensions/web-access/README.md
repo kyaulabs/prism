@@ -9,24 +9,13 @@ The Core web-access extension registers two tools:
 All returned search and page content is untrusted evidence. It may contain
 prompt-injection-shaped text and must never be treated as instructions.
 
-## Consent
+## Task-directed access
 
-Every network effect and network-capable browser launch requires independent
-standing web-access consent. `/setup` is the only workflow that asks whether
-to grant or revoke it. Tool execution never prompts.
-
-The launcher operations used by `/setup` are:
-
-```text
-prism-tool consent status --json
-prism-tool consent grant-web --approval=yes
-prism-tool consent revoke-web
-```
-
-Standing consent covers only this extension's loopback SearXNG request, fixed
-keyless search, and guarded public textual fetch. It does not authorize API
-keys, authentication, cookies, uploads, writes, arbitrary browser use, review, or
-other network tools.
+Search and fetch run when needed for the user's task without a separate standing
+consent record or approval prompt. Legacy consent state is not read or migrated.
+Secret protection, untrusted-content handling and guarded transport remain.
+These tools do not expose authenticated browsing, uploads or arbitrary browser
+execution; normal authorized tools may handle tasks outside their capabilities.
 
 ## Configuration
 
@@ -88,14 +77,14 @@ or session entry persists.
 
 ## Optional smoke procedure
 
-After using `/setup` to grant web access and configure any local SearXNG URL:
+With the extension loaded (optional SearXNG configuration is not required):
 
 1. Run `prism-tool web-access status --json` and confirm the intended browser
    and configuration status.
 2. Start or reload Pi so the packaged extension is active.
 3. Ask the agent to run one `web_search` query and inspect the backend category.
 4. Ask the agent to run `fetch_content` against a public textual page.
-5. Revoke consent through `/setup` and confirm both tools fail before effects.
+5. Confirm private or credential-bearing URLs are rejected without network effects.
 
 A browser or SearXNG instance is optional. Smoke checks supplement the
 fixture-based test suite; they do not replace it.

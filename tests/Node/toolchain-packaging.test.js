@@ -257,7 +257,7 @@ test('packs the core package with every owned resource and executable modes', ()
         assert.equal(packed.files.has(`extensions/safety/${module}`), false, module);
     }
     for (const resource of [
-        'README.md', 'authorization.ts', 'browser.ts', 'cdp.ts', 'config.ts',
+        'README.md', 'browser.ts', 'cdp.ts', 'config.ts',
         'duckduckgo.ts', 'errors.ts', 'extract.ts', 'fetch.ts', 'http.ts', 'index.ts',
         'network.ts', 'router.ts', 'search-filters.ts', 'search-types.ts', 'searxng.ts',
     ]) {

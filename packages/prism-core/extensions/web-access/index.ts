@@ -1,4 +1,4 @@
-// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/08/27 -0700 Exp $
+// $KYAULabs: index.ts kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
 
 import {
     DEFAULT_MAX_BYTES,
@@ -8,7 +8,6 @@ import {
     type ToolDefinition,
     type TruncationResult,
 } from '@earendil-works/pi-coding-agent';
-import {requireStandingWebAccess as defaultRequireStandingWebAccess} from './authorization.ts';
 import {
     fetchContent as defaultFetchContent,
     type FetchContentParams,
@@ -72,7 +71,6 @@ export interface WebAccessExtensionDependencies {
         params: FetchContentParams,
         deps: {signal?: AbortSignal},
     ) => Promise<FetchContentResult>;
-    requireStandingWebAccess?: () => void | Promise<void>;
 }
 
 function stringEnum(values: readonly string[], description: string) {
@@ -194,7 +192,7 @@ export function registerWebAccessTools(
     deps: WebAccessExtensionDependencies = {},
 ): void {
     const fetch = deps.fetchContent ?? defaultFetchContent;
-    const requireConsent = deps.requireStandingWebAccess ?? defaultRequireStandingWebAccess;
+    const search = deps.searchWeb ?? defaultSearchWeb;
 
     pi.registerTool({
         name: 'web_search',
@@ -208,7 +206,7 @@ export function registerWebAccessTools(
         parameters: searchParameters as any,
         async execute(_id, raw: SearchToolParams, signal, onUpdate) {
             onUpdate?.({
-                content: [{type: 'text', text: 'web_search: checking consent and bounded backends…'}],
+                content: [{type: 'text', text: 'web_search: searching bounded backends…'}],
                 details: {phase: 'searching'},
             });
             const params: SearchParams = {
@@ -217,13 +215,7 @@ export function registerWebAccessTools(
                 ...(raw.recency ? {recency: raw.recency} : {}),
                 domains: raw.domains ?? [],
             };
-            let result: SearchBackendResult;
-            if (deps.searchWeb) {
-                await requireConsent();
-                result = await deps.searchWeb(params, {signal});
-            } else {
-                result = await defaultSearchWeb(params, {signal, requireConsent});
-            }
+            const result = await search(params, {signal});
             const output = truncate(renderSearch(result));
             const details: SearchDetails = {
                 backend: result.backend,
@@ -247,10 +239,9 @@ export function registerWebAccessTools(
         parameters: fetchParameters as any,
         async execute(_id, raw: FetchToolParams, signal, onUpdate) {
             onUpdate?.({
-                content: [{type: 'text', text: 'fetch_content: checking consent and guarded transport…'}],
+                content: [{type: 'text', text: 'fetch_content: fetching through guarded transport…'}],
                 details: {phase: 'fetching'},
             });
-            await requireConsent();
             const result = await fetch({
                 url: raw.url,
                 mode: raw.mode ?? 'readable',
