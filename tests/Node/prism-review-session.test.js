@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-session.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
+// $KYAULabs: prism-review-session.test.js kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
 
 'use strict';
 
@@ -8,7 +8,6 @@ const path = require('node:path');
 const test = require('node:test');
 const {
     buildSessionPrompt,
-    calculateContextBudget,
     inspectIsolatedRuntime,
     resolveActiveModel,
     runIsolatedSession,
@@ -214,32 +213,48 @@ test('rejects invalid model controls, unknown models, and unsupported reasoning'
     }), {message: 'MODEL_REASONING_UNSUPPORTED'});
 });
 
-test('calculates a conservative bounded source allowance', () => {
-    assert.deepEqual(calculateContextBudget({
-        contextWindow: 200000,
-        policyBytes: 10000,
-        evidenceBytes: 5000,
-        toolFramingBytes: 2000,
-    }), {
-        contextWindow: 200000,
-        outputTokens: 32768,
-        safetyTokens: 40000,
-        inputTokenUpperBound: 17000,
-        reservedTokens: 89768,
-        sourceBytes: 110232,
-    });
-    assert.throws(() => calculateContextBudget({
-        contextWindow: 40000,
-        policyBytes: 10000,
-        evidenceBytes: 5000,
-        toolFramingBytes: 2000,
-    }), /context budget/i);
-    assert.throws(() => calculateContextBudget({
-        contextWindow: 200000,
-        policyBytes: 1048577,
-        evidenceBytes: 1,
-        toolFramingBytes: 1,
-    }), /policy/i);
+test('runs the selected model without estimating a context budget', async () => {
+    const model = {...MODEL, contextWindow: 128};
+    const fixture = fakeSdk(async ({tools, options}) => {
+        assert.equal(options.model, model);
+        await tools.get('submit_review').execute('submit', {answer: 'complete'});
+    }, {model});
+    const result = await runIsolatedSession(request(fixture, {
+        sourceBytes: 1048576,
+        resources: [{id: 'session-control', text: 'policy '.repeat(1000)}],
+    }));
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.submission, {answer: 'complete'});
+    assert.equal(Object.hasOwn(result, 'budget'), false);
+    assert.equal(fixture.calls.filter(({name}) => name === 'session.prompt').length, 1);
+    assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
+});
+
+test('retains fixed byte limits independently of model context estimates', async () => {
+    const large = 'x'.repeat(1048577);
+    for (const overrides of [
+        {resources: [{id: 'policy', text: large}]},
+        {evidence: {data: large}},
+        {tools: [{...request(fakeSdk()).tools[0], description: large}]},
+        {sourceBytes: -1},
+        {sourceBytes: NaN},
+    ]) {
+        const fixture = fakeSdk();
+        const result = await runIsolatedSession(request(fixture, overrides));
+        assert.equal(result.ok, false);
+        assert.equal(fixture.calls.some(({name}) => name === 'session.prompt'), false);
+    }
+});
+
+test('reports actual provider context failures without retrying or switching models', async () => {
+    const fixture = fakeSdk(async () => {
+        throw new Error('context length exceeded PRIVATE_CANARY');
+    }, {model: {...MODEL, contextWindow: 128}});
+    const result = await runIsolatedSession(request(fixture, {sourceBytes: 1048576}));
+    assert.deepEqual(result, {ok: false, outcome: 'INCONCLUSIVE', reason: 'SESSION_FAILED'});
+    assert.equal(fixture.calls.filter(({name}) => name === 'session.prompt').length, 1);
+    assert.equal(fixture.calls.filter(({name}) => name === 'ModelRuntime.create').length, 1);
+    assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
 });
 
 test('builds a length-labelled hostile-data prompt without local paths or inherited text', () => {
@@ -485,8 +500,8 @@ test('rejects built-in tool names, open schemas, and oversized source before inf
     assert.equal(openSchema.calls.some(({name}) => name === 'createAgentSession'), false);
 
     const oversized = fakeSdk();
-    assert.deepEqual(await runIsolatedSession(request(oversized, {sourceBytes: 1048576})), {
-        ok: false, outcome: 'INCONCLUSIVE', reason: 'CONTEXT_BUDGET_EXCEEDED',
+    assert.deepEqual(await runIsolatedSession(request(oversized, {sourceBytes: 1048577})), {
+        ok: false, outcome: 'INCONCLUSIVE', reason: 'SESSION_FAILED',
     });
     assert.equal(oversized.calls.some(({name}) => name === 'createAgentSession'), false);
 });

@@ -334,9 +334,11 @@ AGENTS files, or appended system text, and no built-in tools.
 Only immutable `read_file`, immutable `read_diff`, and one terminating
 submission tool are registered. Policy, evidence, source, diff, finding, and
 tool-result bytes are labelled as hostile data. The runtime rejects premature,
-missing, duplicate, malformed, and post-termination submissions. Context
-budgeting conservatively reserves one token for every UTF-8 input byte, then
-reserves the fixed output allowance and a twenty-percent safety margin.
+missing, duplicate, malformed, and post-termination submissions. Prism does not
+estimate a context budget, reserve hypothetical tokens, or reject reviews based
+on the model's advertised context window. Fixed byte limits on policy, evidence,
+source, schemas, and tool framing remain. Actual SDK/provider context failures
+produce an Inconclusive result; they do not trigger retries or model fallback.
 
 A review invokes the selected provider and may incur possible provider cost.
 `doctor --json` resolves model metadata and validates isolation without running

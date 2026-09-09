@@ -8,6 +8,9 @@ Accepted
 
 Partially superseded by ADR-0110 for the host-peer SDK dependency consequence only.
 
+Amended 2026-09-09 by explicit user approval: remove context-derived admission
+budgets while retaining fixed byte limits and actual SDK/provider failures.
+
 Depends on ADR-0047, ADR-0048, ADR-0055, ADR-0058, ADR-0060, ADR-0067,
 ADR-0070, ADR-0073, ADR-0075, ADR-0080, ADR-0081, and ADR-0091.
 Partially supersedes ADR-0055 only where that record rules out bounded child
@@ -139,12 +142,11 @@ prove attention, understanding, or semantic coverage, and Prism does not label
 it that way.
 
 Schema version one uses one session per axis and does not silently shard an
-oversized review. Before egress, the engine computes a conservative budget
-from the active model's context metadata and fixed hard ceilings, reserving
-space for policy, evidence, tools, and output. The effective limit is the lower
-value. Per-file text is capped at 256 KiB and aggregate source/diff input at 1
-MiB. If all required bytes cannot fit every axis, the attempt is Inconclusive
-before the first model call.
+oversized review. The engine does not estimate token requirements or reject a
+review from the active model's advertised context window. Per-file text remains
+capped at 256 KiB and aggregate source/diff input at 1 MiB. Fixed byte ceilings
+are enforced before egress; actual SDK/provider context failures produce an
+Inconclusive result without retrying or selecting another model.
 
 ### Isolated Pi sessions
 
