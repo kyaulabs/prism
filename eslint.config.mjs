@@ -14,7 +14,7 @@ export default [
         },
     },
     {
-        files: ["commitlint.config.js", "packages/**/*.js", "tests/Node/**/*.js"],
+        files: ["commitlint.config.js", "packages/**/*.js", "tests/Node/**/*.js", "tests/Package/**/*.{js,mjs,cjs}"],
         languageOptions: {
             globals: {
                 AbortSignal: "readonly",

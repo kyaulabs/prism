@@ -1,4 +1,4 @@
-// $KYAULabs: sensitive-path-policy.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: sensitive-path-policy.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -40,9 +40,11 @@ function canonicalizePath(value) {
             return path.normalize(`${real}/${tail.reverse().join('/')}`);
         } catch (error) {
             if (!['ENOENT', 'ENOTDIR'].includes(error.code)) {
+                // eslint-disable-next-line preserve-caught-error -- Filesystem causes can disclose credential paths.
                 throw new Error('sensitive path cannot be canonicalized');
             }
             const parent = path.dirname(current);
+            // eslint-disable-next-line preserve-caught-error -- Filesystem causes can disclose credential paths.
             if (parent === current) throw new Error('sensitive path cannot be canonicalized');
             tail.push(path.basename(current));
             current = parent;

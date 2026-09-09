@@ -483,6 +483,7 @@ async function inspectIsolatedRuntime(options) {
                 cleanupFailed = true;
             }
         }
+        // eslint-disable-next-line no-unsafe-finally -- Cleanup failure must override readiness, including earlier failures.
         if (cleanupFailed) throw readinessError('CLEANUP_FAILED');
     }
 }

@@ -98,10 +98,10 @@ function managedPreflightFixture(t) {
         inspectCriteria: () => ({state: 'VALID'}), inspectCheck: () => ({state: 'VALID'}),
         verifyCriteria: () => ({digest: 'c'.repeat(64)}), verifyCheck: () => ({digest: 'd'.repeat(64)}),
         run(command, args, options) {
-        if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') return completed(0);
-        assert.ok(command === 'git' || command === 'bash', 'preflight must not run another review');
-        return runBounded(command, args, {...options, env});
-    }};
+            if (command === process.execPath && args.slice(-2).join(' ') === 'doctor --local-only') return completed(0);
+            assert.ok(command === 'git' || command === 'bash', 'preflight must not run another review');
+            return runBounded(command, args, {...options, env});
+        }};
     return {context, baseSha, headSha};
 }
 
@@ -428,8 +428,8 @@ test('pr preflight fails closed with stable diagnostics', () => {
             env: process.env,
             run: makePreflightRun(new Map([[key, response]])),
             inspectReviewChainV2: () => ({state: 'VALID', version: 2}),
-        verifyCriteria: () => ({digest: 'c'.repeat(64)}),
-        verifyCheck: () => ({digest: 'd'.repeat(64)}),
+            verifyCriteria: () => ({digest: 'c'.repeat(64)}),
+            verifyCheck: () => ({digest: 'd'.repeat(64)}),
             verifyReviewChainV2: () => ({advisoryFindings: []}),
         }));
 

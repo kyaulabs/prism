@@ -21,7 +21,7 @@ function validLocalProof(proof, approval, context) {
         JSON.stringify(proof.identity) !== JSON.stringify(expected)) return false;
     const passes = (report, ids) => report?.status === 'PASS' && Array.isArray(report.gates) &&
         report.gates.length === ids.length && report.gates.every((gate, index) =>
-            gate.id === ids[index] && ['PASS', 'SKIPPED'].includes(gate.status));
+        gate.id === ids[index] && ['PASS', 'SKIPPED'].includes(gate.status));
     if (!passes(proof.core, CORE_GATE_IDS)) return false;
     const registration = discoverOptionalAdapter({projectRoot: context.projectRoot});
     return registration === null ? proof.adapter === null :

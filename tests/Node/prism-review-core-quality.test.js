@@ -69,9 +69,9 @@ test('records actual versions for bounded adapter command callbacks', async (t) 
             ? {status: 2, stdout: '', stderr: 'unsupported version option'}
             : args.includes('--version')
                 ? {status: 0, stdout: path.basename(command) === 'composer'
-                ? 'Composer version 2.8.1 2026-01-01'
-                : 'PHP CS Fixer 3.94.0', stderr: '', error: undefined}
-            : {status: 0, stdout: '', stderr: '', error: undefined},
+                    ? 'Composer version 2.8.1 2026-01-01'
+                    : 'PHP CS Fixer 3.94.0', stderr: '', error: undefined}
+                : {status: 0, stdout: '', stderr: '', error: undefined},
     });
 
     const result = await callbacks.runCommand({command: 'composer', args: ['audit', '--locked']});
