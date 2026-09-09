@@ -164,6 +164,14 @@ Before cleanup, preserve immutable approved criteria through the installed revie
 review receipts satisfy finalization; legacy state never passes preflight.
 Both commit model trailers use the validated active Pi model.
 
+Exception: direct human approval may authorize ADR-0113's exact-revision
+bootstrap PR route when independent reviewer authority cannot bootstrap itself.
+`/pr` then runs fresh local gates and discloses `USER_WAIVED`, never a review
+PASS. Explicit approval must also cover missing installed-authority receipts
+and the committed approved specification. No persistent toggle is created;
+changed branch, HEAD, or base requires fresh approval. Unsafe evidence, failed
+local checks, signing, safety, and human-only publication remain non-waivable.
+
 Finalization records one complete initial review across all four axes in a
 bounded chain. After a Blocking repair, a review within the shared budget covers only
 the continuous repair delta and records closure evidence. Advisory findings

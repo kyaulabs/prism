@@ -506,9 +506,9 @@ test('documents bounded diff-causal review chains', () => {
     assert.match(coreReadme, /base or history changes/i);
     assert.doesNotMatch(coreReadme, /--force-review|automatic waiver/i);
     for (const document of [coreReadme, publicReadme, harnessDocs, agents]) {
-        assert.match(document, /standalone `?\/pr`?.*one complete initial review.*absent/is);
-        assert.match(document, /invalid.*review chain.*fail closed/is);
-        assert.match(document, /second review.*fresh explicit approval/is);
+        assert.match(document, /standalone `?\/pr`?.*recover.*absent/is);
+        assert.match(document, /invalid review evidence still fails\s+closed/is);
+        assert.match(document, /third.*(?:fresh|approval)/is);
     }
     assert.match(gitignore, /^\.pi\/prism-tool\/$/m);
 });

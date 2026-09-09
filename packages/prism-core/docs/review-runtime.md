@@ -10,6 +10,14 @@ See [Review attempt policy](review-attempt-policy.md) for counting, continuation
 and the unchanged mandatory review gate.
 Standing web consent never authorizes review.
 
+ADR-0113 adds a separate user-approved bootstrap PR exception, not another
+review authority. `prism-tool pr bootstrap-preflight` requires exact approved
+branch, HEAD, develop base, and committed specification arguments; runs fresh
+local Core and adapter gates; and reports `USER_WAIVED`. It creates no review,
+criteria, or check receipt, changes no legacy record, and never reports an
+independent review PASS. The `/pr` prompt owns its explicit approval and
+mandatory PR disclosure. Normal preflight remains fail-closed.
+
 ## Isolated Semgrep scans
 
 `prism-tool run semgrep -- scan` and Core's deterministic Semgrep gate share one

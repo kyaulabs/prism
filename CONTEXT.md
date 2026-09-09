@@ -361,6 +361,12 @@ The bounded finalization evidence for one continuously reviewed work-branch hist
 - Keeps tertiary, speculative, pre-existing, unrelated, and maintainability observations Advisory and visible.
 - Fails closed on incomplete axes, target-base movement, rewritten or discontinuous history, unreviewed commits, identity drift, or malformed local state.
 - Ends at the exact attested HEAD required by preparation-only `/pr`.
+- ADR-0113 permits a separately and explicitly user-approved bootstrap PR at one
+  exact branch/HEAD/develop-base identity with freshly executed local checks
+  and the committed approved specification. It reports `USER_WAIVED`, not a
+  review PASS, and creates no authoritative receipts or standing exemption.
+  Unsafe evidence, failed checks, and existing version-two review evidence
+  cannot be bypassed.
 
 ### Development Artifact
 
