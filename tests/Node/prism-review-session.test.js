@@ -380,6 +380,71 @@ test('rejects premature, duplicate, and post-termination activity', async () => 
     }
 });
 
+test('accepts the SDK tool-result message for the terminating submission', async () => {
+    const fixture = fakeSdk(async ({tools, emit}) => {
+        const result = await tools.get('submit_review').execute('submission-1', {answer: 'done'});
+        const message = {role: 'toolResult', toolCallId: 'submission-1', toolName: 'submit_review',
+            content: result.content, details: result.details, isError: false};
+        emit({type: 'tool_execution_end', toolCallId: 'submission-1', toolName: 'submit_review', result, isError: false});
+        emit({type: 'message_start', message});
+        emit({type: 'message_end', message});
+        emit({type: 'turn_end'});
+        emit({type: 'agent_end'});
+    });
+    const result = await runIsolatedSession(request(fixture));
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.submission, {answer: 'done'});
+    assert.deepEqual(fs.readdirSync(TEMP_ROOT), []);
+});
+
+test('completes through the real Pi agent event loop with an offline model transport', async () => {
+    const {Agent} = await import('@earendil-works/pi-agent-core');
+    let modelCalls = 0;
+    let acknowledged = false;
+    const fixture = fakeSdk(async ({tools, emit}) => {
+        const message = {role: 'assistant', api: 'fixture-api', provider: MODEL.provider, model: MODEL.id,
+            content: [{type: 'toolCall', id: 'sdk-submit', name: 'submit_review', arguments: {answer: 'done'}}],
+            stopReason: 'toolUse', timestamp: 0,
+            usage: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+                cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0}}};
+        const agent = new Agent({
+            initialState: {model: {...MODEL, api: 'fixture-api'}, tools: [...tools.values()]},
+            streamFn() {
+                modelCalls += 1;
+                assert.equal(modelCalls, 1);
+                return {
+                    async *[Symbol.asyncIterator]() { yield {type: 'done', reason: 'toolUse', message}; },
+                    async result() { return message; },
+                };
+            },
+        });
+        agent.subscribe(event => {
+            if (event.type === 'message_start' && event.message.role === 'toolResult') acknowledged = true;
+            emit(event);
+        });
+        await agent.prompt('Submit the fixture result.');
+    });
+    const result = await runIsolatedSession(request(fixture));
+    assert.equal(result.ok, true);
+    assert.equal(acknowledged, true);
+    assert.equal(modelCalls, 1);
+});
+
+test('rejects unrelated, failed, or repeated tool-result messages after submission', async () => {
+    for (const changed of [
+        {toolCallId: 'different-call'}, {toolName: 'read_file'}, {role: 'assistant'}, {isError: true}, {},
+    ]) {
+        const fixture = fakeSdk(async ({tools, emit}) => {
+            await tools.get('submit_review').execute('submission-1', {answer: 'done'});
+            const message = {role: 'toolResult', toolCallId: 'submission-1', toolName: 'submit_review', isError: false};
+            emit({type: 'message_start', message: {...message, ...changed}});
+            if (Object.keys(changed).length === 0) emit({type: 'message_start', message});
+        });
+        assert.deepEqual(await runIsolatedSession(request(fixture)),
+            {ok: false, outcome: 'INCONCLUSIVE', reason: 'INVALID_SESSION_ACTIVITY'});
+    }
+});
+
 test('rejects model output emitted after the terminating submission', async () => {
     const fixture = fakeSdk(async ({tools, emit}) => {
         await tools.get('submit_review').execute('done', {answer: 'done'});

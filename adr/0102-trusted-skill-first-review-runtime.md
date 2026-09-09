@@ -161,7 +161,10 @@ bounded immutable diff reads, bounded immutable file reads, and one closed
 review submission. Tool results frame all repository and evidence text as
 hostile data. A second submission, malformed output, unknown field, unsupported
 classification, tool-budget breach, timeout, or provider failure makes the
-axis Inconclusive.
+axis Inconclusive. The SDK may acknowledge the terminating submission with one
+successful `toolResult` message bound to that exact tool name and call ID. This
+normal completion event is not post-submission model activity; subsequent model
+output, tool activity, and duplicate acknowledgements remain invalid.
 
 All four axes must complete. A fresh bounded verifier session receives
 normalized findings, byte-exposure records, exemptions, and compact evidence.

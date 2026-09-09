@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-chain-v2.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
+// $KYAULabs: prism-review-chain-v2.test.js kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
 
 'use strict';
 
@@ -570,7 +570,7 @@ test('rejects duplicate or over-limit Inconclusive finding sets', (t) => {
     }
 });
 
-test('stores bounded Inconclusive diagnostics without advancing the chain', (t) => {
+test('stores bounded Inconclusive diagnostics without advancing absent or legacy chains', (t) => {
     const target = fixture(t);
     const inconclusive = report(target, {
         findings: [],
@@ -603,6 +603,19 @@ test('stores bounded Inconclusive diagnostics without advancing the chain', (t) 
     const persisted = fs.readFileSync(diagnosticPath, 'utf8');
     assert.match(persisted, /REVIEW_INCONCLUSIVE/);
     assert.doesNotMatch(persisted, /CANARY-DIAGNOSTIC/);
+
+    const legacy = recordReviewSegment({
+        schemaVersion: 1, kind: 'initial', branch: 'feat/tester-abcd-review-v2',
+        baseRef: 'origin/develop', baseSha: target.baseSha, from: target.baseSha,
+        to: target.headSha,
+        axes: {tooling: 'COMPLETE', standards: 'COMPLETE', spec: 'COMPLETE', sast: 'COMPLETE'},
+        findings: [], closures: [],
+    }, target);
+    const legacyBytes = fs.readFileSync(legacy.path);
+    const retry = recordReviewAttempt(attempt(target, {report: inconclusive, newInitial: true}), target);
+    assert.equal(retry.status, 'INCONCLUSIVE');
+    assert.equal(inspectReviewChainV2(target).state, 'LEGACY');
+    assert.deepEqual(fs.readFileSync(legacy.path), legacyBytes);
 });
 
 test('replaces safe legacy state only after a complete new initial publication', (t) => {

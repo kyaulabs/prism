@@ -219,7 +219,7 @@ function extensionFactory(request, state) {
             label: request.submitToolName,
             description: 'Submit the one terminating structured review result.',
             parameters: request.outputSchema,
-            async execute(_callId, args) {
+            async execute(callId, args) {
                 if (state.submission !== null) {
                     state.activityAfterSubmission = true;
                     throw new Error('duplicate review submission');
@@ -229,6 +229,7 @@ function extensionFactory(request, state) {
                 const submission = deepFreezeJson(args, 'review submission');
                 request.validateSubmissionPrerequisites(submission);
                 state.submission = submission;
+                state.submissionCallId = callId;
                 return toolResult({accepted: true}, true);
             },
         });
@@ -333,7 +334,15 @@ async function runIsolatedSession(request) {
             'turn_start', 'message_start', 'message_update',
             'tool_execution_start', 'tool_execution_update',
         ]);
+        let submissionResultSeen = false;
         unsubscribe = session.subscribe((event) => {
+            if (state.submission !== null && !submissionResultSeen && event?.type === 'message_start' &&
+                event.message?.role === 'toolResult' && typeof state.submissionCallId === 'string' &&
+                event.message.toolCallId === state.submissionCallId &&
+                event.message.toolName === request.submitToolName && event.message.isError === false) {
+                submissionResultSeen = true;
+                return;
+            }
             if (state.submission !== null && postSubmissionEvents.has(event?.type)) {
                 state.activityAfterSubmission = true;
             }
