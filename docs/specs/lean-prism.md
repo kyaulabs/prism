@@ -113,7 +113,8 @@ they remain useful. This checklist tracks execution, not additional approvals.
 - [ ] Remove catalogue/bootstrap/provider/reconciliation engines and callers.
 - [ ] Remove reviewer executable, receipts, chains and finalization authority.
 - [ ] Simplify issue, learning, doctor, check, release and PR workflows.
-- [ ] Update PHP/web defaults and test the 90% changed-file coverage boundary.
+- [x] Update PHP/web coverage default and test the 90% changed-file boundary.
+- [ ] Remove legacy aggregate 80% thresholds with the old quality/provisioning engines.
 - [ ] Update hooks/CI, package metadata, dependencies, lockfiles and installers.
 - [ ] Update orientation, context, migration guidance and active references.
 - [ ] Run focused and broader applicable checks, same-session review, and inspect

@@ -30,8 +30,8 @@ schema or nginx deployment configuration.
 For PHP/web changes, load `php-web-stack` and the relevant module skills. The
 stack is PHP 8.5+, MariaDB, nginx, SCSS/Dart Sass, vanilla JavaScript and Pest 5
 on PHPUnit 13. RCS headers and vim modelines are module conventions. The approved
-changed-file PHP coverage default is 90%; the implementation checklist tracks
-its migration from the old 80% gate.
+changed-file PHP coverage default is 90%, configurable with the gate's `--min`
+option when project/user instructions specify a different threshold.
 
 Never edit generated `cdn/css/*.min.css` or `cdn/javascript/*.min.js`. Build
 assets from their SCSS/JavaScript sources when those sources change.

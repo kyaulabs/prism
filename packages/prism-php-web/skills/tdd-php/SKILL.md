@@ -1,193 +1,68 @@
 ---
 name: tdd-php
-description: "Use for the PHP/Pest-specific half of TDD: test framework, coverage tooling, lint. Load alongside the core tdd skill in PHP projects."
+description: Use for PHP/Pest development alongside the Core tdd skill. Supplies native test commands, module conventions and the 90% changed-file coverage default.
 compatibility: "PHP 8.5+, Pest PHP 5, PHPUnit 13, Composer"
 derived-from: obra/superpowers (MIT, © Jesse Vincent); glebis/claude-skills (MIT, © Gleb)
 ---
 
-# PHP/Pest Test-Driven Development
+# PHP/Pest TDD
 
-Load this skill alongside the core `tdd` skill. The core skill owns the
-Red-Green-Refactor cycle, vertical slicing, behavior-through-public-interface
-discipline, and boundary-only mocking. This adapter owns the PHP/Pest commands,
-test layout, coverage gate, lint, and file conventions.
+Use the Core `tdd` skill's one-behavior-at-a-time Red → Green → Refactor cycle.
+Follow project instructions over module defaults.
 
-## Reference docs
+## Project setup
 
-This adapter has supporting reference docs at
-`packages/prism-php-web/docs/`. They are referenced by path below (not as
-markdown links). Use the Read tool to load each one on a need-to-know basis —
-don't preemptively load all three; pull each in exactly when the step that
-needs it comes up. Treat their contents as mandatory once loaded.
+Inspect `composer.json`, `phpunit.xml` and `tests/Pest.php` before running tests.
+Use the project's existing commands and structure. If test tooling is absent,
+use the module setup skill or ordinary Composer setup within the requested scope;
+do not require global Prism readiness or an adapter protocol.
 
-- `packages/prism-php-web/docs/tests.md` — read **before writing your first
-  test**. Worked examples of good vs. bad tests, including tautological tests
-  and implementation-coupling anti-patterns. The rules below summarize; the
-  doc is authoritative.
-- `packages/prism-php-web/docs/mocking.md` — read only if the behavior you're
-  testing touches a system boundary. Full mocking guidelines and boundary-
-  interface design.
-- `packages/prism-php-web/docs/refactoring.md` — read once you reach the
-  refactor step. Refactor-candidate checklist.
-- `packages/prism-php-web/docs/conventions.md` — read before creating the first
-  PHP or test file. File naming, indentation, PHP standards, and arch tests.
+For Pest projects, use `vendor/bin/pest --init` only if bootstrap is absent. Use
+PHPUnit's default test case unless the project defines a shared test case. Put
+architecture tests in discovered test files, not in `tests/Pest.php`.
 
-## Pest bootstrap and test case
+Read `../../docs/tests.md` for test design, `../../docs/conventions.md` for source
+style, and mocking/refactoring guidance only when needed.
 
-If `tests/Pest.php` does not exist, run `prism-tool run pest -- --init` before
-writing tests. This creates the Pest bootstrap.
-
-> [!WARNING]
-> `pest --init` generates a **bare** `Pest.php` (stock scaffolding only —
-> no arch tests). After running it, create
-> `tests/Unit/Harness/ArchTest.php` with the three filesystem-walker arch
-> tests described in `packages/prism-php-web/docs/conventions.md` (Arch Tests
-> section). Do not append `arch()` blocks to `Pest.php` — they will not execute.
-
-Pest closures use `PHPUnit\Framework\TestCase` by default. If the project has a
-custom `Tests\TestCase`, bind it only for the directories that need its shared
-setup in `tests/Pest.php`:
-
-```php
-pest()->extend(Tests\TestCase::class)->in('Feature');
-```
-
-Keep global Pest configuration and project-wide helper functions in
-`tests/Pest.php`; keep reusable test-case lifecycle setup in
-`tests/TestCase.php` when that class exists.
-
-## PHP/Pest vertical slices
-
-For the first behavior in the core `tdd` skill's tracer bullet:
-
-- **Red.** Write one Pest test for that behavior in the appropriate `tests/`
-  subdirectory (`Unit/`, `Feature/`, `Integration/`, or `Browser/`). Run
-  `prism-tool run pest --` and confirm it **fails** with a meaningful error, not
-  a syntax error. Show the failing output.
-- **Green.** Write the minimum production code to make that one test pass —
-  nothing more. Do not implement behaviors you haven't written a test for yet.
-  Run `prism-tool run pest --` again and confirm it passes. Show the passing
-  output.
-
-For each remaining behavior, one at a time:
-
-- **Red.** Write the next single test → run the suite → confirm it fails
-  meaningfully.
-- **Green.** Write only enough code to pass that test → run the suite →
-  confirm everything is green.
-
-Use a focused Pest path or `--filter` during each cycle (`prism-tool run pest
--- <path> --filter=...`), then run the full applicable suite before completion.
-
-## Frontend slices
-
-When the slice touches presentation PHP/HTML, SCSS, JavaScript, visual,
-responsive, progressive-enhancement, or accessibility work:
-
-1. Detect the frontend surface and plan a narrow slice.
-2. Load `frontend-design`, `frontend-architecture`, `scss-mobile-first`, and
-   `accessibility` as applicable before writing the failing test.
-3. Use their standards to select observable behavior, verify Red, implement the
-   approved slice, rerun tests, and reach Green.
-4. Load `visual-review` after Green for every changed visual slice.
-5. Run:
-
-   ```bash
-   prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
-   ```
-
-6. Read every generated PNG, repair visual failures, rerun behavior tests, and
-   recapture the complete affected evidence set.
-7. Present the configured mobile and desktop milestone set and wait for user
-   confirmation before declaring visual completion.
-
-## Test quality rules
-
-- Use `describe()` to group scenarios for the same unit/function.
-- Use `it()` for individual cases with a clear plain-English behavior
-  description.
-- Use Pest datasets (`->with([...])`) when the same behavior must hold across
-  multiple inputs.
-- Do NOT write tests that only assert a method exists, always return true, or
-  exist solely to inflate coverage.
-- Do NOT write tautological tests — the expected value must be an independent
-  literal or worked example, never recomputed the way the code computes it.
-  If unsure, read `packages/prism-php-web/docs/tests.md`.
-- Do NOT test private/internal implementation details — test the public
-  interface.
-- Follow Arrange / Act / Assert inside each test closure.
-- Apply the project RCS header to every new test file (see the `rcs-header`
-  skill). The pre-commit hook manages the canonical marker.
-- Name test files in PascalCase with a `Test.php` suffix
-  (`UserAuthenticationTest.php`).
-
-## Mocking rules
-
-Mock only at system boundaries — external APIs, databases (prefer a real test
-DB when practical), time/randomness, the file system. Never mock your own
-classes or internal collaborators; if a test needs to mock an internal
-collaborator to pass, it's coupled to implementation, not behavior. Before
-writing any mock, read `packages/prism-php-web/docs/mocking.md` for the full
-guidelines, including designing boundary interfaces so they stay easy to
-mock.
-
-## Coverage check
-
-Run:
+## Develop and verify
 
 ```bash
-prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage
+vendor/bin/pest tests/Unit/ExampleTest.php
+vendor/bin/pest --filter='behavior under test'
+vendor/bin/pest --coverage --coverage-clover=tests/coverage.xml
 ```
 
-Use this exact coverage invocation even when the current suite has no browser
-tests. The profile selects the nearest available port and owns readiness and
-cleanup, keeping TDD, CI, aggregate checks, and generated plans on one
-adapter-owned command. Report coverage for the files you touched. Minimum 80%
-line coverage on changed files is enforced by
-`packages/prism-php-web/scripts/coverage-gate.php`. Feed it the Clover report:
+Replace example paths/filters with actual project tests. Confirm the first test
+fails for the missing behavior, implement the minimum fix, then rerun affected
+tests. Use public seams, independent expected values and boundary-only mocks.
 
-```bash
-git diff --name-only --diff-filter=AM -- '*.php' \
-  | php packages/prism-php-web/scripts/coverage-gate.php tests/coverage.xml
-```
+Run browser tests only when relevant or included in the broader suite. Use the
+project's test-server setup, preserve occupied services and clean up only owned
+processes. For visual changes, use applicable frontend/visual-review skills and
+inspect the resulting images; do not claim visual validation from code alone.
 
-If line coverage for the new code is below 80%, identify the uncovered lines
-and either add a test for a missed behavior or explain why the line is
-legitimately excluded (e.g. defensive code unreachable through the public
-interface).
+## Coverage
 
-## Lint and file ceremony
+The default is **90% line coverage per changed PHP file in the coverage source
+set**, not a substitute for behavior-focused tests. Generate Clover coverage and
+pass the task's changed PHP paths on stdin to `../../scripts/coverage-gate.php`
+(relative to this skill). Invoke it with PHP and the Clover path; use `--root`
+when the working directory is not the consumer root. `--min=N` implements an
+explicit project/user threshold override.
 
-Run the adapter gate `/check-php`, which covers:
+Inspect warnings for changed executable files outside the coverage source set;
+register relevant source files rather than hiding them. Report unavailable or
+skipped coverage honestly. Do not impose an additional whole-project threshold
+unless the project requests one.
 
-```bash
-prism-tool run php-cs-fixer -- fix --dry-run --diff
-prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
-prism-tool run eslint -- "cdn/js/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
-prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage
-```
+## Completion
 
-- PSR-12 code style is enforced by `php-cs-fixer`.
-- `declare(strict_types=1)` is required on all backend classes.
-- PHP classes/methods/functions require PHPDoc (PSR-5) with params, return
-  types, and exceptions. Load `rcs-header` for the exact format.
-- Every PHP and test source file carries the RCS header and applicable vim
-  modeline managed by the pre-commit hook.
-
-## Cross-refs
-
-- `tdd` — mandatory language-agnostic Red-Green-Refactor discipline.
-- `pest-browser` — browser plugin setup and critical-flow examples.
-- `rcs-header` — source header, vim modeline, and PHPDoc format.
-- `/check-php` — aggregate PHP/web pre-push gate.
+Run relevant tests and lint via `/check-php`, verify actual results and commit
+logical changes with `conventional-commits`. RCS headers, modelines, naming and
+PHP documentation follow module/project conventions, not Core-wide enforcement.
 
 ## Gotchas
 
-- *Running only the focused Pest test* — run the full applicable suite before
-  completion.
-- *Putting arch tests in `tests/Pest.php`* — generated `arch()` blocks there do
-  not execute; use `tests/Unit/Harness/ArchTest.php`.
-- *Guessing a custom TestCase binding* — use PHPUnit's default unless the
-  project already defines `Tests\TestCase` and needs its setup.
-- *Reporting overall coverage only* — the gate applies to each changed PHP
-  file in the coverage source set.
+- Overall coverage can hide an untested changed file.
+- A coverage percentage is not proof of useful assertions.
+- Avoid starting browser services for a focused pure-unit test.

@@ -102,7 +102,7 @@ on demand.
 The shared quality gate is `/check`. Core checks language-independent policy,
 including changed Markdown, then delegates to `/check-php` for PHP style,
 SCSS, JavaScript, tests, and changed-file coverage. Changed PHP files require at
-least 80% line coverage.
+least 90% line coverage by default (`--min=N` permits a project override).
 
 Managed bootstrap and automation readers likewise accept owner-readable data
 within `0644` and owner-readable/executable wrappers within `0755`. Unsafe bits
