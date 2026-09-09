@@ -1,4 +1,4 @@
-// $KYAULabs: core-quality.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: core-quality.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -178,9 +178,7 @@ function requests(identity, trackedPaths = null) {
             '--', '.', ':!adr/**', ':!docs/plans/**',
         ]},
         {id: 'core.harness', command: ['bash', 'packages/prism-core/scripts/validate-harness.sh']},
-        {id: 'core.semgrep', command: semgrepCommand,
-            executionCommand: trackedPaths === null ? semgrepCommand : [...semgrepCommand, '--', ...trackedPaths],
-            skip: trackedPaths?.length === 0},
+        {id: 'core.semgrep', command: semgrepCommand, skip: trackedPaths?.length === 0},
     ];
 }
 

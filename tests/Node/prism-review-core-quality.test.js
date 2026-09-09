@@ -1,4 +1,4 @@
-// $KYAULabs: prism-review-core-quality.test.js kyau@aura.kyaulabs 2026/09/07 -0700 Exp $
+// $KYAULabs: prism-review-core-quality.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -144,7 +144,7 @@ test('applies process-level sensitive paths to the tracked quality scope', (t) =
         handler: {resolveTool() {}}}), /sensitive/);
 });
 
-test('passes only validated tracked paths to the default Semgrep gate', async (t) => {
+test('scans an isolated tracked snapshot without overriding Semgrep ignore rules', async (t) => {
     const root = makeTempDir();
     const bin = makeTempDir();
     t.after(() => fs.rmSync(root, {recursive: true, force: true}));
@@ -209,7 +209,9 @@ fs.writeFileSync(${JSON.stringify(invocation)}, JSON.stringify({cwd: process.cwd
     assert.equal(report.status, 'PASS');
     assert.deepEqual(snapshot(), before);
     const scanned = JSON.parse(fs.readFileSync(invocation, 'utf8'));
-    assert.deepEqual(scanned.args.slice(-4), ['--', ...trackedPaths]);
+    assert.deepEqual(scanned.args, ['scan', '--config', './.semgrep/kyaulabs.yml', '--config', 'p/php',
+        '--config', 'p/secrets', '--config', 'p/javascript', '--error', '--metrics', 'off', '--disable-version-check',
+        '--baseline-commit', baseline]);
     assert.equal(scanned.ignored, false);
     assert.notEqual(scanned.cwd, root);
     assert.equal(fs.existsSync(scanned.cwd), false);
