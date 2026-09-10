@@ -21,10 +21,15 @@ function inspectCommit(command:string, deps:ToolCallDeps):ToolCallResult {
         const tokens = (segment.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [])
             .map(token => token.replace(/^["']|["']$/g, ''));
         if (tokens[0] === 'cd' && tokens[1]) cwd = path.resolve(cwd, tokens[1]);
-        const git = tokens.findIndex(token => path.basename(token) === 'git');
-        const commit = tokens.indexOf('commit', git + 1);
-        if (git < 0 || commit < 0) continue;
-        const prefix = tokens.slice(git + 1, commit);
+        const git = tokens[0] === 'command' ? 1 : 0;
+        if (path.basename(tokens[git] ?? '') !== 'git') continue;
+        let subcommand = git + 1;
+        while (tokens[subcommand]?.startsWith('-')) {
+            const takesValue = ['-C','-c','--git-dir','--work-tree','--namespace','--config-env','--super-prefix'].includes(tokens[subcommand]);
+            subcommand += takesValue ? 2 : 1;
+        }
+        if (tokens[subcommand] !== 'commit') continue;
+        const prefix = tokens.slice(git + 1, subcommand);
         const run = (args:string[]) => spawnSync('git', [...prefix, ...args], {cwd, encoding:'utf8', timeout:10000, maxBuffer:4 * 1024 * 1024});
         const root = run(['rev-parse','--show-toplevel']);
         const names = run(['diff','--cached','--name-only','--diff-filter=ACMRT','-z']);

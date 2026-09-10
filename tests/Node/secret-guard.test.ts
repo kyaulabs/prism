@@ -13,6 +13,12 @@ test('ordinary dynamic shell syntax is not a general workflow gate', () => {
     }
 });
 
+test('mentioning git or commit is not treated as an actual commit invocation', () => {
+    for (const command of ['echo git commit', 'git log --grep commit', 'git config alias.example commit']) {
+        assert.equal(handleToolCall('bash', {command}, {...deps,cwd:os.tmpdir()}), undefined, command);
+    }
+});
+
 for (const tool of ['read','edit','write']) {
     test(`${tool} rejects credential paths and recovers for normal files`, () => {
         assert.equal(handleToolCall(tool, {path:'.env.local'}, deps)?.block, true);
