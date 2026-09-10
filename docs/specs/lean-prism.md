@@ -1,13 +1,13 @@
 # Lean Prism
 
-Status: implementation merged to develop through PR #539; 1.0.0 release prepared.
-Release branch: `release/1.0.0`. Manual npm publication remains pending.
+Status: 1.0.0 delivered through PRs #539–#541 and manually published to npm.
+Release branch `release/1.0.0` is preserved. Hosted deletion lacks token permission.
 
 ## Approved design
 
 Make Prism a modular collection of fast, callable engineering skills with a
 small secret-protection runtime. This is a clean breaking release without
-compatibility shims. Versions 1.0.0 are prepared, not published.
+compatibility shims. Both 1.0.0 packages are published.
 
 ### Modules and setup
 
@@ -93,8 +93,10 @@ compatibility shims. Versions 1.0.0 are prepared, not published.
 - [x] Run full retained Node/shell/PHP suites, package checks, lint and same-session review.
 - [x] Disable dedicated hosted catalogue workflows and inventory credential names.
 - [x] Resolve delivery ordering and merge implementation through tested PR #539.
-- [ ] Complete GitHub release delivery, verify manual npm publication, then delete
-  the hosted catalogue repository.
+- [x] Complete GitHub release delivery and verify both manual npm publications.
+- [x] Remove the dedicated Prism catalogue-dispatch environment.
+- [ ] Delete the hosted catalogue repository (GitHub rejected both tokens for
+  missing `delete_repo` scope; owner action required).
 
 ## Verification and implementation evidence
 
@@ -129,10 +131,11 @@ compatibility shims. Versions 1.0.0 are prepared, not published.
 
 ## External delivery status
 
-Initial remote inspection found Core 0.6.0 with catalogue-dependent workflow
-executables. PR #539 delivered the replacement to develop; the 1.0.0 release
-branch prepares main delivery. Catalogue deletion waits for both replacement npm
-packages to be published, not merely for a GitHub merge or tag.
+PRs #539–#541 delivered the replacement to main and develop. GitHub release
+`v1.0.0` exists, and both npm 1.0.0 packages were independently verified after
+manual publication by the user. The obsolete catalogue-dispatch environment is
+removed. Repository deletion is authorized but blocked by missing `delete_repo`
+token scope for both logged-in accounts; no credentials were read or changed.
 
 Four dedicated workflows were disabled and their disabled state verified. No
 queued/in-progress catalogue runs were returned. Secret names were inventoried;
@@ -142,6 +145,7 @@ See `docs/catalogue-retirement.md` for exact workflow IDs and credential names.
 The user authorized replacement delivery first. Push as `kyau`, create/merge PRs
 and delete merged task branches as `kyaulabs-bot`, and run every Test Plan item
 after PR creation before approving as `kyau`. Preserve main/develop/release
-branches. The user will perform `npm publish` manually; verify both published
-replacement packages before deleting the catalogue. No registry login is needed
-from the agent.
+branches. npm publication remains manual and is complete for 1.0.0. Restore and
+preserve unattended release-on-merge and back-merge GitHub Actions; the account
+instructions govern the coding agent, not Actions identities. The restoration is
+workflow-only and does not change the published package contents.
