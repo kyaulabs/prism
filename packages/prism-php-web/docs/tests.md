@@ -9,7 +9,7 @@ value derived independently of the implementation.
 If `tests/Pest.php` is absent, run:
 
 ```bash
-prism-tool run pest -- --init
+vendor/bin/pest --init
 ```
 
 The generated file is stock Pest scaffolding. Create
@@ -109,21 +109,19 @@ on them.
 
 ## Red, Green, and full verification
 
-During TDD, run the narrow Pest path or filter through `prism-tool`, first to
-confirm Red and then Green. Before completion, run the full applicable suite and
-the shared `/check` gate.
+During TDD, run the narrow Pest path or filter with `vendor/bin/pest`, first to
+confirm Red and then Green. Before completion, run the broader applicable suite
+and relevant `/check-php` checks. Use project test-server tooling only when needed.
 
-Coverage uses the adapter-owned command:
+Generate Clover coverage:
 
 ```bash
-prism-tool server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage
+vendor/bin/pest --coverage --coverage-clover=tests/coverage.xml
 ```
 
-The profile selects the nearest available port and owns readiness and cleanup.
-The changed-file gate reads `tests/coverage.xml` and requires at least 80% line
-coverage on each changed PHP file in the coverage source set. Coverage does not
-replace assertions: uncovered behavior needs a test, while unreachable
-defensive code needs an explicit, justified exclusion.
-
-`/check` runs Core policy first and delegates to `/check-php` for php-cs-fixer,
-stylelint, ESLint, Pest coverage, and the changed-file coverage gate.
+The changed-file gate reads `tests/coverage.xml` and requires at least 90% line
+coverage on each changed PHP file in the coverage source set by default. An
+explicit project/user threshold can use `--min=N`. Coverage does not replace
+assertions: uncovered behavior needs a test, while unreachable defensive code
+needs an explicit, justified exclusion. No additional whole-project coverage
+threshold is imposed unless the project requests it.

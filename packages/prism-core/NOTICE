@@ -110,7 +110,7 @@ JeremyMorgan/code-review-skills
     authorization, and input-validation review methods. Report creation,
     mutation, active testing, stack assumptions, and remediation instructions
     were removed for Prism's isolated immutable-evidence contract.
-  Used in:
+  Formerly distributed (removed in Lean Prism):
     - packages/prism-core/skills/prism-review-readability/SKILL.md
       Source: skills/readability-and-naming/SKILL.md
       SHA-256: dcb6f83d241ea45c2bd55ebb0e6adffa685a2cdfc714375956a65d90a98fe724
@@ -136,7 +136,7 @@ trailofbits/skills
     contract. Agent delegation, commands, repository and network operations,
     active exploitation, mutable reports, and file-writing instructions were
     removed. The adapted files remain CC BY-SA 4.0.
-  Used in:
+  Formerly distributed (removed in Lean Prism):
     - packages/prism-core/skills/prism-review-differential/SKILL.md
       Source: plugins/differential-review/skills/differential-review/SKILL.md
       SHA-256: f9af6a8193fc1a9f8ca3c54bb8d19095a5f20c9472ca6d014488bbde50b67da0

@@ -1,60 +1,17 @@
 {
   "name": "@kyaulabs/prism-core",
-  "version": "0.6.0",
-  "description": "KYAULabs coding harness — language-agnostic core (pi)",
+  "version": "1.0.0",
+  "description": "Modular engineering skills and secret protection for Pi",
   "license": "AGPL-3.0-only",
-  "keywords": [
-    "pi-package"
-  ],
-  "bin": {
-    "prism-review": "scripts/prism-review.js",
-    "prism-tool": "scripts/prism-tool.js"
-  },
-  "files": [
-    "extensions",
-    "skills",
-    "prompts",
-    "scripts",
-    "config",
-    "docs",
-    "toolchain.json",
-    "safe-dirs.json",
-    "AGENTS.md",
-    "APPEND_SYSTEM.md",
-    "NOTICE"
-  ],
+  "keywords": ["pi-package"],
+  "files": ["extensions", "skills", "prompts", "scripts", "config", "docs", "AGENTS.md", "APPEND_SYSTEM.md", "NOTICE"],
   "dependencies": {
-    "@commitlint/config-conventional": "21.2.2",
-    "@earendil-works/pi-coding-agent": ">=0.84.1 <=5.0.0",
     "@mozilla/readability": "0.6.0",
-    "commitlint": "21.2.2",
-    "git-cliff": "2.13.1",
     "linkedom": "0.16.11",
-    "markdownlint-cli2": "0.23.2",
-    "semver": "7.8.5",
     "turndown": "7.2.4"
   },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.84.1 <=5.0.0"
-  },
-  "pi": {
-    "extensions": [
-      "./extensions"
-    ],
-    "skills": [
-      "./skills"
-    ],
-    "prompts": [
-      "./prompts"
-    ]
-  },
-  "prism": {
-    "toolchain": "./toolchain.json"
-  },
-  "engines": {
-    "node": ">=22.19.0"
-  },
-  "publishConfig": {
-    "access": "public"
-  }
+  "peerDependencies": {"@earendil-works/pi-coding-agent": "*"},
+  "pi": {"extensions": ["./extensions"], "skills": ["./skills"], "prompts": ["./prompts"]},
+  "engines": {"node": ">=22.19.0"},
+  "publishConfig": {"access": "public"}
 }

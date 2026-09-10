@@ -243,8 +243,7 @@ test('semgrep still advertises the --x-ignore-semgrepignore-files flag')
     ->expect(function (): bool {
         $output = [];
         $code = 0;
-        $launcher = dirname(__DIR__, 3) . '/packages/prism-core/scripts/prism-tool.js';
-        exec('node ' . escapeshellarg($launcher) . ' run semgrep -- scan --help 2>&1', $output, $code);
+        exec('semgrep scan --help 2>&1', $output, $code);
 
         $help = preg_replace('/\x1b\[[0-9;]*m/', '', implode("\n", $output));
 

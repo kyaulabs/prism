@@ -1,448 +1,73 @@
 #!/usr/bin/env bash
-# $KYAULabs: pre-commit kyau@nova 2026/07/06 -0700 Exp $
 
 set -euo pipefail
 
-# Require bash >= 3.2 (macOS ships 3.2; avoids silent misbehaviour on sh/dash)
-if [ "${BASH_VERSINFO[0]:-0}" -lt 3 ] || \
-	{ [ "${BASH_VERSINFO[0]:-0}" -eq 3 ] && [ "${BASH_VERSINFO[1]:-0}" -lt 2 ]; }; then
-	echo "pre-commit: bash >= 3.2 required (found ${BASH_VERSION:-unknown})" >&2
-	exit 1
-fi
+HOOK_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
+node "$HOOK_DIR/../scripts/check-staged-paths.js"
+export PATH="$ROOT/node_modules/.bin:$ROOT/vendor/bin:$PATH"
 
-# ── prism-tool boundary (fail-closed mandatory readiness) ───────────────────
-# Declared tools are resolved through the prism-tool launcher so the source
-# checkout assumption is removed. Missing launcher or failed local doctor
-# blocks the commit before any lint. See ADR-0025, ADR-0061.
-PRISM_TOOL_PATH=""
-if [ -n "${PRISM_TOOL:-}" ]; then
-	PRISM_TOOL_PATH="$PRISM_TOOL"
-elif command -v prism-tool > /dev/null 2>&1; then
-	PRISM_TOOL_PATH="$(command -v prism-tool)"
+# Scan the index, never unstaged changes. Do not print scanner findings.
+if command -v gitleaks >/dev/null 2>&1; then
+    echo '→ staged secret scan'
+    if ! gitleaks git --pre-commit --staged --redact --no-color >/dev/null 2>&1; then
+        echo 'Staged secret scan failed; inspect locally with redaction enabled.' >&2
+        exit 1
+    fi
 else
-	cat >&2 <<'EOF'
-✗ prism-tool launcher is not installed.
-  Run 'bash "$(prism-tool resolve scripts)/install-global.sh"' (or /setup) to deploy it.
-EOF
-	exit 1
+    echo 'Warning: gitleaks unavailable; staged secret scan was not run.' >&2
 fi
 
-if ! "$PRISM_TOOL_PATH" doctor --local-only >/dev/null 2>&1; then
-	echo "✗ prism-tool local readiness failed (see 'prism-tool doctor')" >&2
-	exit 1
+LINT_DIR=$(mktemp -d)
+trap 'rm -rf -- "$LINT_DIR"' EXIT
+PHP=()
+SHELL=()
+MARKDOWN=false
+while IFS= read -r -d '' file; do
+    case "$file" in
+        vendor/*|node_modules/*|aurora/*|cdn/css/*|cdn/javascript/*) continue ;;
+    esac
+    case "$file" in
+        *.md|*.php|*.sh|.github/hooks/*)
+            mkdir -p -- "$LINT_DIR/$(dirname -- "$file")"
+            git show ":$file" > "$LINT_DIR/$file"
+            ;;
+    esac
+    case "$file" in
+        *.md) MARKDOWN=true ;;
+        *.php) PHP+=("$LINT_DIR/$file") ;;
+        *.sh|.github/hooks/*) SHELL+=("$LINT_DIR/$file") ;;
+        *.scss)
+            git show ":$file" | stylelint --stdin-filename "$file"
+            ;;
+        cdn/js/*.js)
+            git show ":$file" | eslint --stdin --stdin-filename "$file"
+            ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACMRT -z)
+
+if "$MARKDOWN"; then
+    echo '→ Markdown lint'
+    markdownlint-cli2 --config "$ROOT/packages/prism-core/config/markdownlint-cli2.json" "$LINT_DIR/**/*.md"
+fi
+if [ "${#PHP[@]}" -gt 0 ]; then
+    echo '→ PHP lint'
+    for file in "${PHP[@]}"; do php -l "$file"; done
+    CONFIG=()
+    if [ -f .php-cs-fixer.dist.php ]; then
+        CONFIG=(--config="$ROOT/.php-cs-fixer.dist.php")
+    elif [ -f .php-cs-fixer.php ]; then
+        CONFIG=(--config="$ROOT/.php-cs-fixer.php")
+    fi
+    php-cs-fixer fix "${CONFIG[@]}" --dry-run --diff --path-mode=override "${PHP[@]}"
+fi
+if [ "${#SHELL[@]}" -gt 0 ]; then
+    echo '→ Shellcheck'
+    shellcheck --severity=warning "${SHELL[@]}"
+    if [ -f .github/scripts/check-script-executable-bits.sh ]; then
+        bash .github/scripts/check-script-executable-bits.sh
+    fi
 fi
 
-# ── Markdown (staged blobs, Core-owned policy) ───────────────────────────────
-echo "→ Markdown lint"
-"$PRISM_TOOL_PATH" markdown lint --cached
-
-# ── Temp directory for index-based linting ───────────────────────────────────
-# Staged (index) blobs are checked out to a temp directory so linters read
-# exactly what will be committed, not the working tree. See ADR-0015.
-LINT_TMPDIR=$(mktemp -d)
-trap 'rm -rf "$LINT_TMPDIR"' EXIT
-
-# Check out a staged blob to the lint temp directory, preserving structure.
-# Sets TMPF to the temp file path.
-checkout_staged() {
-	TMPF="$LINT_TMPDIR/$1"
-	mkdir -p "$(dirname "$TMPF")"
-	git show ":$1" > "$TMPF" 2>/dev/null || true
-}
-
-trim_blank_edges() {
-	awk '
-		/^[[:space:]]*$/ {
-			pending = pending $0 ORS
-			next
-		}
-		{
-			if (seen) {
-				printf "%s", pending
-			}
-			print
-			pending = ""
-			seen = 1
-		}
-	'
-}
-
-trim_leading_blank_edge() {
-	awk '
-		seen || !/^[[:space:]]*$/ {
-			seen = 1
-			print
-		}
-	'
-}
-
-trim_metadata_edges() {
-	if $APPEND_ML; then
-		trim_blank_edges
-	else
-		trim_leading_blank_edge
-	fi
-}
-
-# ── PHP syntax check (staged files only) ─────────────────────────────────────
-if command -v php > /dev/null 2>&1; then
-	STAGED_PHP=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.php$' || true)
-	if [ -n "$STAGED_PHP" ]; then
-		echo "→ PHP syntax check"
-		while IFS= read -r f; do
-			[ -z "$f" ] && continue
-			checkout_staged "$f"
-			php -l "$TMPF" 2>&1 | sed "s|$LINT_TMPDIR/||g"
-		done <<< "$STAGED_PHP"
-	fi
-fi
-
-# ── php-cs-fixer (staged files only, via prism-tool) ────────────────────────
-STAGED_PHP=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.php$' | grep -vE '^(vendor/|node_modules/|aurora/)' || true)
-if [ -n "$STAGED_PHP" ]; then
-	echo "→ php-cs-fixer"
-	CS_CONFIG=""
-	if [ -f .php-cs-fixer.dist.php ]; then
-		CS_CONFIG=.php-cs-fixer.dist.php
-	elif [ -f .php-cs-fixer.php ]; then
-		CS_CONFIG=.php-cs-fixer.php
-	fi
-	# --path-mode=override: scan ONLY the explicitly-passed paths,
-	# ignoring the Finder scope entirely (prevents node_modules leakage)
-	PATHS=()
-	while IFS= read -r p; do
-		[ -n "$p" ] || continue
-		checkout_staged "$p"
-		PATHS+=("$TMPF")
-	done <<< "$STAGED_PHP"
-	if [ -n "$CS_CONFIG" ]; then
-		"$PRISM_TOOL_PATH" run php-cs-fixer -- fix --config="$CS_CONFIG" --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
-	else
-		"$PRISM_TOOL_PATH" run php-cs-fixer -- fix --dry-run --diff --path-mode=override "${PATHS[@]}" 2>&1 | sed "s|$LINT_TMPDIR/||g"
-	fi
-fi
-
-# ── Stylelint (staged files only, via prism-tool) ────────────────────────────
-STAGED_SCSS=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '\.scss$' || true)
-if [ -n "$STAGED_SCSS" ]; then
-	echo "→ Stylelint"
-	SCSS_FAILED=0
-	while IFS= read -r f; do
-		[ -z "$f" ] && continue
-		if ! git show ":$f" | "$PRISM_TOOL_PATH" run stylelint -- --stdin-filename "$f"; then
-			SCSS_FAILED=1
-		fi
-	done <<< "$STAGED_SCSS"
-	[ "$SCSS_FAILED" -eq 0 ] || exit 1
-fi
-
-# ── ESLint (staged files only, via prism-tool) ───────────────────────────────
-STAGED_JS=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep '^cdn/js/.*\.js$' | grep -v '\.min\.js$' || true)
-if [ -n "$STAGED_JS" ]; then
-	echo "→ ESLint"
-	JS_FAILED=0
-	while IFS= read -r f; do
-		[ -z "$f" ] && continue
-		if ! git show ":$f" | "$PRISM_TOOL_PATH" run eslint -- --stdin --stdin-filename "$f" --no-error-on-unmatched-pattern; then
-			JS_FAILED=1
-		fi
-	done <<< "$STAGED_JS"
-	[ "$JS_FAILED" -eq 0 ] || exit 1
-fi
-
-# ── Shellcheck (staged shell scripts only) ──────────────────────────────────
-STAGED_SH=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep -E '\.sh$|^\.github/hooks/' || true)
-if [ -n "$STAGED_SH" ]; then
-	if command -v shellcheck > /dev/null 2>&1; then
-		echo "→ Shellcheck"
-		SH_TMPFILES=()
-		while IFS= read -r f; do
-			[ -z "$f" ] && continue
-			checkout_staged "$f"
-			SH_TMPFILES+=("$TMPF")
-		done <<< "$STAGED_SH"
-		# Fail on non-empty output at warning+ severity, not just exit code:
-		# some local shellcheck builds exit 0 while printing warnings (version
-		# skew vs CI, whose default severity is also warning). ADR-0025.
-		SH_OUT=$(shellcheck --severity=warning "${SH_TMPFILES[@]}" 2>&1 || true)
-		if [ -n "$SH_OUT" ]; then
-			printf '%s\n' "$SH_OUT" | sed "s|$LINT_TMPDIR/||g"
-			echo "✗ shellcheck found issues (CI parity — local binary may differ from CI)" >&2
-			exit 1
-		fi
-	else
-		echo "⚠ shellcheck not installed — skipping (apt install shellcheck / brew install shellcheck)"
-	fi
-fi
-
-# ── Script executable-bit guard (CI parity) ───────────────────────────────────
-# Assert every harness .sh under .github/scripts/ and packages/ carries the
-# executable bit in the git index. Guards the Windows core.fileMode=false blind spot that hides
-# missing +x until CI. See check-script-executable-bits.sh.
-if [ -n "$STAGED_SH" ] && [ -f .github/scripts/check-script-executable-bits.sh ]; then
-	echo "→ script executable-bit guard"
-	bash .github/scripts/check-script-executable-bits.sh
-fi
-
-# ── Gitleaks ──────────────────────────────────────────────────────────────────
-if command -v gitleaks > /dev/null 2>&1; then
-	echo "→ gitleaks"
-	gitleaks git --pre-commit --staged --redact --verbose --no-color --max-target-megabytes 5
-else
-	echo "⚠ gitleaks not installed — skipping secrets scan (https://github.com/gitleaks/gitleaks/releases)"
-fi
-
-# ── RCS placeholder/foreign header check ──────────────────────────────────────
-STAGED_SRC=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep -E '\.(php|js|scss|sh|ts)$' || true)
-STAGED_SRC=$(echo "$STAGED_SRC" | grep -vE '^(vendor/|node_modules/|aurora/|cdn/css/|cdn/javascript/)' || true)
-if [ -n "$STAGED_SRC" ]; then
-	while IFS= read -r file; do
-		[ -z "$file" ] && continue
-
-		# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
-		HDR_LINE=$(git show ":$file" 2>/dev/null | head -10 | grep -F '$KYAULabs:' || true)
-		[ -z "$HDR_LINE" ] && continue
-
-		if echo "$HDR_LINE" | grep -qF 'creator@host'; then
-			echo "✗ RCS placeholder in '$file': 'creator@host' — replace with real identity." >&2
-			exit 1
-		fi
-		if echo "$HDR_LINE" | grep -qF 'YYYY/MM/DD'; then
-			echo "✗ RCS placeholder in '$file': 'YYYY/MM/DD' — replace with real date." >&2
-			exit 1
-		fi
-		if echo "$HDR_LINE" | grep -qF 'SEANBR~1'; then
-			echo "✗ RCS foreign header in '$file': 'SEANBR~1' — replace with kyau@nova." >&2
-			exit 1
-		fi
-	done <<< "$STAGED_SRC"
-fi
-
-# ── RCS header auto-add (strip-then-insert idempotent normalizer) ─────────────
-STAGED_SRC=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR | grep -E '\.(php|js|scss|sh|ts)$' || true)
-STAGED_SRC=$(echo "$STAGED_SRC" | grep -vE '^(vendor/|node_modules/|aurora/|cdn/css/|cdn/javascript/)' || true)
-if [ -n "$STAGED_SRC" ]; then
-	CREATOR=$(git config user.email 2>/dev/null | cut -d@ -f1 || true)
-	[ -z "$CREATOR" ] && CREATOR=$(git config user.name 2>/dev/null | tr -d ' ' 2>/dev/null || echo "unknown")
-	HOSTNAME=$(hostname 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)
-	[ -z "$HOSTNAME" ] && HOSTNAME="unknown"
-	DATESTR=$(date '+%Y/%m/%d %z')
-
-	while IFS= read -r file; do
-		[ -z "$file" ] && continue
-
-		# Refuse to rewrite when the working tree has unstaged changes to this file.
-		# The auto-add rebuilds the file from the staged blob; cp'ing that over the
-		# working tree would silently destroy unstaged hunks (e.g. from `git add -p`).
-		if ! git diff --quiet -- "$file"; then
-			echo "✗ RCS auto-add blocked: '$file' has unstaged working-tree changes." >&2
-			echo "  The auto-add rewrites the file from the staged blob, which would" >&2
-			echo "  destroy unstaged hunks. To fix:" >&2
-			echo "    - Stage the file fully:  git add $file" >&2
-			echo "    - Or add the RCS header manually." >&2
-			exit 1
-		fi
-
-		FNAME=$(basename "$file")
-		EXT="${file##*.}"
-
-		# Determine comment syntax and header line
-		case "$EXT" in
-			php)   HDR="# \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
-			scss)  HDR="// \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
-			js)    HDR="// \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
-			sh)    HDR="# \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
-			ts)    HDR="// \$KYAULabs: $FNAME $CREATOR@$HOSTNAME $DATESTR Exp \$" ;;
-		esac
-
-		# Determine vim modeline
-		case "$EXT" in
-			php)   ML="// vim: ft=php sts=4 sw=4 ts=4 et :" ;;
-			scss)  ML="// vim: ft=scss sts=2 sw=2 ts=2 et :" ;;
-			js)    ML="// vim: ft=javascript sts=4 sw=4 ts=4 et :" ;;
-			sh)    ML="# vim: ft=sh sts=4 sw=4 ts=4 et :" ;;
-			ts)    ML="// vim: ft=typescript sts=4 sw=4 ts=4 et :" ;;
-		esac
-
-		# Extract staged content
-		TMP="$LINT_TMPDIR/rcs_blob"
-		MOD="$LINT_TMPDIR/rcs_mod"
-		git show ":$file" > "$TMP" 2>/dev/null || { rm -f "$TMP" "$MOD"; continue; }
-
-		# Determine whether to append the vim modeline.
-		# For PHP files, skip the modeline when the file ends outside PHP context
-		# (after `?>` or in HTML output) — a `// vim:` line would render as
-		# visible text in the browser.
-		APPEND_ML=true
-		if [ "$EXT" = "php" ]; then
-			# Check whether to append the vim modeline.
-			# Skip the modeline when the file ends outside PHP context
-			# (trailing ?> or HTML output) — a // vim: line would render
-			# as visible text in the browser.
-			#
-			# The previous awk-based context tracker was vulnerable to
-			# false negatives from ?> or <?php inside PHP string literals
-			# (e.g. XML in test strings like '<?xml version="1.0"?>').
-			# Replaced with a two-stage check:
-			#   1. File must start with <?php or <?= (pure PHP source).
-			#   2. Last non-blank line must NOT end with ?> (file is in
-			#      PHP context, not templating HTML output).
-			LINE1=$(head -1 "$TMP")
-			if echo "$LINE1" | grep -qE '^<\?(php|=)'; then
-				# File starts in PHP context. Use PHP tokenization when available
-				# so closing tags in strings are inert and HTML-ending templates
-				# remain outside PHP context.
-				if command -v php > /dev/null 2>&1; then
-					if php -r '
-						$code = file_get_contents($argv[1]);
-						if ($code === false) exit(2);
-						$inPhp = false;
-						foreach (token_get_all($code) as $token) {
-							if (!is_array($token)) continue;
-							if ($token[0] === T_OPEN_TAG || $token[0] === T_OPEN_TAG_WITH_ECHO) $inPhp = true;
-							if ($token[0] === T_CLOSE_TAG) $inPhp = false;
-						}
-						exit($inPhp ? 0 : 1);
-					' "$TMP"; then
-						tokenizer_status=0
-					else
-						tokenizer_status=$?
-					fi
-					case "$tokenizer_status" in
-						0) ;;
-						1) APPEND_ML=false ;;
-						*)
-							echo "✗ PHP tokenizer failed while inspecting '$file'." >&2
-							rm -f "$TMP" "$MOD"
-							exit 1
-							;;
-					esac
-				else
-					echo "✗ PHP is required to determine safe modeline placement for '$file'." >&2
-					rm -f "$TMP" "$MOD"
-					exit 1
-				fi
-			else
-				# File does not start with <?php — likely a template
-				# or HTML-first file. Do not append the modeline.
-				APPEND_ML=false
-			fi
-		fi
-
-		# Strip ALL existing RCS headers and vim modelines into a cleaned copy.
-		# This makes the normalizer idempotent: duplicates are collapsed to exactly
-		# one of each below.
-		CLEAN="$LINT_TMPDIR/rcs_clean"
-		# shellcheck disable=SC2016  # $KYAULabs is a literal RCS marker
-		grep -vE '^[[:space:]]*(#|//)[[:space:]]*(\$KYAULabs:|vim: ft=)' "$TMP" > "$CLEAN"
-
-		# For PHP files, refuse to auto-add when line 1 is not <?php or <?=.
-		# HTML-first templates and shebang scripts would land the header outside
-		# PHP context, rendering it as page text. The user must add it manually
-		# inside the first <?php block. Mirrors the modeline context gate above.
-		if [ "$EXT" = "php" ]; then
-			LINE1=$(head -1 "$CLEAN")
-			if ! echo "$LINE1" | grep -qE '^<\?(php|=)'; then
-				echo "✗ RCS auto-add blocked: '$file' does not start with <?php or <?=." >&2
-				echo "  The header would land outside PHP context and render as page text." >&2
-				echo "  To fix:" >&2
-				echo "    - Add the RCS header manually inside the first <?php block." >&2
-				rm -f "$TMP" "$CLEAN" "$MOD"
-				exit 1
-			fi
-		fi
-
-		# Build a body without metadata-adjacent blank padding. Internal blank
-		# runs remain byte-for-byte unchanged.
-		BODY="$LINT_TMPDIR/rcs_body"
-		declare_line=""
-		if [ "$EXT" = "php" ]; then
-			declare_line=$(grep -n 'declare(strict_types=1);' "$CLEAN" | head -1 | cut -d: -f1 || true)
-			if [ -n "$declare_line" ]; then
-				skip=$((declare_line - 1))
-				tail -n +2 "$CLEAN" | awk -v s="$skip" 'NR==s{next} 1' | trim_metadata_edges > "$BODY"
-			else
-				tail -n +2 "$CLEAN" | trim_metadata_edges > "$BODY"
-			fi
-		else
-			LINE1=$(head -1 "$CLEAN")
-			if echo "$LINE1" | grep -q '^#!/'; then
-				tail -n +2 "$CLEAN" | trim_metadata_edges > "$BODY"
-			else
-				trim_metadata_edges < "$CLEAN" > "$BODY"
-			fi
-		fi
-
-		# Build normalized file with exactly one canonical header + modeline.
-		{
-			if [ "$EXT" = "php" ]; then
-				head -1 "$CLEAN"
-				echo ""
-				if [ -n "$declare_line" ]; then
-					sed -n "${declare_line}p" "$CLEAN"
-					echo ""
-				fi
-				echo "$HDR"
-				echo ""
-			else
-				# Preserve a leading shebang on line 1 for every non-PHP source.
-				if echo "$LINE1" | grep -q '^#!/'; then
-					echo "$LINE1"
-				fi
-				echo "$HDR"
-				echo ""
-			fi
-			cat "$BODY"
-			if $APPEND_ML; then
-				[ -s "$BODY" ] && echo ""
-				echo "$ML"
-			fi
-		} > "$MOD"
-
-		# Only re-stage if the normalized content differs from the original staged blob
-		if ! cmp -s "$TMP" "$MOD"; then
-			cp "$MOD" "$file"
-			git add "$file"
-			echo "  + RCS header added: $file"
-		fi
-
-		rm -f "$TMP" "$CLEAN" "$MOD"
-	done <<< "$STAGED_SRC"
-fi
-
-# ── Blank-line policy (staged blobs only) ───────────────────────────────────
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
-if [ -z "$REPO_ROOT" ]; then
-	echo "✗ blank-line checker requires a Git checkout." >&2
-	exit 1
-fi
-CHECKER_REL="packages/prism-core/scripts/check-blank-lines.sh"
-CHECKER="$LINT_TMPDIR/check-blank-lines.sh"
-if git cat-file -e ":./$CHECKER_REL" 2>/dev/null; then
-	if ! git show ":./$CHECKER_REL" > "$CHECKER"; then
-		echo "✗ unable to materialize the indexed blank-line checker." >&2
-		exit 1
-	fi
-else
-	if ! SCRIPTS_DIR=$("$PRISM_TOOL_PATH" resolve scripts 2>/dev/null); then
-		echo "✗ unable to resolve prism-core scripts for blank-line checking." >&2
-		exit 1
-	fi
-	CHECKER="$SCRIPTS_DIR/check-blank-lines.sh"
-fi
-if [ ! -f "$CHECKER" ]; then
-	echo "✗ blank-line checker not found: $CHECKER" >&2
-	exit 1
-fi
-echo "→ blank-line policy"
-bash "$CHECKER" --cached
-
-# ── Skill/prompt frontmatter check (CI parity: validate-harness.sh) ─────────
-# The package validator checks Agent Skills names/descriptions and pi prompt
-# descriptions against the staged tree once the full gate runs. Keep this
-# pre-commit hook focused on source linting; pre-push/CI run the complete
-# package-layout validator.
-
-echo "✓ pre-commit passed"
-
-# vim: ft=sh sts=4 sw=4 ts=4 et :
+echo '✓ pre-commit passed'

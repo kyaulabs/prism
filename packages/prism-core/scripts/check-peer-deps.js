@@ -1,8 +1,7 @@
 // $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
-// Verify extension host peers and standalone reviewer runtime dependencies.
-// Pi's extension loader supplies host APIs; standalone imports require their
-// own package dependencies. See NPM.md and the Pi packages dependency contract.
+// Verify extension host peers supplied by Pi's extension loader.
+// See the Pi packages dependency contract.
 //
 // Usage: node check-peer-deps.js <package.json>
 // Prints one message per violation to stdout (plain text; the caller formats
@@ -52,7 +51,6 @@ try {
 const packageRootDir = path.dirname(pkgJsonPath);
 const scanRoots = [
     {label: 'extensions/', path: path.join(packageRootDir, 'extensions'), field: 'peerDependencies'},
-    {label: 'scripts/prism-review/', path: path.join(packageRootDir, 'scripts', 'prism-review'), field: 'dependencies'},
 ];
 
 const imported = new Set();

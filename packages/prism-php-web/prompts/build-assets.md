@@ -9,10 +9,10 @@ Rebuild all minified static assets from the SCSS and JavaScript source files.
 Find every `.scss` file in `cdn/sass/` (excluding partials starting with `_`
 unless imported by a top-level file). For each top-level source file, compile
 to a corresponding `.min.css` in `cdn/css/` using the adapter-owned Dart Sass
-through the launcher:
+with the project-local executable:
 
 ```bash
-prism-tool run sass -- --style=compressed cdn/sass/<source>.scss cdn/css/<output>.min.css
+node_modules/.bin/sass --style=compressed cdn/sass/<source>.scss cdn/css/<output>.min.css
 ```
 
 If no top-level `.scss` files exist (only partials), skip this step and report
@@ -22,11 +22,10 @@ If no top-level `.scss` files exist (only partials), skip this step and report
 
 Find every `.js` file in `cdn/js/` (excluding any files already under
 `cdn/javascript/` or matching `*.min.js`). For each source file, minify to a
-corresponding `.min.js` in `cdn/javascript/` using uglify-js through the
-launcher:
+corresponding `.min.js` in `cdn/javascript/` using project-local uglify-js:
 
 ```bash
-prism-tool run uglify-js -- cdn/js/<source>.js -o cdn/javascript/<output>.min.js -c -m
+node_modules/.bin/uglifyjs cdn/js/<source>.js -o cdn/javascript/<output>.min.js -c -m
 ```
 
 If no `.js` sources exist, skip this step and report "No JS sources found."

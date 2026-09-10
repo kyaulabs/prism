@@ -1,41 +1,11 @@
 {
   "name": "@kyaulabs/prism-php-web",
-  "version": "0.6.0",
-  "description": "KYAULabs coding harness — PHP/web stack adapter (pi)",
+  "version": "1.0.0",
+  "description": "PHP and web engineering skills for Pi",
   "license": "AGPL-3.0-only",
-  "keywords": [
-    "pi-package",
-    "prism-adapter"
-  ],
-  "files": [
-    "skills",
-    "prompts",
-    "scripts",
-    "config",
-    "docs",
-    "toolchain.json",
-    "safe-dirs.json",
-    "NOTICE"
-  ],
-  "pi": {
-    "skills": [
-      "./skills"
-    ],
-    "prompts": [
-      "./prompts"
-    ]
-  },
-  "prism": {
-    "adapter": true,
-    "bootstrapProtocol": 1,
-    "toolchain": "./toolchain.json",
-    "handler": "./scripts/prism-tool-adapter.js",
-    "review": "./config/prism-review.json"
-  },
-  "engines": {
-    "node": ">=22.19.0"
-  },
-  "publishConfig": {
-    "access": "public"
-  }
+  "keywords": ["pi-package"],
+  "files": ["skills", "prompts", "scripts", "config", "docs", "NOTICE"],
+  "pi": {"skills": ["./skills"], "prompts": ["./prompts"]},
+  "engines": {"node": ">=22.19.0"},
+  "publishConfig": {"access": "public"}
 }

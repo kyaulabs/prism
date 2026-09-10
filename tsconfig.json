@@ -15,10 +15,7 @@
     "include": [
         "cdn/js/**/*.js",
         "packages/**/*.js",
-        "packages/prism-core/extensions/safety/pre-tool-use.ts",
-        "packages/prism-core/extensions/safety/sensitive-paths.ts",
-        "packages/prism-core/extensions/safety/denial-circuit-breaker.ts",
-        "packages/prism-core/extensions/safety/tool-call-handler.ts",
+        "packages/prism-core/extensions/safety/**/*.ts",
         "packages/prism-core/extensions/web-access/**/*.ts",
         "tests/Node/*.test.ts",
         "eslint.config.mjs",

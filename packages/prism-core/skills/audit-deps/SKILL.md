@@ -41,7 +41,7 @@ For every locked ecosystem:
 Report findings grouped by severity:
 
 | Severity | Meaning |
-|---|---|
+| --- | --- |
 | critical | Remote code execution, critical data exposure, or equivalent systemic compromise |
 | high | Significant confidentiality, integrity, authentication, or authorization impact |
 | medium | Material but constrained impact, such as information disclosure or denial of service |

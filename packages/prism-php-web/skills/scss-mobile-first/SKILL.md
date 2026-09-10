@@ -53,7 +53,7 @@ Config: `.stylelintrc.json`
 Run through the launcher:
 
 ```bash
-prism-tool run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
+node_modules/.bin/stylelint "cdn/sass/**/*.scss" --allow-empty-input
 ```
 
 Stylelint runs automatically in the pre-commit hook on staged `.scss` files.
@@ -63,7 +63,8 @@ Fix violations before committing — the hook blocks on failure.
 
 Edit files in `cdn/sass/`. Never edit `cdn/css/*.min.css` — those are generated.
 
-Compile through the launcher:
+Compile with the project-local tool:
+
 ```bash
-prism-tool run sass -- --style=compressed cdn/sass/source.scss cdn/css/output.min.css
+node_modules/.bin/sass --style=compressed cdn/sass/source.scss cdn/css/output.min.css
 ```

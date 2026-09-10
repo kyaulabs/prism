@@ -26,7 +26,7 @@ invent routes, target viewports, color modes, or states.
 Run exactly:
 
 ```bash
-prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
+node_modules/.bin/playwright test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
 ```
 
 The runner validates the closed configuration, adds a 320 CSS-pixel reflow

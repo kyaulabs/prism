@@ -41,7 +41,7 @@ if grep -qE "v8\+ uses 'detect'" "$HOOK"; then
 fi
 
 # 5. Hook must print a warning when gitleaks is absent (else branch)
-if ! grep -qE 'gitleaks not installed' "$HOOK"; then
+if ! grep -qE 'gitleaks (not installed|unavailable)' "$HOOK"; then
 	fail "no 'gitleaks not installed' warning found (absent-gitleaks is silent)"
 fi
 

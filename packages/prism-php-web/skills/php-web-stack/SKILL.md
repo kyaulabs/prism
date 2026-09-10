@@ -1,8 +1,7 @@
 ---
 name: php-web-stack
-description: "Use when working in a PHP/Aurora web project (composer.json or aurora/ present). Provides the stack (PHP 8.5+, MariaDB, nginx, SCSS, vanilla JS, Pest 5), no-MVC architecture, production env, and directory structure. Auto-load at session start in PHP projects."
+description: "Use when working in a PHP/Aurora web project (composer.json or aurora/ present). Provides PHP 8.5+, MariaDB, nginx, SCSS, vanilla JS, Pest 5, no-MVC architecture and project conventions."
 compatibility: "PHP 8.5+, Composer, Aurora framework, MariaDB, nginx"
-metadata: { "prism-adapter": "php-web", "auto-load-globs": ["composer.json", "aurora/"] }
 ---
 
 ## Stack
@@ -13,12 +12,12 @@ metadata: { "prism-adapter": "php-web", "auto-load-globs": ["composer.json", "au
 - Frontend: HTML5, CSS3, JS ES6+, jQuery only when vanilla JS is insufficient
 - CSS: SCSS → Dart Sass → minified / JS: uglify-js → minified
 - Tests: Pest PHP 5 on PHPUnit 13
-- Version Control: Git + Conventional Commits + signed commits
+- Version Control: Git + Conventional Commits; signing follows Git configuration
 
 ## Production Environment
 
 - OS: Linux
-- Server provisioned via https://github.com/kyaulabs/aarch/blob/master/pkg/nginx.pkg
+- Server provisioned via <https://github.com/kyaulabs/aarch/blob/master/pkg/nginx.pkg>
 - Web root: `/nginx/https/<domain>/www` (symlinked from `/nginx/git/<app>/`)
 - Logs: `/nginx/logs/<domain>/` (one directory per domain, dots in domain → underscores)
   - PHP: `php.log`

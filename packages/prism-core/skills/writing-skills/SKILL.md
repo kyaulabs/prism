@@ -12,7 +12,7 @@ conventions so new skills, prompts, extensions, and docs slot in without drift.
 ## File locations
 
 | Type | Core location | Adapter location | Filename |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Skill | `packages/prism-core/skills/<name>/` | `packages/<adapter>/skills/<name>/` | `SKILL.md` |
 | Prompt template | `packages/prism-core/prompts/` | `packages/<adapter>/prompts/` | `<name>.md` |
 | Extension | `packages/prism-core/extensions/<name>/` | only when an ADR permits one | `index.ts` |

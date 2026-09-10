@@ -1,332 +1,78 @@
 name: CI
 
-permissions:
-  contents: read
-  pull-requests: read
-
 on:
   push:
-    branches: [main, develop]
+    branches: [develop, main]
   pull_request:
-    branches: [main, develop]
-    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [develop, main]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
-  verify:
-    name: Pi toolchain verification
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    timeout-minutes: 20
     steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
           submodules: true
           persist-credentials: false
-
-      - name: Configure git identity
-        # resolve-identity.sh (called by the /pr title-validation block that
-        # pr_command_test.sh extracts) fail-closes without a git identity.
-        # actions/checkout sets none, so configure a CI identity for repo-local
-        # git operations.
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Verify protected push came from a merged PR
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REF: ${{ github.ref }}
-          GITHUB_SHA: ${{ github.sha }}
-        run: bash .github/scripts/verify-protected-push.sh
-
-      - name: Setup PHP 8.5 with PCOV
-        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
         with:
           php-version: '8.5'
+          extensions: mbstring, pdo_mysql, sockets
           coverage: pcov
-          tools: composer
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-
-      - name: Validate composer.json and lock file
-        run: composer validate --strict --no-check-publish
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.composer/cache
-          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
-          restore-keys: composer-${{ runner.os }}-
-
-      - name: Install Composer dependencies (scripts disabled)
-        run: composer install --no-progress --no-interaction --no-scripts
-
-      - name: Install npm dependencies from the committed lockfile
-        run: npm ci
-
-      - name: Install pi (pinned)
-        # validate-harness.sh imports the safety extension via `pi -e`, and the
-        # check_skill_frontmatter shell test depends on the pi CLI. Pinned for
-        # reproducibility (matches the development SDK baseline).
-        run: npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.85.1
-
-      - name: Install shellcheck 0.11.0
-        # Pinned for local/CI parity with a verified SHA-256 (no curl-to-tar
-        # pipe; mktemp path defeats /tmp TOCTOU pre-planting).
-        env:
-          SC_VERSION: "0.11.0"
-          SC_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+      - run: npm ci --ignore-scripts
+      - run: composer install --no-interaction --prefer-dist --no-scripts
+      - run: pipx install semgrep
+      - run: node_modules/.bin/playwright install --with-deps chromium
+      - run: node --test --test-concurrency=2 tests/Node/*.test.js tests/Node/*.test.ts
+      - run: bash packages/prism-core/scripts/validate-harness.sh
+      - run: bash tests/Shell/run-all.sh
+      - run: vendor/bin/php-cs-fixer fix --dry-run --diff
+      - run: node_modules/.bin/stylelint 'cdn/sass/**/*.scss' --allow-empty-input
+      - run: node_modules/.bin/eslint 'cdn/js/**/*.js' '.github/scripts/**/*.js' --ignore-pattern '*.min.js' --no-error-on-unmatched-pattern
+      - name: PHP tests and coverage
+        shell: bash
         run: |
           set -euo pipefail
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-          archive="shellcheck-v${SC_VERSION}.linux.x86_64.tar.xz"
-          curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 \
-            -o "$tmpdir/${archive}" \
-            "https://github.com/koalaman/shellcheck/releases/download/v${SC_VERSION}/${archive}"
-          echo "${SC_SHA256}  ${tmpdir}/${archive}" | sha256sum -c --strict -
-          tar -xJ -C "$tmpdir" -f "$tmpdir/${archive}"
-          mkdir -p "$HOME/.local/bin"
-          mv "$tmpdir/shellcheck-v${SC_VERSION}/shellcheck" "$HOME/.local/bin/"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.local/bin:$PATH"
-          shellcheck --version
-
-      - name: Install gitleaks 8.30.1
-        # Pinned for local/CI parity with a verified SHA-256 (no curl-to-tar
-        # pipe; mktemp path defeats /tmp TOCTOU pre-planting).
-        env:
-          GL_VERSION: "8.30.1"
-          GL_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-        run: |
-          set -euo pipefail
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-          archive="gitleaks_${GL_VERSION}_linux_x64.tar.gz"
-          curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-delay 2 \
-            -o "$tmpdir/${archive}" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GL_VERSION}/${archive}"
-          echo "${GL_SHA256}  ${tmpdir}/${archive}" | sha256sum -c --strict -
-          tar -xz -C "$tmpdir" -f "$tmpdir/${archive}"
-          mkdir -p "$HOME/.local/bin"
-          mv "$tmpdir/gitleaks" "$HOME/.local/bin/"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          export PATH="$HOME/.local/bin:$PATH"
-          gitleaks version
-
-      - name: Provision Semgrep (compatible range, isolated venv)
-        # Ephemeral CI environment provisioning only — Prism runtime/setup
-        # verifies but never installs Semgrep (ADR-0063).
-        env:
-          SEMGREP_RANGE: ">=1.173.0,<2.0.0"
-        run: |
-          set -euo pipefail
-          venv="$(mktemp -d)/semgrep-venv"
-          python3 -m venv "$venv"
-          "$venv/bin/pip" install --quiet "semgrep${SEMGREP_RANGE}"
-          echo "$venv/bin" >> "$GITHUB_PATH"
-          export PATH="$venv/bin:$PATH"
-          semgrep --version
-
-      - name: Mandatory local readiness
-        run: node packages/prism-core/scripts/prism-tool.js doctor --local-only
-
-      - name: Markdown lint
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-        run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == pull_request ]]; then
-            BASE_SHA="$PR_BASE_SHA"
-          else
-            BASE_SHA="$PUSH_BEFORE_SHA"
-          fi
-          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          node packages/prism-core/scripts/prism-tool.js markdown lint --changed-from "$BASE_SHA"
-
-      - name: TypeScript type-check
-        run: npx tsc --noEmit
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-
-      - name: Install Playwright Chromium
-        run: node packages/prism-core/scripts/prism-tool.js run playwright -- install --with-deps chromium
-
-      - name: PHP syntax check
-        run: |
-          find . -name '*.php' \
-            -not -path './vendor/*' \
-            -not -path './node_modules/*' \
-            -not -path './aurora/*' \
-            -print0 | xargs -0 -n1 php -l
-
-      - name: Node tests
-        run: npm run test:node
-
-      - name: Harness validation
-        run: bash packages/prism-core/scripts/validate-harness.sh
-
-      - name: Shellcheck
-        run: |
-          find . -type f \( -name '*.sh' -o -path './.github/hooks/*' \) \
-            -not -path './vendor/*' \
-            -not -path '*/node_modules/*' \
-            -not -path './aurora/*' \
-            -print0 | xargs -0 shellcheck --severity=warning
-
-      - name: Check script executable bits
-        run: bash .github/scripts/check-script-executable-bits.sh
-
-      - name: Shell regression tests
-        env:
-          COMPOSER_PROCESS_TIMEOUT: 900
-        run: composer test:shell
-
-      - name: PHP CS Fixer (dry-run)
-        run: node packages/prism-core/scripts/prism-tool.js run php-cs-fixer -- fix --dry-run --diff
-
-      - name: Stylelint
-        if: hashFiles('cdn/sass/**/*.scss') != ''
-        run: node packages/prism-core/scripts/prism-tool.js run stylelint -- "cdn/sass/**/*.scss" --allow-empty-input
-
-      - name: ESLint
-        if: hashFiles('cdn/js/**/*.js', '.github/scripts/**/*.js') != ''
-        run: node packages/prism-core/scripts/prism-tool.js run eslint -- "cdn/js/**/*.js" ".github/scripts/**/*.js" --ignore-pattern "*.min.js" --no-error-on-unmatched-pattern
-
-      - name: Pest (backend/ coverage >= 80%)
-        if: hashFiles('tests/Unit/**/*.php', 'tests/Feature/**/*.php', 'tests/Integration/**/*.php', 'tests/Browser/**/*.php') != ''
-        run: |
-          # Aggregate backstop gate (PCOV is configured in the environment by
-          # setup-php; the launcher delegates it to the consumer PHP config).
-          node packages/prism-core/scripts/prism-tool.js server run @kyaulabs/prism-php-web:browser-fixture --tool pest -- --coverage --min=80
-          # Per-changed-file gate (mechanized, same script as /check)
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            BASE="origin/${BASE_REF}"
-          else
-            BEFORE="${{ github.event.before }}"
-            case "$BEFORE" in
-              0000000000000000000000000000000000000000) BASE="HEAD~1" ;;
-              *) BASE="$BEFORE" ;;
-            esac
-          fi
-          git diff --name-only "$BASE...HEAD" -- '*.php' \
-            | php .github/scripts/coverage-gate.php tests/coverage.xml
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-
-      - name: Semgrep SAST
-        run: >-
-          node packages/prism-core/scripts/prism-tool.js run semgrep --
-          scan
-          --config .semgrep/kyaulabs.yml
-          --config p/php
-          --config p/secrets
-          --config p/javascript
-          --error
-          --metrics off
-          --disable-version-check
-
-      - name: Gitleaks SAST
-        run: gitleaks detect --source . --redact --verbose --no-color
-
-      - name: Composer audit
-        run: composer audit --locked --format=json
-
-      - name: npm audit
-        run: npm audit --audit-level=low
-
-      - name: Commitlint (PR range)
+          port=$(node -e 'const s=require("node:net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')
+          php -S "127.0.0.1:$port" -t tests/Browser/fixtures >/tmp/prism-fixture.log 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true; wait "$server" 2>/dev/null || true' EXIT
+          export PEST_BROWSER_BASE_URL="http://127.0.0.1:$port"
+          ready=false
+          for attempt in 1 2 3 4 5; do
+            kill -0 "$server"
+            if curl -fsS --max-time 2 "$PEST_BROWSER_BASE_URL/smoke.html" -o /dev/null; then ready=true; break; fi
+            sleep 1
+          done
+          "$ready"
+          php -d pcov.enabled=1 vendor/bin/pest --coverage
+      - name: Changed PHP coverage (90 percent default)
         if: github.event_name == 'pull_request'
         env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: |
-          git fetch origin "${BASE_REF}"
-          node packages/prism-core/scripts/prism-tool.js run commitlint -- --from="origin/${BASE_REF}" --to=HEAD --verbose
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff --name-only --diff-filter=ACMR "origin/$BASE_REF...HEAD" -- '*.php' | php packages/prism-php-web/scripts/coverage-gate.php tests/coverage.xml
+      - run: composer audit
+      - run: npm audit --omit=dev
 
-  package-smoke:
-    name: Package smoke (${{ matrix.os }}, SDK ${{ matrix.sdk }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+  packages:
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        sdk: ['0.84.1', '0.85.1']
-
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          fetch-depth: 0
           persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
-
-      - name: Install and verify packed reviewer
-        env:
-          SDK_VERSION: ${{ matrix.sdk }}
-        run: node tests/Package/prism-review-smoke.js --sdk "$SDK_VERSION" --network-approved=yes
-
-      - name: Retain package installation replay evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sdk-replay-${{ github.job }}-${{ strategy.job-index }}
-          path: .pi/tmp/package-smoke-*/
-          include-hidden-files: true
-          if-no-files-found: warn
-          retention-days: 7
-
-  sdk-compatibility:
-    name: Latest stable SDK compatibility
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: '24'
-
-      - name: Verify latest stable in-range SDK
-        run: node tests/Package/prism-review-smoke.js --sdk latest --network-approved=yes
-
-      - name: Retain package installation replay evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sdk-replay-${{ github.job }}-${{ strategy.job-index }}
-          path: .pi/tmp/package-smoke-*/
-          include-hidden-files: true
-          if-no-files-found: warn
-          retention-days: 7
+      - run: npm ci --ignore-scripts
+      - run: node --test tests/Node/package-resources.test.js

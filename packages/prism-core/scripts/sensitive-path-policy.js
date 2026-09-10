@@ -43,6 +43,14 @@ function canonicalizePath(value) {
                 // eslint-disable-next-line preserve-caught-error -- Filesystem causes can disclose credential paths.
                 throw new Error('sensitive path cannot be canonicalized');
             }
+            try {
+                if (fs.lstatSync(current).isSymbolicLink()) {
+                    current = path.resolve(path.dirname(current), fs.readlinkSync(current));
+                    continue;
+                }
+            } catch (linkError) {
+                if (!['ENOENT', 'ENOTDIR'].includes(linkError.code)) throw linkError;
+            }
             const parent = path.dirname(current);
             // eslint-disable-next-line preserve-caught-error -- Filesystem causes can disclose credential paths.
             if (parent === current) throw new Error('sensitive path cannot be canonicalized');
@@ -55,7 +63,7 @@ function canonicalizePath(value) {
 
 function matchNormalized(candidate, options, canonicalPatterns) {
     const name = path.basename(candidate);
-    if (isEnvBasename(name)) return {className: 'env'};
+    if (candidate.split(path.sep).some(isEnvBasename)) return {className: 'env'};
     if (name === 'auth.json' || name === 'mcp-auth.json') {
         return {className: 'opencode-auth-store'};
     }

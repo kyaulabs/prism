@@ -28,6 +28,7 @@ Use tools available to the agent — ripgrep for signature patterns, read files
 for the implementations.
 
 For each candidate pair, calculate:
+
 - Same number of parameters, or a clear subset/superset relationship?
 - Parameters of the same types (if typed)?
 - Body structure — same sequence of operations but with different constants

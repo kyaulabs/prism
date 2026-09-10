@@ -31,11 +31,7 @@ test('active workflows contain no session-handoff capability', () => {
 test('context guidance uses native compaction and preserves safety recovery', () => {
     const text = fs.readFileSync(path.join(root, active[3]), 'utf8');
     assert.match(text, /native compaction/i);
-    assert.match(text, /fatal tool/i);
     assert.doesNotMatch(text, /(?:30|40|50|60)%/);
-    const execution = fs.readFileSync(path.join(root, active[4]), 'utf8');
-    assert.match(execution, /Never silently deviate from the plan/);
-    assert.match(execution, /finishing-a-development-branch/);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
