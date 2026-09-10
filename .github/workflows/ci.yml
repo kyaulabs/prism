@@ -266,14 +266,13 @@ jobs:
           node packages/prism-core/scripts/prism-tool.js run commitlint -- --from="origin/${BASE_REF}" --to=HEAD --verbose
 
   package-smoke:
-    name: Package smoke (${{ matrix.os }}, SDK ${{ matrix.sdk }})
+    name: Package smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        sdk: ['0.84.1', '0.85.1']
 
     steps:
       - name: Checkout
@@ -287,46 +286,8 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install and verify packed reviewer
-        env:
-          SDK_VERSION: ${{ matrix.sdk }}
-        run: node tests/Package/prism-review-smoke.js --sdk "$SDK_VERSION" --network-approved=yes
+      - name: Install test dependencies
+        run: npm ci --ignore-scripts
 
-      - name: Retain package installation replay evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sdk-replay-${{ github.job }}-${{ strategy.job-index }}
-          path: .pi/tmp/package-smoke-*/
-          include-hidden-files: true
-          if-no-files-found: warn
-          retention-days: 7
-
-  sdk-compatibility:
-    name: Latest stable SDK compatibility
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: '24'
-
-      - name: Verify latest stable in-range SDK
-        run: node tests/Package/prism-review-smoke.js --sdk latest --network-approved=yes
-
-      - name: Retain package installation replay evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sdk-replay-${{ github.job }}-${{ strategy.job-index }}
-          path: .pi/tmp/package-smoke-*/
-          include-hidden-files: true
-          if-no-files-found: warn
-          retention-days: 7
+      - name: Verify packaged resources and entry points
+        run: node --test tests/Node/toolchain-packaging.test.js

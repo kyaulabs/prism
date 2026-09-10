@@ -14,7 +14,6 @@ const {
     verifyBootstrapScaffold,
 } = require('./toolchain/bootstrap-scaffold');
 const {inspect, resolveTool} = require('./toolchain/project');
-const {runQualityProvider} = require('./toolchain/quality-provider');
 const {
     applyCandidate,
     installBootstrapDependencies,
@@ -100,7 +99,6 @@ module.exports = {
     resolve,
     resolveTool,
     runBootstrapQuality,
-    runQualityProvider,
     verify,
     verifyAutomation,
     verifyBootstrapProject,

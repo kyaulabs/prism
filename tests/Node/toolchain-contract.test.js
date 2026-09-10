@@ -505,7 +505,6 @@ test('declares the exact PHP web adapter components and registration', () => {
         bootstrapProtocol: 1,
         toolchain: './toolchain.json',
         handler: './scripts/prism-tool-adapter.js',
-        review: './config/prism-review.json',
     });
 });
 

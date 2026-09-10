@@ -112,7 +112,6 @@ test_error_message_names_remediation
 test_toolchain_entry_point_modes() {
 	local entry mode bad=0
 	for entry in \
-		packages/prism-core/scripts/prism-review.js \
 		packages/prism-core/scripts/prism-tool.js \
 		packages/prism-core/scripts/install-global.sh \
 		packages/prism-core/scripts/install-hooks.sh \

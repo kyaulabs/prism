@@ -13,7 +13,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 CI="$REPO_ROOT/.github/workflows/ci.yml"
-SMOKE="$REPO_ROOT/tests/Package/prism-review-smoke.js"
+SMOKE="$REPO_ROOT/tests/Node/toolchain-packaging.test.js"
 
 if [ ! -f "$CI" ]; then
 	fail "ci.yml is missing"
@@ -82,7 +82,7 @@ echo "── verification surface ──"
 assert_ci_contains 'npm run test:node|node --test' 'Node tests run'
 assert_ci_contains 'composer test:shell|tests/Shell/.*_test\.sh' 'Shell regression tests run (composer test:shell or inline loop)'
 assert_ci_contains 'validate-harness.sh' 'Harness validation runs'
-assert_ci_contains 'tests/Package/prism-review-smoke.js' 'Package smoke invokes the owned test program'
+assert_ci_contains 'tests/Node/toolchain-packaging.test.js' 'Package smoke invokes resource packaging tests'
 assert_file_contains "$SMOKE" "'pack', packagePath" 'Package smoke packs archives'
 assert_ci_contains 'composer audit|npm audit' 'Dependency audits run'
 assert_ci_contains 'prism-tool.js run php-cs-fixer' 'Adapter lint runs through the launcher'
@@ -95,14 +95,6 @@ assert_ci_contains 'package-smoke' 'A package-smoke job exists'
 assert_ci_contains 'macos-latest' 'Package smoke covers macOS'
 assert_ci_contains 'ubuntu-latest' 'Jobs run on ubuntu-latest'
 assert_file_contains "$SMOKE" 'fs\.mkdtempSync' 'Package smoke uses a temporary consumer project'
-assert_file_contains "$SMOKE" 'credential-guard' 'Package smoke guards credential reads'
-assert_file_contains "$SMOKE" 'authentication.*UNKNOWN' 'Package doctor leaves authentication unprobed'
-assert_file_contains "$SMOKE" '--legacy-peer-deps' 'Package smoke matches Pi peer omission'
-assert_file_contains "$SMOKE" "'ci'.*--offline" 'Package smoke replays its lock offline'
-assert_ci_contains 'sdk:.*0[.]84[.]1.*0[.]85[.]1' 'Package smoke retains both fixed SDK baselines'
-assert_ci_contains '--sdk latest --network-approved=yes' 'Compatibility lane tests latest stable in range'
-assert_ci_contains 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' 'Replay upload action is pinned'
-assert_ci_contains 'path: [.]pi/tmp/package-smoke-' 'Only package-smoke replay evidence is uploaded'
 assert_ci_not_contains 'unknown-command|packaged CLI unexpectedly succeeded' 'Usage failure is not a smoke success predicate'
 
 echo "── no direct declared-tool invocation after bootstrap ──"

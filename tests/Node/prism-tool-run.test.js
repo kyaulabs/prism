@@ -131,9 +131,8 @@ test('registers the Node test suite in the source checkout', () => {
     assert.equal(rootPackage.scripts?.['test:node'], 'node --test tests/Node/*.test.js tests/Node/*.test.ts');
 });
 
-test('publishes both executable Core bins with their config', () => {
+test('publishes the remaining tool executable with its config', () => {
     assert.deepEqual(corePackage.bin, {
-        'prism-review': 'scripts/prism-review.js',
         'prism-tool': 'scripts/prism-tool.js',
     });
     assert.equal(corePackage.files.includes('config'), true);

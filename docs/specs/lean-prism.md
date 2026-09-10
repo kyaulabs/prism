@@ -111,7 +111,7 @@ they remain useful. This checklist tracks execution, not additional approvals.
 - [ ] Delete legacy consent CLI/state-management and setup callers with their engines.
 - [x] Replace setup with Core/module skills and template file selection.
 - [ ] Remove catalogue/bootstrap/provider/reconciliation engines and callers.
-- [ ] Remove reviewer executable, receipts, chains and finalization authority.
+- [x] Remove reviewer executable, receipts, chains and finalization authority.
 - [ ] Simplify issue, learning, doctor, check, release and PR workflows.
 - [x] Update PHP/web coverage default and test the 90% changed-file boundary.
 - [ ] Remove legacy aggregate 80% thresholds with the old quality/provisioning engines.
@@ -188,13 +188,22 @@ Completed:
   and the new path-checker's ESLint check pass. Legacy distributed hook engines
   and their callers still need deletion; this changes the repository-owned hooks.
 
+- Removed the standalone reviewer executable, its runtime modules, profiles,
+  fourteen private review skills, receipt/chain tests, launcher PR authority and
+  PHP quality-receipt provider. Same-session `code-review` remains. Core declares
+  Pi as a host peer rather than a bundled reviewer SDK. CI's reviewer installation
+  lanes now use ordinary package-resource tests on Linux/macOS. Historical source
+  attribution remains marked as formerly distributed. 108 focused Node tests
+  (including packaged resources and retained safety/web behavior), 36 CI-contract
+  checks, YAML parsing and warning-level Shellcheck pass. CI itself was not run.
+
 Next tasks: finish the small secret guard and remove obsolete engines;
 finish specialist workflow/skill callers still using the old contracts. Keep TDD for runtime behavior. Existing tests of deleted policy
 will need retirement/replacement, not preservation through compatibility shims.
 
 Important current state:
 
-- Much runtime code is still the OLD implementation: reviewer, consent CLI/state
+- Much runtime code is still the OLD implementation: consent CLI/state
   administration, provisioning, catalogue and distributed-hook engines remain.
   Web search/fetch no longer consult consent; their authorization adapter was
   deleted. All 52 web-access tests pass, including guarded transport and fallback. Safety's fatal

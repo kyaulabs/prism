@@ -7,7 +7,6 @@
     "pi-package"
   ],
   "bin": {
-    "prism-review": "scripts/prism-review.js",
     "prism-tool": "scripts/prism-tool.js"
   },
   "files": [
@@ -25,7 +24,6 @@
   ],
   "dependencies": {
     "@commitlint/config-conventional": "21.2.2",
-    "@earendil-works/pi-coding-agent": ">=0.84.1 <=5.0.0",
     "@mozilla/readability": "0.6.0",
     "commitlint": "21.2.2",
     "git-cliff": "2.13.1",
@@ -35,7 +33,7 @@
     "turndown": "7.2.4"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.84.1 <=5.0.0"
+    "@earendil-works/pi-coding-agent": "*"
   },
   "pi": {
     "extensions": [

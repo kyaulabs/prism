@@ -38,26 +38,6 @@ test('local readiness requires only Semgrep and never invokes a reviewer', async
     assert.equal(JSON.parse(result.stdout).status, 'GO');
 });
 
-test('full doctor delegates local review readiness without consulting consent', async (t) => {
-    const directory = makeTempDir();
-    t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
-    for (const name of ['semgrep', 'prism-review']) {
-        fs.writeFileSync(path.join(directory, name), '', {mode: 0o700});
-    }
-    const calls = [];
-    const result = await capture(() => main(['doctor', '--json'], {
-        env: {PATH: directory},
-        consentPath: path.join(directory, 'absent'),
-        run(command, args) {
-            calls.push([path.basename(command), args]);
-            return {status: 0, stdout: path.basename(command) === 'semgrep' ? '1.173.0\n' :
-                JSON.stringify({schemaVersion: 1, command: 'doctor', status: 'GO', eligibleForAuthority: true}), stderr: ''};
-        },
-    }));
-    assert.equal(result.status, 0, result.stdout);
-    assert.deepEqual(calls, [['semgrep', ['--version']], ['prism-review', ['doctor', '--json']]]);
-});
-
 test('setup migration preserves the legacy web choice and requires explicit approval', async (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));

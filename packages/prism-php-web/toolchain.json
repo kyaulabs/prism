@@ -2,24 +2,6 @@
   "schemaVersion": 1,
   "package": "@kyaulabs/prism-php-web",
   "role": "adapter",
-  "qualityProvider": {
-    "id": "php-web-quality",
-    "protocolVersion": 1,
-    "gates": [
-      "php-web.changed-file-coverage",
-      "php-web.composer-audit",
-      "php-web.eslint",
-      "php-web.node-tests",
-      "php-web.npm-audit",
-      "php-web.pest-coverage",
-      "php-web.php-cs-fixer",
-      "php-web.php-syntax",
-      "php-web.playwright-list",
-      "php-web.shell-tests",
-      "php-web.stylelint",
-      "php-web.typescript"
-    ]
-  },
   "components": [
     {
       "id": "php-cs-fixer",

@@ -59,7 +59,6 @@ const {
 const {checkExternalTools, resolveExecutable} = require('./preflight');
 const {DEFAULT_EXECUTION_TIMEOUT_MS, runBounded} = require('./process');
 const {runIsolatedSemgrep} = require('./semgrep');
-const {prCommand} = require('./pr');
 const {serverCommand} = require('./server');
 const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
@@ -182,22 +181,6 @@ function doctor(args, context) {
         renderDoctor(checks, parsed.json);
         return EXIT.OK;
     }
-    const env = context.env ?? process.env;
-    const executable = resolveExecutable('prism-review', env);
-    let ready = false;
-    if (executable) {
-        try {
-            const result = (context.run ?? runBounded)(executable, ['doctor', '--json'], {
-                cwd: context.cwd ?? context.projectRoot ?? process.cwd(),
-                env, maxBuffer: 1048576, timeout: 60000,
-            });
-            const report = JSON.parse(result.stdout);
-            ready = !result.error && result.status === 0 && report.schemaVersion === 1 &&
-                report.command === 'doctor' && report.status === 'GO' && report.eligibleForAuthority === true;
-        } catch { ready = false; }
-    }
-    checks.push({id: 'review-runtime', status: ready ? 'PASS' : 'FAIL',
-        message: ready ? 'installed reviewer readiness verified' : 'installed reviewer is not ready'});
     renderDoctor(checks, parsed.json);
     return checks.every((check) => check.status === 'PASS') ? EXIT.OK : EXIT.READINESS;
 }
@@ -2040,7 +2023,6 @@ function main(argv, context = {}) {
     if (command === 'doctor') return doctor(args, context);
     if (command === 'setup') return setup(args, context);
     if (command === 'resolve') return resolveKindDir(args, context);
-    if (command === 'pr') return prCommand(args, context);
     if (command === 'commit') return commitCommand(args, context);
     if (command === 'hook') return hookCommand(args, context);
     if (command === 'markdown') return markdownCommand(args, context);

@@ -82,61 +82,6 @@ fi
 rm -rf "$TOOLCHAIN_FIXTURE"
 trap - EXIT
 
-printf '%s\n' '── validate-harness: review resources reject symlinks ──'
-REVIEW_RESOURCE="$REPO_ROOT/packages/prism-core/config/licenses/CC0-1.0.txt"
-REVIEW_BACKUP=$(mktemp)
-cp "$REVIEW_RESOURCE" "$REVIEW_BACKUP"
-cleanup_review_resource() {
-    rm -f "$REVIEW_RESOURCE"
-    mv "$REVIEW_BACKUP" "$REVIEW_RESOURCE"
-}
-trap cleanup_review_resource EXIT
-rm -f "$REVIEW_RESOURCE"
-ln -s "$REVIEW_BACKUP" "$REVIEW_RESOURCE"
-if output=$(bash "$VALIDATOR" 2>&1); then
-    fail 'symlinked review resource was accepted'
-elif printf '%s\n' "$output" | grep -Fq 'review source license'; then
-    pass 'symlinked review resource is rejected'
-else
-    fail "symlinked review resource failure lacked its diagnostic: $output"
-fi
-cleanup_review_resource
-trap - EXIT
-
-printf '%s\n' '── validate-harness: review runtime directories reject symlinks ──'
-CORE_REVIEW_DIRECTORY="$REPO_ROOT/packages/prism-core/scripts/prism-review"
-ADAPTER_PROVIDER_DIRECTORY="$REPO_ROOT/packages/prism-php-web/scripts/toolchain"
-cleanup_review_directories() {
-    for directory in "$CORE_REVIEW_DIRECTORY" "$ADAPTER_PROVIDER_DIRECTORY"; do
-        backup="${directory}.validator-backup"
-        if [ -L "$directory" ]; then rm -f "$directory"; fi
-        if [ -d "$backup" ]; then mv "$backup" "$directory"; fi
-    done
-}
-review_directory_rejected() {
-    local directory="$1" diagnostic="$2" backup output status
-    backup="${directory}.validator-backup"
-    mv "$directory" "$backup"
-    ln -s "$(basename "$backup")" "$directory"
-    if output=$(bash "$VALIDATOR" 2>&1); then
-        status=0
-    else
-        status=$?
-    fi
-    rm -f "$directory"
-    mv "$backup" "$directory"
-    [ "$status" -ne 0 ] && printf '%s\n' "$output" | grep -Fq "$diagnostic"
-}
-trap cleanup_review_directories EXIT
-if review_directory_rejected "$CORE_REVIEW_DIRECTORY" 'Core review module directory is missing or unsafe' \
-    && review_directory_rejected "$ADAPTER_PROVIDER_DIRECTORY" 'adapter quality provider directory is missing or unsafe'; then
-    pass 'symlinked review runtime directories are rejected'
-else
-    fail 'a symlinked review runtime directory was accepted or lacked its diagnostic'
-fi
-cleanup_review_directories
-trap - EXIT
-
 printf '%s\n' '── validate-harness: tracked blank-line violations fail closed ──'
 BLANK_LINE_FIXTURE=$(mktemp "$REPO_ROOT/packages/prism-core/docs/.blank-line-test.XXXXXX")
 BLANK_LINE_RELATIVE=${BLANK_LINE_FIXTURE#"$REPO_ROOT"/}
