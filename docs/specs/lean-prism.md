@@ -108,7 +108,7 @@ they remain useful. This checklist tracks execution, not additional approvals.
 - [ ] Simplify the safety extension with tests for credential and commit safety,
       ordinary command freedom, and recovery after rejected/failed operations.
 - [x] Remove web-tool consent gating while preserving search/fetch safety tests.
-- [ ] Delete legacy consent CLI/state-management and setup callers with their engines.
+- [x] Delete legacy consent CLI/state-management and setup callers with their engines.
 - [x] Replace setup with Core/module skills and template file selection.
 - [ ] Remove catalogue/bootstrap/provider/reconciliation engines and callers.
 - [x] Remove reviewer executable, receipts, chains and finalization authority.
@@ -197,14 +197,19 @@ Completed:
   (including packaged resources and retained safety/web behavior), 36 CI-contract
   checks, YAML parsing and warning-level Shellcheck pass. CI itself was not run.
 
+- Removed the unused consent CLI and its record migration/mutation implementation.
+  Retired commands reject normally and leave fixture user records unchanged. All
+  52 web-access tests plus four cutover tests and the packaged Core test pass.
+  Existing real user consent files were not read, migrated or deleted.
+
 Next tasks: finish the small secret guard and remove obsolete engines;
 finish specialist workflow/skill callers still using the old contracts. Keep TDD for runtime behavior. Existing tests of deleted policy
 will need retirement/replacement, not preservation through compatibility shims.
 
 Important current state:
 
-- Much runtime code is still the OLD implementation: consent CLI/state
-  administration, provisioning, catalogue and distributed-hook engines remain.
+- Much runtime code is still the OLD implementation: provisioning, catalogue,
+  general launcher and distributed-hook engines remain.
   Web search/fetch no longer consult consent; their authorization adapter was
   deleted. All 52 web-access tests pass, including guarded transport and fallback. Safety's fatal
   latch, denial counter, commit-exclusivity guard and destructive-command

@@ -38,21 +38,17 @@ test('local readiness requires only Semgrep and never invokes a reviewer', async
     assert.equal(JSON.parse(result.stdout).status, 'GO');
 });
 
-test('setup migration preserves the legacy web choice and requires explicit approval', async (t) => {
+test('the retired consent interface leaves existing user records unchanged', async (t) => {
     const directory = makeTempDir();
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
     const consentPath = path.join(directory, 'prism-consent.json');
-    const legacy = JSON.stringify({schemaVersion: 2, ocr: true, webAccess: true});
+    const legacy = JSON.stringify({schemaVersion: 3, webAccess: false});
     fs.writeFileSync(consentPath, legacy, {mode: 0o600});
-    const context = {consentPath};
-    const before = await capture(() => main(['consent', 'status', '--json'], context));
-    assert.deepEqual(JSON.parse(before.stdout), {schemaVersion: 3, command: 'consent status',
-        status: 'GRANTED', webAccess: true, legacy: true});
-    assert.equal(fs.readFileSync(consentPath, 'utf8'), legacy);
-    assert.equal((await capture(() => main(['consent', 'migrate'], context))).status, 2);
-    assert.equal(fs.readFileSync(consentPath, 'utf8'), legacy);
-    assert.equal((await capture(() => main(['consent', 'migrate', '--approval=yes'], context))).status, 0);
-    assert.deepEqual(JSON.parse(fs.readFileSync(consentPath)), {schemaVersion: 3, webAccess: true});
+    for (const args of [['status', '--json'], ['migrate', '--approval=yes'], ['revoke-web']]) {
+        const result = await capture(() => main(['consent', ...args], {consentPath}));
+        assert.equal(result.status, 2);
+        assert.equal(fs.readFileSync(consentPath, 'utf8'), legacy);
+    }
 });
 
 test('retired review dispatch cannot execute any subprocess', async () => {
@@ -71,13 +67,10 @@ test('current contracts contain no retired review integration outside bounded mi
         'packages', '.github', 'README.md', 'CODING_HARNESS.md', 'CONTRIBUTING.md', 'backend', 'tests'],
     {cwd: root, encoding: 'utf8'}).split('\0').filter(Boolean);
     const migrationAndRegression = new Set([
-        'packages/prism-core/scripts/prism-tool/consent.js',
-        'packages/prism-core/scripts/prism-review/legacy-review-chain.js',
         'packages/prism-core/scripts/sensitive-path-policy.js',
         'packages/prism-core/extensions/safety/sensitive-paths.ts',
-        'tests/Node/prism-cutover.test.js', 'tests/Node/prism-tool-consent.test.js',
+        'tests/Node/prism-cutover.test.js',
         'tests/Node/prism-tool-php-web-bootstrap.test.js', 'tests/Node/safety-sensitive-paths.test.ts',
-        'tests/Shell/prism_review_architecture_contract_test.sh',
     ]);
     const violations = [];
     for (const relative of new Set(paths)) {

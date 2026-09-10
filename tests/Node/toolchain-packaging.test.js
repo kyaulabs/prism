@@ -173,6 +173,7 @@ test('packs the core package with every owned resource and executable modes', ()
         'Distill pattern reference packaged'
     );
     assert.equal(packed.files.has('config/prism-review.json'), false, 'review profile retired');
+    assert.equal(packed.files.has('scripts/prism-tool/consent.js'), false, 'consent administration retired');
     for (const skill of REVIEW_SKILLS) {
         assert.equal(packed.files.has(`skills/${skill}/SKILL.md`), false, `${skill} retired`);
     }
@@ -227,7 +228,7 @@ test('packs the core package with every owned resource and executable modes', ()
         'bootstrap-source',
         'bootstrap-repository', 'bootstrap-seed', 'bootstrap-transaction',
         'catalogue-publication-readiness', 'cli', 'commit', 'core-toolchain', 'hook',
-        'consent', 'contract', 'discovery', 'managed-record', 'markdown',
+        'contract', 'discovery', 'managed-record', 'markdown',
         'preflight', 'process', 'setup-entry', 'setup-route',
         'web-access-browser', 'web-access-config',
         'supported-adapters', 'template-source', 'template-source-http',

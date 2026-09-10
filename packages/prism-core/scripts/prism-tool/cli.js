@@ -64,7 +64,6 @@ const {commitCommand} = require('./commit');
 const {hookCommand} = require('./hook');
 const {verifyManagedProject} = require('./managed-project');
 const {markdownCommand} = require('./markdown');
-const {consentCommand} = require('./consent');
 const {webAccessCommand} = require('./web-access-config');
 const {
     cataloguePublicationReadinessCommand,
@@ -2026,7 +2025,6 @@ function main(argv, context = {}) {
     if (command === 'commit') return commitCommand(args, context);
     if (command === 'hook') return hookCommand(args, context);
     if (command === 'markdown') return markdownCommand(args, context);
-    if (command === 'consent') return consentCommand(args, context);
     if (command === 'web-access') return webAccessCommand(args, context);
     if (command === 'catalogue-publication') {
         return cataloguePublicationReadinessCommand(args, context);
