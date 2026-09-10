@@ -172,6 +172,14 @@ Completed:
   current inventory, adapt staged/redacted hook scanning, and not claim generated
   workflows were copied from the template. No consumer setup was actually executed.
 
+- Simplified `install-global.sh` to normal Pi installation, existing source-selection
+  cleanup and a small merge-safe `deploy-context.js` helper. No reviewer/launcher
+  deployment, readiness checks or network-approval flags remain. Context refresh
+  preserves user prefix/suffix text and npm registration; malformed markers and
+  symlinks are rejected, replacements use private temporary files and rename.
+  Eighteen installer/source-selection tests and the packaged helper test pass.
+  These are isolated fixture installs; the user's global installation was not run.
+
 Next tasks: finish the small secret guard and remove obsolete engines;
 finish specialist workflow/skill callers still using the old contracts. Keep TDD for runtime behavior. Existing tests of deleted policy
 will need retirement/replacement, not preservation through compatibility shims.

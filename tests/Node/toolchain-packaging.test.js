@@ -651,14 +651,18 @@ test('discovers the local adapter through Pi settings from an unrelated project'
     assert.equal(report.data.phpVersion, '8.5.0');
 });
 
-test('ships the launcher ownership guard so unrelated executables are never replaced', () => {
+test('packs a usable standalone context deployment helper', () => {
     const packed = packPackage(CORE_PKG);
     const coreRoot = extractTarball(packed.tarball, path.join(packed.dir, 'core'));
-    const installer = fs.readFileSync(path.join(coreRoot, 'scripts', 'install-global.sh'), 'utf8');
-    assert.match(installer, /prism-core:managed-launcher begin/);
-    assert.match(installer, /launcher_is_managed/);
-    assert.match(installer, /refusing to replace an unmanaged launcher/);
-    assert.match(installer, /refusing to remove an unmanaged launcher/);
+    const destination = path.join(packed.dir, 'agent');
+    fs.mkdirSync(destination);
+    fs.writeFileSync(path.join(destination, 'AGENTS.md'), '# User context\n');
+    const {deployContext} = require(path.join(coreRoot, 'scripts', 'deploy-context.js'));
+    deployContext(coreRoot, destination);
+    const context = fs.readFileSync(path.join(destination, 'AGENTS.md'), 'utf8');
+    assert.ok(context.startsWith('# User context\n'));
+    assert.match(context, /prism-core:begin AGENTS.md/);
+    assert.equal(fs.existsSync(path.join(destination, 'APPEND_SYSTEM.md')), true);
 });
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :
