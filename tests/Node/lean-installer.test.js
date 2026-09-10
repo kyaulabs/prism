@@ -18,6 +18,7 @@ function fixture(t) {
     const agent = path.join(root, 'agent');
     const bin = path.join(root, 'bin');
     for (const directory of [source, agent, bin]) fs.mkdirSync(directory, {mode: 0o700});
+    fs.symlinkSync(process.execPath, path.join(bin, 'node'));
     fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({name: '@kyaulabs/prism-core'}));
     fs.writeFileSync(path.join(source, 'AGENTS.md'), '# Core instructions\n');
     fs.writeFileSync(path.join(source, 'APPEND_SYSTEM.md'), '# Core reminder\n');
