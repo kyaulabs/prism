@@ -3,11 +3,11 @@
 Read `packages/prism-core/AGENTS.md` for the shared engineering defaults.
 This checkout develops and dogfoods the harness itself.
 
-## Active refactor
+## Lean Prism 1.0
 
-`docs/specs/lean-prism.md` records the approved breaking redesign and execution
-checklist. The local replacement is implemented and verified; replacement
-publication precedes hosted catalogue deletion. See `docs/catalogue-retirement.md`.
+`docs/specs/lean-prism.md` records the completed breaking redesign and verification.
+Both 1.0.0 packages are published, release/back-merge automation is restored, and
+the obsolete hosted catalogue is deleted. See `docs/catalogue-retirement.md`.
 Historical ADRs document old designs, not current workflow requirements.
 
 ## Packages
@@ -80,9 +80,8 @@ consumer setup defaults. Downstream users authorize their own GitHub operations.
 - `npm publish` requires manual intervention by the user. Prepare and verify
   packages and GitHub releases automatically, but leave registry publication to
   the user; never request registry tokens in chat or attempt login on their behalf.
-- For catalogue retirement, verify both replacement packages are published before
-  deleting `kyaulabs/prism-adapters`. Retire only dedicated catalogue infrastructure
-  and preserve shared credentials/integrations.
+- Catalogue retirement is complete. Preserve shared credentials/integrations;
+  deleting stored secrets or a repository does not prove underlying token revocation.
 
 ## References
 

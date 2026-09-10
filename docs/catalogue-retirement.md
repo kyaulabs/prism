@@ -9,10 +9,14 @@ user and independently confirmed through public registry metadata.
 
 PRs #539, #540 and #541 delivered the replacement to main and develop. GitHub
 release `v1.0.0` exists at `198dc104c00ddd60216b53bfb724cd6e66b39fcf`.
-Deletion is authorized, but both logged-in accounts lack the `delete_repo` token
-scope. GitHub rejected deletion with HTTP 403; the repository still exists.
-The owner can grant that scope through native `gh auth refresh` or delete the
-repository in GitHub's UI. No authentication configuration was changed.
+The owner deleted `kyaulabs/prism-adapters` after publication. Subsequent GitHub
+API inspection returned HTTP 404, consistent with that confirmation. Retirement
+is complete. Earlier agent attempts lacked `delete_repo` scope; no authentication
+configuration was changed to bypass that limit.
+
+PRs #542–#543 restored workflow-only release-on-merge and automatic back-merge.
+Both hosted workflows succeeded, and all three 1.0.0 release/package tags resolve
+to the release commit above. Published package contents were unchanged.
 
 ## Automation retired
 
@@ -32,8 +36,8 @@ infrastructure was not changed.
 
 ## Credential inventory for the owner
 
-Only secret **names**, not values, were inspected. The catalogue's
-`catalogue-signing` environment contains:
+Only secret **names**, not values, were inspected. Before repository deletion,
+the catalogue's `catalogue-signing` environment contained:
 
 - `CATALOGUE_COMMIT_SIGNING_PASSPHRASE`
 - `CATALOGUE_COMMIT_SIGNING_PRIVATE_KEY`
@@ -44,7 +48,7 @@ Only secret **names**, not values, were inspected. The catalogue's
 Prism's `catalogue-dispatch` environment formerly contained
 `CATALOGUE_DISPATCH_TOKEN`. That dedicated environment has been deleted and its
 absence verified; the unrelated `copilot` environment was preserved.
-The catalogue also has the `CATALOGUE_SIGNING_ENABLED` variable. These names
+The catalogue also held the `CATALOGUE_SIGNING_ENABLED` variable. These names
 identify dedicated storage and workflows; they do not establish whether an
 underlying account token or signing identity is shared elsewhere.
 
@@ -60,11 +64,10 @@ The user selected replacement delivery first and authorized automatic push,
 PR, review, merge and publication. Push as `kyau`; create and merge PRs and
 delete merged task branches as `kyaulabs-bot`. Run every PR Test Plan item after
 PR creation before approving as `kyau`. Preserve `main`, `develop` and release
-branches. Repository deletion has not occurred.
-
-The user completed manual npm publication. Catalogue deletion now waits only
-for adequate repository-deletion permission or owner deletion, not another scope
-approval. Do not request credential values or attempt interactive login.
+branches. The user completed manual npm publication, then deleted the catalogue.
+No repository-deletion action remains. The credential inventory above remains
+for owner-side review of underlying token/signing identities; deletion is not
+proof of account-level revocation.
 
 The Prism release/back-merge workflows are retained: GitHub Actions may use its
 own identity. Coding-agent account roles are scoped to agent operations in the
