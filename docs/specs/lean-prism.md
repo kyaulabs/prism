@@ -180,6 +180,14 @@ Completed:
   Eighteen installer/source-selection tests and the packaged helper test pass.
   These are isolated fixture installs; the user's global installation was not run.
 
+- Repository hooks now use native tools, not `prism-tool` or global readiness.
+  Pre-commit inspects staged paths before scanning, suppresses scanner findings,
+  and lints staged snapshots without RCS auto-rewrites. Protected type changes,
+  partial staging and unusual filenames are covered. Removed pre-push and
+  prepare-commit-msg policy gates. Thirty focused hook/commit tests, Shellcheck
+  and the new path-checker's ESLint check pass. Legacy distributed hook engines
+  and their callers still need deletion; this changes the repository-owned hooks.
+
 Next tasks: finish the small secret guard and remove obsolete engines;
 finish specialist workflow/skill callers still using the old contracts. Keep TDD for runtime behavior. Existing tests of deleted policy
 will need retirement/replacement, not preservation through compatibility shims.
@@ -187,7 +195,7 @@ will need retirement/replacement, not preservation through compatibility shims.
 Important current state:
 
 - Much runtime code is still the OLD implementation: reviewer, consent CLI/state
-  administration, provisioning, catalogue and full pre-commit readiness remain.
+  administration, provisioning, catalogue and distributed-hook engines remain.
   Web search/fetch no longer consult consent; their authorization adapter was
   deleted. All 52 web-access tests pass, including guarded transport and fallback. Safety's fatal
   latch, denial counter, commit-exclusivity guard and destructive-command
