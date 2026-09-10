@@ -15,6 +15,8 @@ function fixture(t) {
     t.after(() => fs.rmSync(cwd, {recursive: true, force: true}));
     const bin = path.join(cwd, 'bin');
     fs.mkdirSync(bin);
+    // setup-node and version managers install outside the fixture's system PATH.
+    fs.symlinkSync(process.execPath, path.join(bin, 'node'));
     const env = {...process.env, PATH: `${bin}:/usr/bin:/bin`, PRISM_TOOL: '/not-installed/prism-tool'};
     const run = (command, args = []) => spawnSync(command, args, {cwd, env, encoding: 'utf8'});
     assert.equal(run('git', ['init', '-q']).status, 0);

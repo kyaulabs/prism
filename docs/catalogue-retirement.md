@@ -57,6 +57,6 @@ delete merged task branches as `kyaulabs-bot`. Run every PR Test Plan item after
 PR creation before approving as `kyau`. Preserve `main`, `develop` and release
 branches. Repository deletion has not occurred.
 
-Both npm and pnpm currently return HTTP 401 for native `whoami`. Publication
-requires restoration of native registry authentication, without exposing tokens.
-Git delivery may proceed while that authentication requirement remains.
+The user will perform `npm publish` manually. GitHub delivery proceeds
+automatically; catalogue deletion waits for confirmation that both replacement
+packages are published. Do not request tokens or attempt registry login.

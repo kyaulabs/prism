@@ -138,5 +138,6 @@ See `docs/catalogue-retirement.md` for exact workflow IDs and credential names.
 The user authorized replacement delivery first. Push as `kyau`, create/merge PRs
 and delete merged task branches as `kyaulabs-bot`, and run every Test Plan item
 after PR creation before approving as `kyau`. Preserve main/develop/release
-branches. Native npm and pnpm authentication currently return HTTP 401; registry
-login must be restored before publication and subsequent catalogue deletion.
+branches. The user will perform `npm publish` manually; verify both published
+replacement packages before deleting the catalogue. No registry login is needed
+from the agent.
