@@ -1,25 +1,115 @@
 name: Release
 
 on:
-  push:
-    tags: ['v*']
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without leading v (recovery)
+        required: true
+        type: string
+      merge_sha:
+        description: Exact 40-character merge commit SHA (recovery)
+        required: true
+        type: string
+
+concurrency:
+  group: release-publication
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.head.ref, 'release/') &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
-      - name: Create or reuse GitHub release
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate release and extract changelog
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          VERSION_INPUT: ${{ inputs.version }}
+          MERGE_SHA: ${{ inputs.merge_sha || github.event.pull_request.merge_commit_sha }}
+        shell: bash
         run: |
           set -euo pipefail
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo 'Release already exists.'
-          else
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then version="$VERSION_INPUT"; else version="${HEAD_REF#release/}"; fi
+          [[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z-]+\.)*[0-9A-Za-z-]+)?(\+([0-9A-Za-z-]+\.)*[0-9A-Za-z-]+)?$ ]]
+          stable="${version%%+*}"
+          if [[ "$stable" == *-* ]]; then
+            IFS=. read -ra identifiers <<< "${stable#*-}"
+            for identifier in "${identifiers[@]}"; do
+              if [[ "$identifier" =~ ^[0-9]+$ && "$identifier" != 0 && "$identifier" == 0* ]]; then exit 1; fi
+            done
           fi
+          [[ "$(git rev-parse HEAD)" == "$MERGE_SHA" ]]
+          git merge-base --is-ancestor "$MERGE_SHA" origin/main
+          for package in prism-core prism-php-web; do
+            jq -e --arg version "$version" --arg name "@kyaulabs/$package" \
+              '.version == $version and .name == $name and .private != true' "packages/$package/package.json" >/dev/null
+          done
+          notes_dir=$(mktemp -d "$RUNNER_TEMP/prism-release-XXXXXX")
+          awk -v version="$version" '
+            /^## / {active=index($0,"[" version "]")>0; if(active) count++; next}
+            active {print; if($0 ~ /[^[:space:]]/) body=1}
+            END {if(count!=1 || !body) exit 1}
+          ' CHANGELOG.md > "$notes_dir/full.md"
+          cp "$notes_dir/full.md" "$notes_dir/body.md"
+          if [[ $(wc -c < "$notes_dir/body.md") -gt 120000 ]]; then
+            LC_ALL=C awk 'BEGIN {size=0} {size+=length($0)+1; if(size>110000) exit; print}' "$notes_dir/full.md" > "$notes_dir/body.md"
+            printf '\nFull changelog attached.\n' >> "$notes_dir/body.md"
+          fi
+          printf 'VERSION=%s\nMERGE_SHA=%s\nNOTES_DIR=%s\n' "$version" "$MERGE_SHA" "$notes_dir" >> "$GITHUB_ENV"
+      - name: Create or reuse release tags and GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Native API calls preserve existing refs and fail on non-404 errors.
+          for tag in "v$VERSION" "prism-core@$VERSION" "prism-php-web@$VERSION"; do
+            if probe=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>&1); then
+              :
+            elif [[ "$probe" == *"(HTTP 404)"* ]]; then
+              # A concurrent creator is acceptable only if the target agrees below.
+              gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+                -f "ref=refs/tags/$tag" -f "sha=$MERGE_SHA" >/dev/null 2>&1 || \
+                gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1
+            else
+              echo 'Release tag inspection failed.' >&2; exit 1
+            fi
+            existing=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$tag" --jq .sha)
+            if [[ "$existing" != "$MERGE_SHA" ]]; then
+              echo 'Existing release tag has a different target; nothing was overwritten.' >&2; exit 1
+            fi
+          done
+          if probe=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" 2>&1); then
+            echo 'GitHub release already exists at the verified tag.'
+          elif [[ "$probe" == *"(HTTP 404)"* ]]; then
+            args=()
+            [[ "${VERSION%%+*}" != *-* ]] || args+=(--prerelease)
+            if [[ $(wc -c < "$NOTES_DIR/full.md") -gt 120000 ]]; then
+              args+=("$NOTES_DIR/full.md#full-changelog-v$VERSION.md")
+            fi
+            gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "v$VERSION" --notes-file "$NOTES_DIR/body.md" "${args[@]}"
+          else
+            echo 'GitHub release inspection failed.' >&2; exit 1
+          fi
+          echo 'GitHub publication complete. npm publication remains manual.'

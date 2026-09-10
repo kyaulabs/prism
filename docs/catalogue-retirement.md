@@ -4,12 +4,15 @@
 
 The local Lean Prism implementation no longer ships a catalogue client,
 publication integration, signatures, provisioning protocol or notification
-workflow. The replacement packages are prepared as 1.0.0, not published.
+workflow. Both replacement packages were manually published as **1.0.0** by the
+user and independently confirmed through public registry metadata.
 
-Initial remote inspection found Core 0.6.0 with the old executables and protocol.
-The replacement is merged to develop through PR #539 and prepared on
-`release/1.0.0` for main delivery. Deletion still waits for manual npm publication
-so existing consumers have an available replacement.
+PRs #539, #540 and #541 delivered the replacement to main and develop. GitHub
+release `v1.0.0` exists at `198dc104c00ddd60216b53bfb724cd6e66b39fcf`.
+Deletion is authorized, but both logged-in accounts lack the `delete_repo` token
+scope. GitHub rejected deletion with HTTP 403; the repository still exists.
+The owner can grant that scope through native `gh auth refresh` or delete the
+repository in GitHub's UI. No authentication configuration was changed.
 
 ## Automation retired
 
@@ -38,7 +41,9 @@ Only secret **names**, not values, were inspected. The catalogue's
 - `CATALOGUE_SIGNING_PASSPHRASE`
 - `CATALOGUE_SIGNING_PRIVATE_KEY`
 
-Prism's `catalogue-dispatch` environment contains `CATALOGUE_DISPATCH_TOKEN`.
+Prism's `catalogue-dispatch` environment formerly contained
+`CATALOGUE_DISPATCH_TOKEN`. That dedicated environment has been deleted and its
+absence verified; the unrelated `copilot` environment was preserved.
 The catalogue also has the `CATALOGUE_SIGNING_ENABLED` variable. These names
 identify dedicated storage and workflows; they do not establish whether an
 underlying account token or signing identity is shared elsewhere.
@@ -57,6 +62,10 @@ delete merged task branches as `kyaulabs-bot`. Run every PR Test Plan item after
 PR creation before approving as `kyau`. Preserve `main`, `develop` and release
 branches. Repository deletion has not occurred.
 
-The user will perform `npm publish` manually. GitHub delivery proceeds
-automatically; catalogue deletion waits for confirmation that both replacement
-packages are published. Do not request tokens or attempt registry login.
+The user completed manual npm publication. Catalogue deletion now waits only
+for adequate repository-deletion permission or owner deletion, not another scope
+approval. Do not request credential values or attempt interactive login.
+
+The Prism release/back-merge workflows are retained: GitHub Actions may use its
+own identity. Coding-agent account roles are scoped to agent operations in the
+repository-local `AGENTS.md`, not imposed on Actions or downstream Prism users.
