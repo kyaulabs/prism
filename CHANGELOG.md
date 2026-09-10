@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
-## 1.0.0 — Unreleased
+## [1.0.0](https://github.com/kyaulabs/prism/releases/tag/v1.0.0) — 2026-09-09
 
 - Replace workflow executables, reviewer receipts and catalogue/provisioning
   protocols with ordinary Pi skills and native project tools.
