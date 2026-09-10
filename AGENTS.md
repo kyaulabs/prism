@@ -44,14 +44,37 @@ assets from their SCSS/JavaScript sources when those sources change.
   and applicable lint. Hooks do not rewrite source or enforce workflow readiness.
 - Use Conventional Commits with `Implemented-by` and `Signed-off-by` only.
   Follow Git signing configuration and commit verified logical changes.
-- Delivery is authorized: use `kyau` for Git pushes and signed local commits.
-  Use `kyaulabs-bot` for creating PRs, merging them and deleting merged task
-  branches. Never delete `main`, `develop` or `release/X.Y.Z` branches.
-- After creating each PR, execute every item in its **Test Plan** before
-  approving the review as `kyau`. Then merge as `kyaulabs-bot`, respecting normal
-  repository protections. These are standing instructions; do not ask again.
-- Deliver the replacement before deleting `kyaulabs/prism-adapters`. Retire only
-  dedicated catalogue infrastructure and preserve shared credentials/integrations.
+
+## Automatic GitHub delivery — Prism development only
+
+These standing instructions apply when developing `kyaulabs/prism` itself.
+They must not be copied into global Core instructions, distributed skills or
+consumer setup defaults. Downstream users authorize their own GitHub operations.
+
+- Automatically push verified work, create PRs, review, merge and clean up merged
+  task branches without asking for routine approval again. Follow Git-flow unless
+  the user specifies a different flow. Respect repository protections; do not
+  bypass reviews, failing checks or signing requirements.
+- Use `kyau` for Git pushes and local commits, with its existing SSH/YubiKey/GPG
+  setup and Git signing configuration. Do not change authentication or signing
+  configuration or read credential values.
+- Use `kyaulabs-bot` to create all PRs, merge PRs and delete merged task branches.
+  Never delete `main`, `develop` or `release/X.Y.Z` branches. Preserve unrelated
+  branches/work rather than assuming they are stale.
+- Select the required GitHub account with `gh auth switch --user <account>` and
+  verify its login before account-sensitive operations.
+- After creating **each** PR, execute every item in its **Test Plan** against the
+  current PR head and record the results. Fix concrete findings through TDD,
+  repeat verification after changes and wait for passing CI before approval.
+- Only then approve the PR review as `kyau`; switch to `kyaulabs-bot` to merge
+  and delete its merged task branch. Do not reuse pre-PR testing as the entire
+  post-creation Test Plan.
+- `npm publish` requires manual intervention by the user. Prepare and verify
+  packages and GitHub releases automatically, but leave registry publication to
+  the user; never request registry tokens in chat or attempt login on their behalf.
+- For catalogue retirement, verify both replacement packages are published before
+  deleting `kyaulabs/prism-adapters`. Retire only dedicated catalogue infrastructure
+  and preserve shared credentials/integrations.
 
 ## References
 
