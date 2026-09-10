@@ -47,7 +47,8 @@ assets from their SCSS/JavaScript sources when those sources change.
 
 ## Automatic GitHub delivery — Prism development only
 
-These standing instructions apply when developing `kyaulabs/prism` itself.
+These standing instructions govern coding-agent operations when developing
+`kyaulabs/prism` itself, not the identity of GitHub Actions workflows.
 They must not be copied into global Core instructions, distributed skills or
 consumer setup defaults. Downstream users authorize their own GitHub operations.
 
@@ -69,10 +70,13 @@ consumer setup defaults. Downstream users authorize their own GitHub operations.
 - Only then approve the PR review as `kyau`; switch to `kyaulabs-bot` to merge
   and delete its merged task branch. Do not reuse pre-PR testing as the entire
   post-creation Test Plan.
-- After release merges to `main`, create the `main` → `develop` back-merge PR
-  as `kyaulabs-bot` and follow the same Test Plan/review/merge sequence. The older
-  `back-merge.yml` hosted workflow is disabled because its `GITHUB_TOKEN` creates
-  PRs as `github-actions`, not the designated account. Do not silently re-enable it.
+- Preserve unattended GitHub Actions automation. Merging `release/X.Y.Z` into
+  `main` automatically creates the repository/package tags and GitHub release
+  from the changelog. Manual workflow dispatch supports publication recovery.
+- The back-merge workflow automatically opens/reuses `main` → `develop` PRs as
+  `github-actions`. This workflow identity is intentional. Reuse that PR rather
+  than creating a duplicate; add a Test Plan if missing, then follow the same
+  post-creation verification, `kyau` approval and `kyaulabs-bot` merge sequence.
 - `npm publish` requires manual intervention by the user. Prepare and verify
   packages and GitHub releases automatically, but leave registry publication to
   the user; never request registry tokens in chat or attempt login on their behalf.
