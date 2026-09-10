@@ -1,7 +1,7 @@
 # Lean Prism
 
 Status: 1.0.0 delivered through PRs #539–#541 and manually published to npm.
-Release branch `release/1.0.0` is preserved. Hosted deletion lacks token permission.
+Release branch `release/1.0.0` is preserved. Hosted catalogue retirement is complete.
 
 ## Approved design
 
@@ -95,8 +95,10 @@ compatibility shims. Both 1.0.0 packages are published.
 - [x] Resolve delivery ordering and merge implementation through tested PR #539.
 - [x] Complete GitHub release delivery and verify both manual npm publications.
 - [x] Remove the dedicated Prism catalogue-dispatch environment.
-- [ ] Delete the hosted catalogue repository (GitHub rejected both tokens for
-  missing `delete_repo` scope; owner action required).
+- [x] Delete the hosted catalogue repository (owner confirmed deletion; subsequent
+  GitHub API inspection returned HTTP 404).
+- [x] Restore workflow-only release-on-merge and automatic back-merge through
+  PRs #542–#543; actual hosted runs succeeded.
 
 ## Verification and implementation evidence
 
@@ -134,8 +136,8 @@ compatibility shims. Both 1.0.0 packages are published.
 PRs #539–#541 delivered the replacement to main and develop. GitHub release
 `v1.0.0` exists, and both npm 1.0.0 packages were independently verified after
 manual publication by the user. The obsolete catalogue-dispatch environment is
-removed. Repository deletion is authorized but blocked by missing `delete_repo`
-token scope for both logged-in accounts; no credentials were read or changed.
+removed. The owner subsequently deleted the catalogue; GitHub API inspection
+returned HTTP 404. No credentials were read or authentication settings changed.
 
 Four dedicated workflows were disabled and their disabled state verified. No
 queued/in-progress catalogue runs were returned. Secret names were inventoried;
@@ -145,7 +147,10 @@ See `docs/catalogue-retirement.md` for exact workflow IDs and credential names.
 The user authorized replacement delivery first. Push as `kyau`, create/merge PRs
 and delete merged task branches as `kyaulabs-bot`, and run every Test Plan item
 after PR creation before approving as `kyau`. Preserve main/develop/release
-branches. npm publication remains manual and is complete for 1.0.0. Restore and
-preserve unattended release-on-merge and back-merge GitHub Actions; the account
-instructions govern the coding agent, not Actions identities. The restoration is
-workflow-only and does not change the published package contents.
+branches. npm publication remains manual and is complete for 1.0.0. PRs #542–#543
+restored unattended release-on-merge and back-merge GitHub Actions; account
+instructions govern the coding agent, not Actions identities. Hosted recovery run
+34430482078 and back-merge run 34430480923 succeeded. The workflow-only repair
+left published package contents unchanged. The approved refactor is complete;
+underlying credential revocation remains an owner-side check, not a claim made
+from deleting stored secrets or the repository.
