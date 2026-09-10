@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: coverage_gate_test.sh kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
 
 # ── Tests for coverage-gate.php changed-file coverage gate ───────────────────
 # Verifies that the script correctly parses Clover XML, intersects with
-# changed files from stdin, and enforces >=80% per-file coverage.
+# changed files from stdin, and enforces >=90% per-file coverage by default.
 
 set -euo pipefail
 
@@ -193,7 +193,7 @@ register_temp_dir "$T8"
 	mkdir -p backend
 	echo '<?php' > backend/env.php
 	CLOVER="${T8}/clover.xml"
-	# 85% coverage — passes default 80 but fails 90
+	# 85% coverage fails the explicit 90% threshold
 	build_clover "$CLOVER" "$T8" "backend/env.php:85:100"
 	printf 'backend/env.php\n' | php "$SCRIPT" "$CLOVER" --root="$T8" --min=90 >out.txt 2>&1 || rc=$?
 	if [ "${rc:-1}" -eq 1 ] && grep -q 'FAIL' out.txt; then
@@ -393,6 +393,38 @@ register_temp_dir "$T14"
 	else
 		fail "expected exit 2 + parse error, got rc=${rc:-0}"
 	fi
+)
+
+echo "── Default threshold rejects 89% ──"
+T_DEFAULT=$(mktemp -d)
+register_temp_dir "$T_DEFAULT"
+(
+    cd "$T_DEFAULT"
+    printf '<?php\n' > example.php
+    build_clover clover.xml "$T_DEFAULT" "example.php:89:100"
+    rc=0
+    printf 'example.php\n' | php "$SCRIPT" clover.xml --root="$T_DEFAULT" >out.txt 2>&1 || rc=$?
+    if [ "$rc" -eq 1 ] && grep -q 'min 90%' out.txt; then
+        pass "default 90% threshold rejects 89%"
+    else
+        fail "expected default 90% rejection, got rc=$rc"
+    fi
+    build_clover clover.xml "$T_DEFAULT" "example.php:90:100"
+    rc=0
+    printf 'example.php\n' | php "$SCRIPT" clover.xml --root="$T_DEFAULT" >out.txt 2>&1 || rc=$?
+    if [ "$rc" -eq 0 ] && grep -q 'min 90%' out.txt; then
+        pass "exactly 90% meets the default threshold"
+    else
+        fail "expected exactly 90% to pass, got rc=$rc"
+    fi
+    build_clover clover.xml "$T_DEFAULT" "example.php:80:100"
+    rc=0
+    printf 'example.php\n' | php "$SCRIPT" clover.xml --root="$T_DEFAULT" --min=80 >out.txt 2>&1 || rc=$?
+    if [ "$rc" -eq 0 ] && grep -q 'min 80%' out.txt; then
+        pass "project can override the default with --min=80"
+    else
+        fail "expected explicit threshold override to pass, got rc=$rc"
+    fi
 )
 
 # ── Summary ────────────────────────────────────────────────────────────

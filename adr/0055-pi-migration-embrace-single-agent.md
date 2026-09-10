@@ -6,6 +6,8 @@ Date: 2026-08-12
 
 Accepted
 
+Partially superseded by ADR-0111 for session-handoff context management only.
+
 ## Context
 
 The KYAULabs coding harness has run on opencode (`.opencode/`, `opencode.jsonc`,

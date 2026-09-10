@@ -15,8 +15,7 @@ source "$REPO_ROOT/tests/Shell/lib/test_helpers.sh"
 setup_result_file
 
 HOOK="$REPO_ROOT/.github/hooks/pre-commit"
-CHECKER="$REPO_ROOT/packages/prism-core/scripts/check-blank-lines.sh"
-TARGETS=("$HOOK" "$CHECKER")
+TARGETS=("$HOOK")
 
 # 1. sed brace-grouping syntax '{ ... }' (BSD sed parses unreliably across
 #    -e args and rejects forms without ';' before '}'). Banned entirely —

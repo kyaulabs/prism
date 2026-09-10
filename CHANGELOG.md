@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
+## [1.0.0](https://github.com/kyaulabs/prism/releases/tag/v1.0.0) — 2026-09-09
+
+- Replace workflow executables, reviewer receipts and catalogue/provisioning
+  protocols with ordinary Pi skills and native project tools.
+- Keep TDD, proportional planning, same-session review and configured Git signing.
+- Preserve credential protection and bounded web access without session lockouts,
+  general shell restrictions or standing web-consent records.
+- Simplify modular setup, context installation, hooks, CI and optional tracking
+  and teaching workflows. PHP changed-file coverage defaults to 90%.
+- See [migration guidance](docs/migration-1.0.md) for breaking changes. Hosted
+  catalogue automation is disabled; deletion awaits delivery ordering.
+
 ## [💾](https://github.com/kyaulabs/prism/releases/tag/v0.6.0) [0.6.0](https://github.com/kyaulabs/prism/compare/v0.5.0...v0.6.0) - (2026-09-08)
 
 ### ⚗️ Testing
@@ -859,7 +871,6 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Scripts] Silence shellcheck info findings ([4ee96c7](https://github.com/kyaulabs/prism/commit/4ee96c7d3a7305c7025586a81509a476a85e9315))- Collapse RCS-header blank padding ([b1f48ee](https://github.com/kyaulabs/prism/commit/b1f48eea2e8a5241e978807f72854c197e04391a))
 - Normalize first-party blank lines ([4bb65ae](https://github.com/kyaulabs/prism/commit/4bb65aec4353dc4c4ac8721bb0959ae22666f16e))
 
-
 ### 📝 Documentation
 
 - [Adr] Record three-footer policy with OCR-sourced tested-by ([b6d6d3c](https://github.com/kyaulabs/prism/commit/b6d6d3c6309e137ec0fa3f1e33aa10f6a6f122c8))
@@ -1083,7 +1094,6 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Workflow] Delegate pull request preparation to pr ([73b3389](https://github.com/kyaulabs/prism/commit/73b33897a6e005abbe3f546ad6e38ee08f9939a5))- Line endings, updated docs ([8bf1987](https://github.com/kyaulabs/prism/commit/8bf19875cb43bc143bdd663ec6861bd86fd918d5))
 - Convert RCS header to static creation stamp ([014997b](https://github.com/kyaulabs/prism/commit/014997ba77b11eae02eb9a0859753eb52ae4a781))
 
-
 ### ⚗️ Testing
 
 - [Agents] Add failing from-issue agent harness test ([94e0374](https://github.com/kyaulabs/prism/commit/94e0374fe988d812f483371492d943a3cb72bb8f))
@@ -1191,7 +1201,6 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - Fix shellcheck and BSD touch portability in CI integration tests ([120e45b](https://github.com/kyaulabs/prism/commit/120e45b287be49a2853698c0b1fbdd140f6a5f7c))
 - Add restoreEnvVars() env-snapshot helper ([6bfd329](https://github.com/kyaulabs/prism/commit/6bfd3293519d52fdb59bec342fbdaa3a114622bb))
 - Fix php warnings in parity test helper and excess blank lines ([555a03c](https://github.com/kyaulabs/prism/commit/555a03cdfd0ed474b30b2a9d0fbfc2bdcca33850))
-
 
 ### ⚡️ Performance
 
@@ -1509,7 +1518,6 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - Add missing rcs headers to fetch.sh and .php-cs-fixer.dist.php ([a73c3ac](https://github.com/kyaulabs/prism/commit/a73c3ac3730ff99b7bb9f55eacedf3b166622899))
 - Wire js/ts tests into /check command ([4febbf5](https://github.com/kyaulabs/prism/commit/4febbf5efec171b438dd7bec4ccde679835e514d))
 
-
 ### 👷 CI/CD
 
 - [Browser] Add server readiness check before Pest run ([0a0d3da](https://github.com/kyaulabs/prism/commit/0a0d3da73c8d898637a173996828221be1fb3f2c))
@@ -1548,7 +1556,6 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - Replace gitleaks Docker action with binary install ([a8857f1](https://github.com/kyaulabs/prism/commit/a8857f1c50d4d9c4784dbde7713e06ea7517319e))
 - Install semgrep into isolated venv on self-hosted runner ([17d3c5b](https://github.com/kyaulabs/prism/commit/17d3c5b95a3ee2cf27907276cc24f97f32ac86d4))
 - Allowlist deliberate leak-test canaries in gitleaks ([d2e230b](https://github.com/kyaulabs/prism/commit/d2e230bd6ae1002ac5da71bb3b726eaafa212478))
-
 
 ### 💄 Styling
 
@@ -1804,7 +1811,6 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - Add section-header emojis to pull request template ([70c809a](https://github.com/kyaulabs/prism/commit/70c809a7af4efca1bb6c0c0c2da5a853ca4decf6))
 - Align tier tables with setup.json and ADR-0031 ([226f436](https://github.com/kyaulabs/prism/commit/226f43630059d0bff13d27e03828de2664cfdabf))
 
-
 ### 📦 Build
 
 - [Coverage] Configure clover XML output in phpunit.xml ([6c32353](https://github.com/kyaulabs/prism/commit/6c3235372b9d19b2560bb7b2b2e4df777443218f))
@@ -1858,7 +1864,6 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - Bump aurora submodule to 7a00fc4 ([19d9a31](https://github.com/kyaulabs/prism/commit/19d9a31f7ba015a68ca93b3dfd61b437422c7ed0))
 - Add build/ to .gitignore (coverage artifact) ([8359d3f](https://github.com/kyaulabs/prism/commit/8359d3f36500ff9a13342ca1b784a761fb4d9998))
 - Replace stale template identity in project metadata ([0cee69d](https://github.com/kyaulabs/prism/commit/0cee69db6d4bb5330afa1d5fca99e7d840b93a48))
-
 
 ### 🚀 Features
 
@@ -1981,7 +1986,6 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
 - [Templates] Unify issue templates into single 5-section format ([8c08fcd](https://github.com/kyaulabs/prism/commit/8c08fcd754958af59b57982d18f477acb73db6bd))
 - [Tiers] Route GPT-5.6 Sol to DESIGN+PLANNER at xhigh ([ea8a2eb](https://github.com/kyaulabs/prism/commit/ea8a2eb9116fc674dc7a95c85261cf85cafba6ae))
 - [Validate-harness] Warn on stale plans with unchecked tasks ([e739c0c](https://github.com/kyaulabs/prism/commit/e739c0cb7f0da774c564b59444012ef3a17b5979))- Add composer.json and package.json for project dependencies ([0c08565](https://github.com/kyaulabs/prism/commit/0c08565ebe5bbcf4c9c82b18c835905f45870e73))
-
 
 ### 🩹 Patches
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: env.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: env.php kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 /**
  * Safely reads a boolean environment variable.
@@ -185,7 +185,7 @@ function load_env(string $path): void
     // Bound input before reading: a dot-env larger than 1 MiB is
     // implausible (security audit L-2; fail-safe no-op like absent files).
     // A stat failure (false) skips this cap — the post-read caps below
-    // still bound the content (OCR finding C1).
+    // still bound the content (review finding C1).
     $size = @filesize($path);
     if ($size !== false && $size > 1048576) {
         error_log("load_env: {$path} exceeds the 1 MiB size cap; using defaults");
@@ -210,7 +210,7 @@ function load_env(string $path): void
 
     // Re-verify the byte total after reading: closes the size-check/read
     // race (TOCTOU) where a file grows between filesize() and file()
-    // (OCR finding C1).
+    // (review finding C1).
     if (array_sum(array_map('strlen', $lines)) > 1048576) {
         error_log("load_env: {$path} exceeds the 1 MiB byte cap after reading; using defaults");
 

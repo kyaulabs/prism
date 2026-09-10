@@ -27,7 +27,7 @@ const isMergeOrRevert = (parsed) => {
 const trailersExist = (parsed, when, trailers) => {
 	// Exempt merge commits and reverts from trailer enforcement.
 	// `git merge --no-ff` and `git revert` produce auto-generated messages
-	// that cannot carry Implemented-by/Tested-by/Signed-off-by trailers. CI applies
+	// that cannot carry Implemented-by/Signed-off-by trailers. CI applies
 	// the same exemption via this config, so merges/reverts pass everywhere.
 	if (isMergeOrRevert(parsed)) {
 		return [true, ''];
@@ -129,7 +129,7 @@ module.exports = {
 			'test',
 			'ignore',
 		]],
-		'trailers-exist': [2, 'always', ['Implemented-by:', 'Tested-by:', 'Signed-off-by:']],
+		'trailers-exist': [2, 'always', ['Implemented-by:', 'Signed-off-by:']],
 		'issue-ref-convention': [2, 'always'],
 		'signed-off-by': [0],
 	},

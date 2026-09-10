@@ -1,141 +1,19 @@
 ---
-description: Pre-push gate. Runs language-agnostic repository checks and the verification-before-completion checklist, then delegates stack-specific lint, tests, and coverage to the active adapter.
+description: Run relevant project tests, lint and coverage checks and report actual results without receipts or global readiness gates.
+argument-hint: "[scope]"
 ---
 
-Run the project's full pre-push check suite and report failures grouped by
-gate. Do not push, commit, or auto-fix anything.
+# Check
 
-## 1. Mandatory local readiness
+Verify $ARGUMENTS, or the current task's changes when no scope is supplied.
 
-Run the fail-closed local doctor before any gate that depends on declared
-tools (hooks, /check, /pr, and release all perform local-only readiness):
+1. Inspect changed paths and project/module test configuration.
+2. Load `verification-before-completion`. Run applicable checks, including the
+   module's check skill or prompt where useful. Use focused commands for scoped
+   work and broader suites for cross-cutting changes or explicit full-check requests.
+3. Report commands, results and limitations. Separate not-run and not-applicable
+   checks from PASS. Missing unrelated tools never block the requested check.
 
-```bash
-prism-tool doctor --local-only
-```
-
-A missing launcher or failed Semgrep/OCR readiness is blocking — report the
-remediation and stop.
-
-Then verify read-only managed project health:
-
-```bash
-prism-tool automation health --json
-```
-
-A `CONFLICT` is blocking: report its diagnostic without repairing state.
-`CURRENT` verifies managed state; `NOT_CONFIGURED` leaves managed checks
-`SKIPPED` and does not require setup for an unconfigured source checkout.
-
-## 2. Verification evidence
-
-Load the `verification-before-completion` skill and apply its checklist to the
-completed work. Evidence must be current: run the commands that prove each
-claim rather than relying on an earlier summary.
-
-## 3. Repository state
-
-```bash
-set -euo pipefail
-git status --short
-git diff --check
-```
-
-- `git status --short` must be empty for the pre-push gate. If it is not,
-  report every staged, unstaged, and untracked path and mark this gate FAIL.
-- `git diff --check` must report no whitespace errors or conflict markers.
-- Confirm the current branch is not `main` or `develop` unless this is the
-  documented single-root greenfield seed exception (ADR-0044).
-
-## 4. Changed Markdown
-
-Resolve the target branch merge base in one tool call, retain the exact literal SHA,
-and use it as the final argument in a later tool call.
-Do not use command substitution, an environment variable, or a caller-supplied
-path list.
-
-```bash
-git merge-base HEAD TARGET_BRANCH
-```
-
-Replace `RETAINED_BASE_SHA` below with the retained hexadecimal SHA before
-running the separate gate call:
-
-```bash
-prism-tool markdown lint --changed-from RETAINED_BASE_SHA
-```
-
-A Markdown violation, unsafe revision, tool failure, timeout, or output-limit
-failure is blocking.
-
-## 5. Debug-artifact audit
-
-Inspect every file changed from the branch merge-base and confirm no temporary
-instrumentation, breakpoints, scratch files, focused-test flags, or debug-only
-logging remains. Use the active adapter's conventions to identify concrete
-markers; do not delete or edit findings automatically.
-
-Also run the language-agnostic conflict-marker check:
-
-```bash
-if git grep -nE '^(<<<<<<< |=======|>>>>>>> )' -- . ':!adr/**' ':!docs/plans/**'; then
-    echo "FAIL: unresolved conflict marker(s) found"
-else
-    echo "PASS: no unresolved conflict markers"
-fi
-```
-
-Historical examples in frozen ADRs and plans are excluded; inspect any other
-hit as inert text before deciding whether it is a real conflict marker.
-
-## 6. Harness validation
-
-When this repository contains the Prism packages, run:
-
-```bash
-CORE_VALIDATOR="packages/prism-core/scripts/validate-harness.sh"
-if [ -x "$CORE_VALIDATOR" ]; then
-    bash "$CORE_VALIDATOR"
-else
-    echo "SKIPPED: prism-core source validator is not present in this project"
-fi
-```
-
-A validator failure is blocking. In an ordinary consumer project where the
-package source is not checked out, report this gate SKIPPED rather than
-inventing a package path.
-
-## 7. Active adapter gate
-
-Delegate framework-specific lint, tests, coverage, syntax, and asset checks to
-the active stack adapter:
-
-- If the PHP/web adapter is active, expand and run `/check-php`.
-- For another adapter, run its documented check prompt (for example,
-  `/check-python` or `/check-rust`).
-- If project evidence identifies an adapter but its check prompt is missing,
-  mark this gate FAIL and tell the user which adapter package to install.
-- If no stack adapter applies (documentation-only or language-agnostic
-  repository), report this gate SKIPPED with the reason.
-
-Do not guess stack commands in this core wrapper. The adapter owns exact test,
-coverage, formatter, linter, and build invocations.
-
-## Output
-
-Group results by gate. For each gate print PASS / FAIL / SKIPPED with evidence.
-End with one go/no-go result:
-
-- **GO** — repository state is clean, no debug artifacts remain, verification
-  evidence is current, harness validation passes when applicable, and the
-  active adapter gate passes.
-- **NO-GO** — list every blocking failure. Do not suggest a push until all
-  failures are resolved.
-
-## Rules
-
-- Never auto-fix, commit, or push. Report only.
-- Do not claim a command passed without fresh output from this run.
-- `/check` is the aggregate pre-push gate;
-  `verification-before-completion` is the per-task evidence gate. Both run.
-- Stack specifics belong to the active adapter, not this core template.
+Do not require a clean unrelated working tree, installed reviewer, criteria or
+check receipts. Do not change code unless repairs were requested or are within
+the active development task. Never print secrets while inspecting changes.

@@ -26,14 +26,14 @@ export interface BrowserResolverDependencies {
 }
 
 function launcherInspect(): ConfigInspection {
-    const launcher = require('../../scripts/prism-tool/web-access-config.js') as {
+    const launcher = require('../../scripts/web-access/config.js') as {
         inspectWebAccessConfig(): ConfigInspection;
     };
     return launcher.inspectWebAccessConfig();
 }
 
 function launcherResolveBrowser(): BrowserCapability {
-    const launcher = require('../../scripts/prism-tool/web-access-browser.js') as {
+    const launcher = require('../../scripts/web-access/browser.js') as {
         resolveWebAccessBrowser(): BrowserCapability;
     };
     return launcher.resolveWebAccessBrowser();

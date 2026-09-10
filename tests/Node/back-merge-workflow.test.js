@@ -10,7 +10,7 @@ const test = require('node:test');
 const yaml = require('js-yaml');
 
 const ROOT = path.resolve(__dirname, '../..');
-const CANONICAL = path.join(ROOT, 'packages/prism-core/config/automation/back-merge.yml');
+const CANONICAL = path.join(ROOT, '.github/workflows/back-merge.yml');
 const workflowText = fs.readFileSync(CANONICAL, 'utf8');
 const workflow = yaml.load(workflowText);
 const job = workflow.jobs['back-merge'];

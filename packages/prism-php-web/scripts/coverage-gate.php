@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-# $KYAULabs: coverage-gate.php kyau@aura.kyaulabs 2026/08/18 -0700 Exp $
+# $KYAULabs: coverage-gate.php kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
 
 /**
  * Mechanized changed-file coverage gate.
@@ -14,7 +14,7 @@ declare(strict_types=1);
  *
  * Usage:
  *   git diff --name-only origin/main...HEAD -- '*.php' \
- *     | php .github/scripts/coverage-gate.php <clover.xml> [--min=80] [--root=DIR]
+ *     | php .github/scripts/coverage-gate.php <clover.xml> [--min=90] [--root=DIR]
  *
  * Exit codes:
  *   0  All changed files meet the threshold (or none are in the source set).
@@ -105,7 +105,7 @@ function has_executable_code(string $source): bool
  */
 function parse_args(array $argv): array
 {
-    $cfg = ['clover' => null, 'min' => 80, 'root' => getcwd(), 'strict' => false];
+    $cfg = ['clover' => null, 'min' => 90, 'root' => getcwd(), 'strict' => false];
     $n = count($argv);
     for ($i = 1; $i < $n; $i++) {
         $arg = $argv[$i];

@@ -1,3 +1,0 @@
-{
-  "safe_rm_dirs": ["vendor", "cdn/css", "cdn/javascript", "node_modules", ".pi/npm", ".pi/git"]
-}

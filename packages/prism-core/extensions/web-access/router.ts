@@ -1,6 +1,5 @@
-// $KYAULabs: router.ts kyau@aura.kyaulabs 2026/08/26 -0700 Exp $
+// $KYAULabs: router.ts kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
 
-import {requireStandingWebAccess} from './authorization.ts';
 import {
     BrowserCapabilityCache,
     searchWithBrowser,
@@ -25,7 +24,6 @@ export interface SearchBackendResult {
 
 export interface RouterDependencies {
     loadConfig?: () => WebAccessConfig;
-    requireConsent?: () => void | Promise<void>;
     searchBrowser?: (params: SearchParams, signal?: AbortSignal) => Promise<SearchResult[]>;
     searchSearxng?: (
         baseUrl: string,
@@ -58,21 +56,15 @@ function terminalError(error: unknown): error is WebAccessError {
     return error instanceof WebAccessError && !error.fallbackEligible;
 }
 
-async function authorize(requireConsent: () => void | Promise<void>): Promise<void> {
-    await requireConsent();
-}
-
 export async function searchWeb(
     input: SearchParams,
     deps: RouterDependencies = {},
 ): Promise<SearchBackendResult> {
     const params = validateSearchParams(input);
     const config = (deps.loadConfig ?? loadWebAccessConfig)();
-    const requireConsent = deps.requireConsent ?? requireStandingWebAccess;
     const failed: SearchBackend[] = [];
 
     if (config.browser === 'auto') {
-        await authorize(requireConsent);
         try {
             const results = await (deps.searchBrowser ?? defaultBrowser)(params, deps.signal);
             return {backend: 'browser', results};
@@ -83,7 +75,6 @@ export async function searchWeb(
     }
 
     if (config.searxngUrl !== null) {
-        await authorize(requireConsent);
         try {
             const results = await (deps.searchSearxng ?? defaultSearxng)(
                 config.searxngUrl,
@@ -97,7 +88,6 @@ export async function searchWeb(
         }
     }
 
-    await authorize(requireConsent);
     try {
         const results = await (deps.searchDirect ?? defaultDirect)(params, deps.signal);
         return {backend: 'direct', results};

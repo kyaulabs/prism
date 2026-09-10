@@ -6,6 +6,9 @@ Date: 2026-09-02
 
 Accepted
 
+Review-attempt approval clauses partially superseded by
+[ADR-0112](0112-two-automatic-review-attempts.md). Other clauses remain in force.
+
 Depends on ADR-0063, ADR-0064, ADR-0067, ADR-0074, ADR-0075, ADR-0080,
 ADR-0081, ADR-0091, ADR-0093, ADR-0100, and ADR-0102.
 

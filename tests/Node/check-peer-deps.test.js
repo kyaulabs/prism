@@ -1,4 +1,4 @@
-// $KYAULabs: check-peer-deps.test.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: check-peer-deps.test.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
 'use strict';
 
@@ -58,18 +58,6 @@ test('extension importing a pi core without peerDependencies reports a violation
     assert.match(out, /peerDependencies/);
 });
 
-test('review runtime dynamic imports require the Pi SDK peer', (t) => {
-    const dir = tmpdir(t);
-    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({name: 'pkg'}));
-    fs.mkdirSync(path.join(dir, 'scripts', 'prism-review'), {recursive: true});
-    fs.writeFileSync(
-        path.join(dir, 'scripts', 'prism-review', 'session.js'),
-        'async function load() { return import("@earendil-works/pi-coding-agent"); }\n'
-    );
-
-    assert.match(run(path.join(dir, 'package.json')), /peerDependencies/);
-});
-
 test('stat failure other than ENOENT prints a stdout line and exits 0', (t) => {
     const dir = tmpdir(t);
     fs.writeFileSync(path.join(dir, 'package.json'), '{}');
@@ -95,5 +83,20 @@ test('unscannable extensions tree exits 0 with a stdout line and no stderr', (t)
     assert.match(res.stdout, /cannot scan extensions\//);
     assert.equal(res.stderr, '');
 });
+
+for (const [surface, declarations, accepted] of [
+    ['extensions', {dependencies: {'@earendil-works/pi-coding-agent': '*'}}, false],
+    ['extensions', {peerDependencies: {'@earendil-works/pi-coding-agent': '*'}}, true],
+]) {
+    test(`${surface} checks its own dependency scope: ${accepted}`, (t) => {
+        const dir = tmpdir(t);
+        fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({name: 'fixture', ...declarations}));
+        fs.mkdirSync(path.join(dir, surface), {recursive: true});
+        fs.writeFileSync(path.join(dir, surface, 'sdk.mjs'),
+            'export const load = () => import("@earendil-works/pi-coding-agent");\n');
+
+        assert.equal(run(path.join(dir, 'package.json')) === '', accepted);
+    });
+}
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

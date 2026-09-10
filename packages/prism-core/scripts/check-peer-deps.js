@@ -1,14 +1,7 @@
-// $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/09/02 -0700 Exp $
+// $KYAULabs: check-peer-deps.js kyau@aura.kyaulabs 2026/09/08 -0700 Exp $
 
-// Verify that any pi bundled-core package imported by a package's extensions/
-// is declared in that package.json's peerDependencies.
-//
-// pi loads each package under its own module root and provides its bundled
-// cores (@earendil-works/pi-ai, pi-agent-core, pi-coding-agent, pi-tui,
-// typebox) to the host. A package whose extensions import one of these must
-// declare it as a peerDependency (never bundle it), or the import fails to
-// resolve in a consumer install. See NPM.md and the pi packages doc
-// ("Dependencies" section).
+// Verify extension host peers supplied by Pi's extension loader.
+// See the Pi packages dependency contract.
 //
 // Usage: node check-peer-deps.js <package.json>
 // Prints one message per violation to stdout (plain text; the caller formats
@@ -57,11 +50,9 @@ try {
 
 const packageRootDir = path.dirname(pkgJsonPath);
 const scanRoots = [
-    {label: 'extensions/', path: path.join(packageRootDir, 'extensions')},
-    {label: 'scripts/prism-review/', path: path.join(packageRootDir, 'scripts', 'prism-review')},
+    {label: 'extensions/', path: path.join(packageRootDir, 'extensions'), field: 'peerDependencies'},
 ];
 
-const peers = new Set(Object.keys(pkg.peerDependencies || {}));
 const imported = new Set();
 const importRe = /\b(?:from\s+|import\s*(?:\(\s*)?)['"]([^'"]+)['"]/g;
 
@@ -81,6 +72,7 @@ function walk(dir) {
     }
 }
 for (const root of scanRoots) {
+    imported.clear();
     let identity;
     try {
         identity = fs.statSync(root.path);
@@ -97,11 +89,11 @@ for (const root of scanRoots) {
         console.log(`${rel}: cannot scan ${root.label}: ${error.message}`);
         process.exit(0);
     }
-}
-
-for (const core of imported) {
-    if (!peers.has(core)) {
-        console.log(`${rel}: package imports pi bundled core '${core}' but package.json does not list it in peerDependencies (pi cores are host-provided — declare as peerDependencies, never bundle; see NPM.md)`);
+    const declared = new Set(Object.keys(pkg[root.field] || {}));
+    for (const core of imported) {
+        if (!declared.has(core)) {
+            console.log(`${rel}: ${root.label} imports pi core '${core}' but package.json does not list it in ${root.field}`);
+        }
     }
 }
 

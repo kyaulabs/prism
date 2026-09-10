@@ -13,7 +13,7 @@ const {pathToFileURL} = require('node:url');
 
 const moduleUrl = pathToFileURL(path.resolve(
     __dirname,
-    '../../packages/prism-php-web/config/bootstrap/visual-review/visual_review.mjs'
+    '../../packages/prism-php-web/config/visual-review/visual_review.mjs'
 )).href;
 const structuredClone = globalThis.structuredClone;
 
@@ -40,7 +40,7 @@ const valid = {
 
 async function runVisualReview(t, html) {
     const repoRoot = path.resolve(__dirname, '../..');
-    const sourceRoot = path.join(repoRoot, 'packages/prism-php-web/config/bootstrap/visual-review');
+    const sourceRoot = path.join(repoRoot, 'packages/prism-php-web/config/visual-review');
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-visual-review-browser-'));
     const server = http.createServer((_request, response) => {
         response.writeHead(200, {'content-type': 'text/html; charset=utf-8'});
@@ -434,7 +434,7 @@ test('publishes the local-only capture inspection and milestone contract', () =>
     const repoRoot = path.resolve(__dirname, '../..');
     const skill = fs.readFileSync(path.join(repoRoot, 'packages/prism-php-web/skills/visual-review/SKILL.md'), 'utf8');
     const reference = fs.readFileSync(path.join(repoRoot, 'packages/prism-php-web/docs/visual-review.md'), 'utf8');
-    const command = 'prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line';
+    const command = 'node_modules/.bin/playwright test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line';
     assert.match(skill, /Read every generated PNG/);
     assert.match(skill, /user confirmation/);
     assert.match(skill, /authenticated|storage state/);

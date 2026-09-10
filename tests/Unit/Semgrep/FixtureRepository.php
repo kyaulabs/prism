@@ -132,8 +132,7 @@ final class FixtureRepository
                 }
             }
 
-            return self::execute(['node', $source . '/packages/prism-core/scripts/prism-tool.js',
-                'run', 'semgrep', '--', 'scan', '--config', '.semgrep/kyaulabs.yml',
+            return self::execute(['semgrep', 'scan', '--config', '.semgrep/kyaulabs.yml',
                 '--json', '--metrics', 'off', '--disable-version-check', '--x-ignore-semgrepignore-files',
                 'tests/Semgrep/'], $root, $env, 660);
         } finally {

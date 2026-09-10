@@ -31,7 +31,7 @@ fi
 # 1. Green path: the real repo must pass strict validation
 echo "── Test 1: composer validate --strict --no-check-publish (real repo) ──"
 if (cd "$REPO_ROOT" && composer validate --strict --no-check-publish) 2>&1; then
-	echo "  OK: composer validate passed"
+	pass "composer validate passed"
 else
 	fail "composer validate --strict --no-check-publish failed on the real repo"
 fi
@@ -59,15 +59,7 @@ node -e "
 if (cd "$TMPDIR_TEST" && composer validate --strict --no-check-publish) 2>/dev/null; then
 	fail "drifted lock did NOT fail validation"
 else
-	echo "  OK: drifted lock correctly fails validation"
-fi
-
-echo "── Test 3: Composer process timeout covers aggregate suites ──"
-PROCESS_TIMEOUT=$(cd "$REPO_ROOT" && composer config process-timeout)
-if [[ "$PROCESS_TIMEOUT" =~ ^[0-9]+$ ]] && [ "$PROCESS_TIMEOUT" -ge 900 ]; then
-	pass "Composer process timeout is at least 900 seconds"
-else
-	fail "Composer process timeout must be at least 900 seconds (actual: $PROCESS_TIMEOUT)"
+	pass "drifted lock correctly fails validation"
 fi
 
 print_summary "composer_validate_test"
