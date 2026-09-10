@@ -35,8 +35,8 @@ test('repeated credential denials leave ordinary tools available', async () => {
 
 test('a failed commit never aborts or locks subsequent tools', async () => {
     const target = await fixture();
-    const command = 'prism-tool commit create --type feat --subject "example"';
-    assert.equal(await target.call('bash', {command}), undefined);
+    const command = 'git commit -m "example"';
+    await target.call('bash', {command});
     await target.handlers.tool_execution_end?.({toolName: 'bash', toolCallId: 'call', isError: true}, target.ctx);
     await target.handlers.agent_end?.({}, target.ctx);
     assert.equal(target.aborts, 0);
@@ -45,7 +45,7 @@ test('a failed commit never aborts or locks subsequent tools', async () => {
 
 test('ordinary Git and project cleanup commands are not workflow-gated', async () => {
     const target = await fixture();
-    for (const command of ['git commit -m "feat: example"', 'git push origin feature', 'rm -rf /repo/build']) {
+    for (const command of ['git status', 'git push origin feature', 'rm -rf /repo/build']) {
         assert.equal(await target.call('bash', {command}), undefined, command);
     }
 });

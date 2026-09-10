@@ -48,7 +48,7 @@ read credential files while resolving it.
 ## Quick-reference table
 
 | Question | Read completely |
-|---|---|
+| --- | --- |
 | Skills / Agent Skills frontmatter | `docs/skills.md` |
 | Prompt templates / arguments | `docs/prompt-templates.md` |
 | Extensions / events / tools / UI | `docs/extensions.md`; then the matching file under `examples/extensions/` |

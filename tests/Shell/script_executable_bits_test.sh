@@ -112,10 +112,8 @@ test_error_message_names_remediation
 test_toolchain_entry_point_modes() {
 	local entry mode bad=0
 	for entry in \
-		packages/prism-core/scripts/prism-tool.js \
 		packages/prism-core/scripts/install-global.sh \
-		packages/prism-core/scripts/install-hooks.sh \
-		packages/prism-php-web/scripts/prism-tool-adapter.js; do
+		packages/prism-core/scripts/validate-harness.sh; do
 		mode=$(git -C "$REPO_ROOT" ls-files -s -- "$entry" | awk '{print $1}')
 		if [ "$mode" != "100755" ]; then
 			echo "  entry $entry is $mode (expected 100755)" >&2

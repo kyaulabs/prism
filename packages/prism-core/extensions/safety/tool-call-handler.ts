@@ -1,190 +1,59 @@
-// $KYAULabs: tool-call-handler.ts kyau@aura.kyaulabs 2026/09/09 -0700 Exp $
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {loadAdditionalSensitivePaths, sensitiveOperandCheck, sensitivePathMatch, sensitivePatternCheck} from './sensitive-paths.ts';
 
-import { resolve as resolvePath, normalize } from "node:path";
-import {
-    loadAdditionalSensitivePaths,
-    sensitiveOperandCheck,
-    sensitivePathMatch,
-    sensitivePatternCheck,
-    type SafetyDiagnostic,
-    type SensitiveMatch,
-    type SensitivePathOptions,
-} from "./sensitive-paths.ts";
+export interface ToolCallDeps {cwd:string; home:string; extraPaths:string[]}
+export type ToolCallResult = {block:true; reason:string} | undefined;
+const blocked = ():ToolCallResult => ({block:true, reason:'[prism safety] Protected credential access or failed secret-safety inspection.'});
 
-const SENSITIVE_REASON = "sensitive-path policy (ADR-0047)";
-const MALFORMED_REASON = "malformed path or pattern argument — failing closed per ADR-0047";
-const INTERNAL_DIAGNOSTIC: SafetyDiagnostic = {
-    code: "PRISM-SHELL-012",
-    stage: "classifier",
-    category: "internal-classifier",
-    retry: "Split the operation into separate simple literal commands and report this diagnostic code if it persists.",
-};
-
-function diagnosticReason(diagnostic: SafetyDiagnostic): string {
-    return "command could not be analyzed for sensitive-path safety — " +
-        `failing closed per ADR-0047; code=${diagnostic.code}; ` +
-        `stage=${diagnostic.stage}; category=${diagnostic.category}; ` +
-        `safe retry: ${diagnostic.retry}`;
-}
-
-function blockReasonFor(match: SensitiveMatch): string {
-    if (match.className === "unresolvable") {
-        return diagnosticReason(match.diagnostic ?? INTERNAL_DIAGNOSTIC);
-    }
-    if (match.className === "malformed") return MALFORMED_REASON;
-    return SENSITIVE_REASON;
-}
-
-/**
- * Dependencies injected by the extension wiring (index.ts). Everything the
- * handler needs from the pi host is passed in so this module stays pure and
- * unit-testable without importing @earendil-works/pi-coding-agent.
- */
-export interface ToolCallDeps {
-    /** Project working directory. */
-    cwd: string;
-    /** User home directory for ~ expansion. */
-    home: string;
-    /** Extra deny-floor paths from PRISM_SENSITIVE_PATHS (F-2). */
-    extraPaths: string[];
-}
-
-export type ToolCallResult = { block: true; reason: string; terminate?: true } | undefined;
-
-/**
- * Resolve the deny-floor extension surface. `PRISM_SENSITIVE_PATHS` is a
- * newline-joined list of `~/`-prefixed or absolute paths appended to the
- * core deny floor. A single malformed line is skipped with a loud log; the
- * remaining valid entries and the core DEFAULT_PATTERNS deny floor stay in
- * effect (ADR-0047) — one bad line never discards the rest (F-2).
- *
- * @param envValue raw PRISM_SENSITIVE_PATHS value (undefined when unset)
- * @param log      per-line rejection logger (defaults to console.error)
- * @return valid extra deny paths
- */
-export function resolveExtraPaths(envValue: string | undefined, log: (msg: string) => void = console.error): string[] {
-    if (envValue === undefined || envValue === "") return [];
-    const paths: string[] = [];
-    const lines = envValue.split("\n");
-    for (let index = 0; index < lines.length; index++) {
-        const line = lines[index];
-        if (line.trim() === "") continue;
-        try {
-            paths.push(...loadAdditionalSensitivePaths(line));
-        } catch {
-            log(
-                `[prism safety] ignoring malformed sensitive-paths entry at line ${index + 1} — ` +
-                `invalid entry shape. Other entries and the core deny floor remain active (ADR-0047).`,
-            );
-        }
+export function resolveExtraPaths(value?:string, log: (message:string) => void = console.error):string[] {
+    const paths:string[] = [];
+    for (const entry of (value ?? '').split('\n')) {
+        try { paths.push(...loadAdditionalSensitivePaths(entry)); }
+        catch { log('[prism safety] Invalid additional path ignored; other credential protection remains active.'); }
     }
     return paths;
 }
 
-/**
- * Resolve a path-shaped argument against the sensitive deny floor. A leading
- * `@` (pi/curl file-ref prefix) is stripped first. `undefined` means "no
- * path arg supplied" (allow, null); any other non-string shape is
- * present-but-malformed and fails closed (ADR-0036).
- */
-function sensitivePathMatchArg(pathArg: unknown, opts: SensitivePathOptions): SensitiveMatch | null {
-    if (pathArg === undefined) return null;
-    if (typeof pathArg !== "string") return { className: "malformed" };
-    if (pathArg === "") return null;
-    const path = pathArg.replace(/^@+/, "");
-    if (path === "") return null;
-    const abs = path.startsWith("~")
-        ? normalize(opts.home + path.slice(1))
-        : normalize(resolvePath(opts.projectDir, path));
-    return sensitivePathMatch(abs, opts);
-}
-
-/**
- * Block when a path-shaped argument resolves into the sensitive deny
- * floor; `undefined` (allow) otherwise. Shared by the read/ls/grep/find
- * branches so the block idiom cannot drift between tools.
- */
-function blockIfSensitive(pathArg: unknown, opts: SensitivePathOptions): ToolCallResult {
-    const match = sensitivePathMatchArg(pathArg, opts);
-    if (match) {
-        return { block: true, reason: `[prism safety] BLOCKED: ${blockReasonFor(match)}` };
+function inspectCommit(command:string, deps:ToolCallDeps):ToolCallResult {
+    let cwd = deps.cwd;
+    for (const segment of command.split(/&&|[;\n]/)) {
+        const tokens = (segment.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [])
+            .map(token => token.replace(/^["']|["']$/g, ''));
+        if (tokens[0] === 'cd' && tokens[1]) cwd = path.resolve(cwd, tokens[1]);
+        const git = tokens.findIndex(token => path.basename(token) === 'git');
+        const commit = tokens.indexOf('commit', git + 1);
+        if (git < 0 || commit < 0) continue;
+        const prefix = tokens.slice(git + 1, commit);
+        const run = (args:string[]) => spawnSync('git', [...prefix, ...args], {cwd, encoding:'utf8', timeout:10000, maxBuffer:4 * 1024 * 1024});
+        const root = run(['rev-parse','--show-toplevel']);
+        const names = run(['diff','--cached','--name-only','--diff-filter=ACMRT','-z']);
+        if (root.status !== 0 || names.status !== 0) return blocked();
+        const options = {projectDir:root.stdout.trim(), home:deps.home, extraPaths:deps.extraPaths};
+        if (names.stdout.split('\0').filter(Boolean).some(file => sensitivePathMatch(path.resolve(options.projectDir,file), options))) return blocked();
+        const scan = spawnSync('gitleaks', ['git','--pre-commit','--staged','--redact','--no-color'],
+            {cwd:options.projectDir, encoding:'utf8', timeout:30000, maxBuffer:1024 * 1024});
+        if (scan.error && 'code' in scan.error && scan.error.code === 'ENOENT') {
+            console.error('[prism safety] gitleaks unavailable; staged value scan was not run.');
+        } else if (scan.status !== 0) return blocked();
     }
     return undefined;
 }
 
-/**
- * Block when a search pattern resolves into the sensitive deny floor;
- * `undefined` (allow) otherwise. Shared by the grep (glob) and find
- * (pattern) branches.
- */
-function blockIfPatternSensitive(pattern: unknown, base: string, opts: SensitivePathOptions): ToolCallResult {
-    const match = sensitivePatternCheck(pattern, base, opts);
-    if (match) {
-        return { block: true, reason: `[prism safety] BLOCKED: ${blockReasonFor(match)}` };
-    }
-    return undefined;
-}
-
-/**
- * Decide the outcome of one tool_call. Never throws: any internal error
- * fails closed with a BLOCK per ADR-0036 (F-1), so the extension host
- * never sees a rejected handler whose semantics it would have to guess.
- *
- * @param toolName name of the tool being called (from the pi event)
- * @param input    raw tool input (narrowed structurally per tool)
- * @param deps     injected session state (see ToolCallDeps)
- * @return `{ block: true, reason }` to deny, `undefined` to allow
- */
-export function handleToolCall(toolName: string, input: unknown, deps: ToolCallDeps): ToolCallResult {
+export function handleToolCall(tool:string, input:unknown, deps:ToolCallDeps):ToolCallResult {
     try {
-        const opts: SensitivePathOptions = { projectDir: deps.cwd, home: deps.home, extraPaths: deps.extraPaths };
-
-        if (toolName === "bash") {
-            const command: unknown = (input as { command?: unknown }).command;
-            if (typeof command !== "string") {
-                return {
-                    block: true,
-                    reason: `[prism safety] BLOCKED: malformed bash args — failing closed per ADR-0036`,
-                };
-            }
-            const operandMatch = sensitiveOperandCheck(command, opts);
-            if (operandMatch) {
-                return { block: true, reason: `[prism safety] BLOCKED: ${blockReasonFor(operandMatch)}` };
-            }
-            return;
+        const args = input as {path?:string; command?:string; glob?:string; pattern?:string};
+        const options = {projectDir:deps.cwd, home:deps.home, extraPaths:deps.extraPaths};
+        if (tool === 'bash') {
+            if (typeof args.command !== 'string') return blocked();
+            if (sensitiveOperandCheck(args.command, options)) return blocked();
+            return inspectCommit(args.command, deps);
         }
-
-        if (["read", "ls", "edit", "write"].includes(toolName)) {
-            return blockIfSensitive((input as { path?: unknown }).path, opts);
+        if (['read','edit','write','ls','grep','find'].includes(tool)) {
+            if (args.path !== undefined && typeof args.path !== 'string') return blocked();
+            if (args.path && sensitivePathMatch(path.resolve(deps.cwd, args.path.replace(/^~/, deps.home).replace(/^@/, '')), options)) return blocked();
+            if (['grep','find'].includes(tool) && sensitivePatternCheck(args.glob ?? args.pattern, args.path ?? deps.cwd, options)) return blocked();
         }
-        if (toolName === "grep") {
-            const pathArg = input as { path?: unknown };
-            return blockIfSensitive(pathArg.path, opts)
-                ?? blockIfPatternSensitive(
-                    (input as { glob?: unknown }).glob,
-                    typeof pathArg.path === "string" ? pathArg.path : deps.cwd,
-                    opts,
-                );
-        }
-        if (toolName === "find") {
-            const pathArg = input as { path?: unknown };
-            return blockIfSensitive(pathArg.path, opts)
-                ?? blockIfPatternSensitive(
-                    (input as { pattern?: unknown }).pattern,
-                    typeof pathArg.path === "string" ? pathArg.path : deps.cwd,
-                    opts,
-                );
-        }
-        return;
-    } catch {
-        return {
-            block: true,
-            reason:
-                `[prism safety] BLOCKED: safety handler internal error — failing closed per ADR-0036; ` +
-                `code=${INTERNAL_DIAGNOSTIC.code}; stage=${INTERNAL_DIAGNOSTIC.stage}; ` +
-                `category=${INTERNAL_DIAGNOSTIC.category}; safe retry: ${INTERNAL_DIAGNOSTIC.retry}`,
-        };
-    }
+    } catch { return blocked(); }
+    return undefined;
 }
-
-// vim: ft=typescript sts=4 sw=4 ts=4 et :

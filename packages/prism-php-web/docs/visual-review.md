@@ -17,13 +17,10 @@ milestone approval.
 Create the active configuration by copying the example only after the user has
 approved the visual brief and review cases.
 
-Setup preserves byte-identical managed tooling files at safe restrictive modes
-(`0644`, `0640`, `0600`, or `0400`) without chmod or replacement. New files remain
-`0644`. Ownership, containment, no-symlink, bounded reads, and exact file identity
-remain mandatory; group/other writes, special bits, and missing owner read fail.
-This concerns setup preservation, not permission relaxation for private capture
-state. Regenerate obsolete adapter candidate plans before approval or apply;
-even safe permission changes invalidate a previously approved observation.
+The optional examples are packaged under `config/visual-review/`. Copy and adapt
+selected files with normal file tools, preserving existing customization and
+file modes. There is no candidate plan or managed-file reconciliation. Private
+capture output retains its runtime ownership and containment checks.
 
 ## Declarative configuration
 
@@ -71,7 +68,7 @@ modules, storage state, cookies, headers, or credentials.
 Run from the consumer repository root:
 
 ```bash
-prism-tool run playwright -- test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
+node_modules/.bin/playwright test visual_review.spec.mjs --workers=1 --output tests/Browser/Screenshots/.playwright --reporter=line
 ```
 
 A missing, malformed, oversized, symlinked, or incomplete

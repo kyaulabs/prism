@@ -6,11 +6,9 @@ This checkout develops and dogfoods the harness itself.
 ## Active refactor
 
 `docs/specs/lean-prism.md` records the approved breaking redesign and execution
-checklist. Follow its decisions over superseded workflow prose. The refactor is
-in progress: older skills, runtime engines and tests still exist until their
-replacement slices land. Do not mistake the new policy for completed runtime
-implementation. Historical ADRs document the old system; they are not reasons
-to preserve machinery explicitly selected for removal.
+checklist. The local replacement is implemented and verified; hosted catalogue
+deletion has a delivery-ordering blocker documented in `docs/catalogue-retirement.md`.
+Historical ADRs document old designs, not current workflow requirements.
 
 ## Packages
 
@@ -42,8 +40,8 @@ assets from their SCSS/JavaScript sources when those sources change.
   Run focused tests during TDD and broader relevant suites before completion.
 - PHP, shell, frontend and package checks live alongside their applicable
   tooling. Do not require every installed tool for an unrelated change.
-- This checkout currently uses `.github/hooks`; retain secret scanning while
-  simplifying readiness, commit and workflow enforcement.
+- This checkout uses native `.github/hooks` with staged-path-first secret scanning
+  and applicable lint. Hooks do not rewrite source or enforce workflow readiness.
 - Use Conventional Commits with `Implemented-by` and `Signed-off-by` only.
   Follow Git signing configuration and commit verified logical changes.
 - Keep work on the active refactor branch. No push or merge has been requested
@@ -53,7 +51,7 @@ assets from their SCSS/JavaScript sources when those sources change.
 ## References
 
 - `docs/specs/lean-prism.md`: approved design, checklist and restart progress.
-- `CONTEXT.md`: domain context; legacy sections are being updated by the refactor.
-- `README.md` and `CODING_HARNESS.md`: installation and orientation, also pending
-  migration to the approved design.
+- `CONTEXT.md`: current domain context.
+- `README.md` and `CODING_HARNESS.md`: installation and orientation.
+- `docs/migration-1.0.md`: consumer migration and detection limitations.
 - `adr/`: historical architectural decisions.

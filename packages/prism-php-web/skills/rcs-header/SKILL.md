@@ -42,14 +42,10 @@ next commit (see ADR-0041).
 
 ### Automation
 
-The `.github/hooks/pre-commit` hook is a strip-then-insert idempotent normalizer
-(ADR-0041). For every staged source file it strips all existing `$KYAULabs:`
-headers and `vim: ft=` modelines, rebuilds the file with exactly one canonical
-header (committer identity + commit date) and one modeline, and re-stages if the
-content changed. A placeholder guard blocks commits containing literal
-`creator@host` or `YYYY/MM/DD` template text. Run `prism-tool resolve scripts` once after cloning, retain the returned
-absolute directory, then run
-`bash /absolute/resolved/scripts/install-hooks.sh` to activate it.
+Maintain headers while editing source when this convention applies to the
+project. Do not use hooks that rewrite and restage files: they can destroy
+partial staging or change already-verified content. Project instructions may
+override these module defaults. Never insert placeholder identities or dates.
 
 ## Vim Modeline (REQUIRED at end of every source file)
 

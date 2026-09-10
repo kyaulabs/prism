@@ -1,43 +1,26 @@
-# Secret protection
+# Secret Protection
 
-The safety extension checks tool calls for protected credential paths. A rejected
-request blocks that call only. There is no denial counter, commit-exclusivity
-requirement, agent abort, fatal latch or recursive-deletion safe-zone policy.
+This extension rejects explicit credential-path access through file tools and
+recognizable shell references. It checks lexical and symlink-resolved paths,
+including dangling aliases, and supports additive newline-separated absolute or
+`~/` paths in `PRISM_SENSITIVE_PATHS`. Invalid additions are reported without
+turning off the default protection.
 
-## Current implementation
+For recognized literal Git commit commands, inspect staged paths before content
+and run available Gitleaks scanning without displaying findings. The repository
+pre-commit hook supplies the same staged-path-first protection. Missing Gitleaks
+is reported; path protection remains active. Failed/rejected operations do not
+lock or abort a session. There are no deletion safe zones or general shell gates.
 
-- `index.ts` registers the tool-call handler and loads additive
-  `PRISM_SENSITIVE_PATHS` entries at session start.
-- `tool-call-handler.ts` protects read, edit, write, ls, grep and find paths and
-  checks Bash operands. Diagnostics never include credential contents or raw
-  command payloads. Malformed or uninspectable calls fail individually.
-- `sensitive-paths.ts` and the shared sensitive-path policy retain existing path
-  normalization, symlink handling, credential patterns and shell operand checks.
-- Staged-secret scanning remains in project Git hooks. This extension does not
-  yet independently inspect every possible commit invocation or arbitrary program.
+## Limits
 
-## Breaking refactor in progress
+This is a backstop, not an operating-system sandbox or full shell interpreter.
+Computed paths, aliases, custom programs, nested shells and changes staged during
+a command cannot all be proven safe by command inspection. A scan cannot prove
+that all secrets were detected. Agent/user instructions must still prohibit
+credential exposure and secret commits, including through broad searches or
+indirect tools. Authentication may consume credentials normally without exposing
+their values. Do not treat a successful tool call as authorization.
 
-The old shell operand parser still rejects some dynamic shell constructs and
-contains setup-specific exceptions. Replacing that machinery with a narrower
-secret guard remains in `docs/specs/lean-prism.md`. Do not describe the current
-parser as unrestricted shell execution or as a complete sandbox.
-
-A tool-call guard cannot prove what arbitrary trusted programs will do internally.
-Keep secret-handling instructions and staged-secret scanning as complementary
-protections. Normal tool authentication must not expose credential values.
-
-## Verification
-
-From the source checkout:
-
-```bash
-node --test tests/Node/safety-recovery.test.ts tests/Node/safety-tool-call-handler.test.ts tests/Node/safety-sensitive-paths.test.ts
-```
-
-The tests invoke the extension and handler with inert commands; they do not
-execute credential reads or destructive shell commands. Recovery tests verify
-that rejected requests and failed commits cannot disable unrelated tools.
-
-Reload or restart Pi after changing an extension; an already loaded instance is
-not replaced merely by editing its source on disk.
+Reload/restart Pi after extension changes. Tests use synthetic fixtures and
+exercise rejection, ordinary command freedom and recovery through extension events.

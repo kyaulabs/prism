@@ -141,7 +141,7 @@ Aurora emits **only external** `<script src>` tags with SRI hashes
 (`integrity="sha512-..."` + `crossorigin="anonymous"`). No inline scripts
 are emitted. The canonical CSP for every Aurora page is:
 
-```
+```text
 Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
 ```
 
