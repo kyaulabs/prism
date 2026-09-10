@@ -6,10 +6,10 @@ The local Lean Prism implementation no longer ships a catalogue client,
 publication integration, signatures, provisioning protocol or notification
 workflow. The replacement packages are prepared as 1.0.0, not published.
 
-Remote inspection confirmed that the live default branch of `kyaulabs/prism`
-still declares Core 0.6.0 with the old workflow executables and protocol metadata.
-This refactor has not been pushed or merged. Deleting the catalogue now can
-break those existing consumers before the replacement is delivered.
+Initial remote inspection found Core 0.6.0 with the old executables and protocol.
+The replacement is merged to develop through PR #539 and prepared on
+`release/1.0.0` for main delivery. Deletion still waits for manual npm publication
+so existing consumers have an available replacement.
 
 ## Automation retired
 

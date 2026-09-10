@@ -1,7 +1,7 @@
 # Lean Prism
 
-Status: local implementation verified; automatic replacement delivery authorized.
-Branch: `refactor/kyau-a8c5-lean-skills`.
+Status: implementation merged to develop through PR #539; 1.0.0 release prepared.
+Release branch: `release/1.0.0`. Manual npm publication remains pending.
 
 ## Approved design
 
@@ -92,7 +92,9 @@ compatibility shims. Versions 1.0.0 are prepared, not published.
 - [x] Update active orientation, context, documentation and migration guidance.
 - [x] Run full retained Node/shell/PHP suites, package checks, lint and same-session review.
 - [x] Disable dedicated hosted catalogue workflows and inventory credential names.
-- [ ] Resolve delivery ordering and delete the hosted catalogue repository.
+- [x] Resolve delivery ordering and merge implementation through tested PR #539.
+- [ ] Complete GitHub release delivery, verify manual npm publication, then delete
+  the hosted catalogue repository.
 
 ## Verification and implementation evidence
 
@@ -110,7 +112,7 @@ compatibility shims. Versions 1.0.0 are prepared, not published.
 - Secret-guard tests demonstrate ordinary dynamic shell freedom, credential
   rejection, dangling-symlink protection, additive paths and staged credential
   rejection before scanning. Limitations are documented in the safety README.
-- Full Node suite: **190 passed**. Full retained shell suite passed. PHP suite:
+- Full Node suite: **191 passed**. Full retained shell suite passed. PHP suite:
   **84 passed, 127 assertions, 100% measured coverage**, including native Semgrep
   rule fixtures and a browser test using an owned loopback fixture process.
 - TypeScript, PHP CS Fixer, ESLint, Stylelint, warning-level Shellcheck, all package
@@ -118,17 +120,19 @@ compatibility shims. Versions 1.0.0 are prepared, not published.
   npm and Composer audits reported no vulnerabilities. No generated assets changed.
 - npm lock update succeeded offline; pnpm's first offline attempt lacked cached
   metadata, then its normal lockfile-only update passed supply-chain checks.
-- Hosted Actions jobs were not executed for this unpushed branch. No package was
-  published. Extension changes require reload/restart to replace loaded code.
+- Hosted CI run **34428018522** passed for PR #539, including Linux/macOS package
+  checks. Every Test Plan item was rerun after PR creation before approval as
+  `kyau` and merge as `kyaulabs-bot`. No npm package has been published by the agent.
+  Extension changes require reload/restart to replace loaded code.
 - Historical ADRs/research remain historical. Old local state is inert and was not
   read or deleted. Migration guidance is in `docs/migration-1.0.md`.
 
 ## External delivery status
 
-Remote inspection found the live default branch still exposes Core 0.6.0 with
-catalogue-dependent workflow executables. The local replacement is not pushed,
-merged or published. Deleting the hosted catalogue now can therefore break live
-consumers before replacement delivery.
+Initial remote inspection found Core 0.6.0 with catalogue-dependent workflow
+executables. PR #539 delivered the replacement to develop; the 1.0.0 release
+branch prepares main delivery. Catalogue deletion waits for both replacement npm
+packages to be published, not merely for a GitHub merge or tag.
 
 Four dedicated workflows were disabled and their disabled state verified. No
 queued/in-progress catalogue runs were returned. Secret names were inventoried;

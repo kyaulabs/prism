@@ -69,6 +69,10 @@ consumer setup defaults. Downstream users authorize their own GitHub operations.
 - Only then approve the PR review as `kyau`; switch to `kyaulabs-bot` to merge
   and delete its merged task branch. Do not reuse pre-PR testing as the entire
   post-creation Test Plan.
+- After release merges to `main`, create the `main` → `develop` back-merge PR
+  as `kyaulabs-bot` and follow the same Test Plan/review/merge sequence. The older
+  `back-merge.yml` hosted workflow is disabled because its `GITHUB_TOKEN` creates
+  PRs as `github-actions`, not the designated account. Do not silently re-enable it.
 - `npm publish` requires manual intervention by the user. Prepare and verify
   packages and GitHub releases automatically, but leave registry publication to
   the user; never request registry tokens in chat or attempt login on their behalf.
