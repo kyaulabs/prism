@@ -49,8 +49,14 @@ account tokens and signing registrations after checking their other uses.
 Do not read private values or revoke shared identities to automate this step.
 No credential values were read and no account-level credentials were revoked.
 
-## Remaining sequencing decision
+## Authorized delivery order
 
-Either deliver the replacement before deleting the hosted repository, explicitly
-accept breakage for existing consumers and delete now, or defer deletion while
-keeping the current no-push/no-merge scope. Repository deletion has not occurred.
+The user selected replacement delivery first and authorized automatic push,
+PR, review, merge and publication. Push as `kyau`; create and merge PRs and
+delete merged task branches as `kyaulabs-bot`. Run every PR Test Plan item after
+PR creation before approving as `kyau`. Preserve `main`, `develop` and release
+branches. Repository deletion has not occurred.
+
+Both npm and pnpm currently return HTTP 401 for native `whoami`. Publication
+requires restoration of native registry authentication, without exposing tokens.
+Git delivery may proceed while that authentication requirement remains.

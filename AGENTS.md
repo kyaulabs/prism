@@ -6,8 +6,8 @@ This checkout develops and dogfoods the harness itself.
 ## Active refactor
 
 `docs/specs/lean-prism.md` records the approved breaking redesign and execution
-checklist. The local replacement is implemented and verified; hosted catalogue
-deletion has a delivery-ordering blocker documented in `docs/catalogue-retirement.md`.
+checklist. The local replacement is implemented and verified; replacement
+publication precedes hosted catalogue deletion. See `docs/catalogue-retirement.md`.
 Historical ADRs document old designs, not current workflow requirements.
 
 ## Packages
@@ -44,9 +44,14 @@ assets from their SCSS/JavaScript sources when those sources change.
   and applicable lint. Hooks do not rewrite source or enforce workflow readiness.
 - Use Conventional Commits with `Implemented-by` and `Signed-off-by` only.
   Follow Git signing configuration and commit verified logical changes.
-- Keep work on the active refactor branch. No push or merge has been requested
-  for this refactor. The separate approved deletion of `kyaulabs/prism-adapters`
-  happens only after its consumers and dedicated automation are retired.
+- Delivery is authorized: use `kyau` for Git pushes and signed local commits.
+  Use `kyaulabs-bot` for creating PRs, merging them and deleting merged task
+  branches. Never delete `main`, `develop` or `release/X.Y.Z` branches.
+- After creating each PR, execute every item in its **Test Plan** before
+  approving the review as `kyau`. Then merge as `kyaulabs-bot`, respecting normal
+  repository protections. These are standing instructions; do not ask again.
+- Deliver the replacement before deleting `kyaulabs/prism-adapters`. Retire only
+  dedicated catalogue infrastructure and preserve shared credentials/integrations.
 
 ## References
 

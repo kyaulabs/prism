@@ -1,6 +1,6 @@
 # Lean Prism
 
-Status: local implementation verified; hosted deletion awaits a sequencing decision.
+Status: local implementation verified; automatic replacement delivery authorized.
 Branch: `refactor/kyau-a8c5-lean-skills`.
 
 ## Approved design
@@ -123,7 +123,7 @@ compatibility shims. Versions 1.0.0 are prepared, not published.
 - Historical ADRs/research remain historical. Old local state is inert and was not
   read or deleted. Migration guidance is in `docs/migration-1.0.md`.
 
-## External sequencing blocker
+## External delivery status
 
 Remote inspection found the live default branch still exposes Core 0.6.0 with
 catalogue-dependent workflow executables. The local replacement is not pushed,
@@ -135,6 +135,8 @@ queued/in-progress catalogue runs were returned. Secret names were inventoried;
 no private values or shared organization infrastructure were accessed/changed.
 See `docs/catalogue-retirement.md` for exact workflow IDs and credential names.
 
-A real scope decision remains: authorize replacement delivery first, explicitly
-accept current-consumer breakage and delete now, or defer hosted deletion under
-the existing no-push/no-merge scope. This is not a routine approval gate.
+The user authorized replacement delivery first. Push as `kyau`, create/merge PRs
+and delete merged task branches as `kyaulabs-bot`, and run every Test Plan item
+after PR creation before approving as `kyau`. Preserve main/develop/release
+branches. Native npm and pnpm authentication currently return HTTP 401; registry
+login must be restored before publication and subsequent catalogue deletion.
