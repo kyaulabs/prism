@@ -39,7 +39,7 @@ test('selecting a local core source removes stale npm and local registrations', 
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
 
     assert.deepEqual(result, {removed: 3, retained: selected});
-    assert.deepEqual(settings.packages, [selected, 'npm:unrelated']);
+    assert.deepEqual(settings.packages, [{source: selected, prompts: []}, 'npm:unrelated']);
     assert.equal(settings.theme, 'dark');
 });
 
@@ -58,6 +58,27 @@ test('selecting an npm core source removes local registrations and preserves its
 
     assert.deepEqual(result, {removed: 2, retained: selected.source});
     assert.deepEqual(settings.packages, [selected, 'npm:unrelated']);
+});
+
+test('switching source carries resource filters and unknown package options', () => {
+    const root = makeTempDir();
+    const selected = packageRoot(root, 'core');
+    const settingsPath = path.join(root, 'agent/settings.json');
+    const options = {extensions: ['!extensions/web-access'], skills: [], futureOption: {preserve: true}};
+    writeJson(settingsPath, {packages: [{source: 'npm:@kyaulabs/prism-core', ...options}, selected]});
+    reconcileCoreSource(settingsPath, selected);
+    assert.deepEqual(JSON.parse(fs.readFileSync(settingsPath, 'utf8')).packages, [{source: selected, ...options}]);
+});
+
+test('conflicting stale package filters fail without guessing or replacing settings', () => {
+    const root = makeTempDir();
+    const selected = packageRoot(root, 'core');
+    const stale = packageRoot(root, 'old-core');
+    const settingsPath = path.join(root, 'agent/settings.json');
+    writeJson(settingsPath, {packages: [{source: stale, skills: []}, {source: 'npm:@kyaulabs/prism-core', prompts: []}, selected]});
+    const before = fs.readFileSync(settingsPath);
+    assert.throws(() => reconcileCoreSource(settingsPath, selected), /conflicting Core package options/);
+    assert.deepEqual(fs.readFileSync(settingsPath), before);
 });
 
 test('refuses to replace settings in a group-writable directory', () => {

@@ -4,13 +4,13 @@
   "description": "Modular engineering skills and secret protection for Pi",
   "license": "AGPL-3.0-only",
   "keywords": ["pi-package"],
-  "files": ["extensions", "skills", "prompts", "scripts", "config", "docs", "AGENTS.md", "APPEND_SYSTEM.md", "NOTICE"],
+  "files": ["extensions", "skills", "prompts", "scripts", "config", "docs", "AGENTS.md", "NOTICE"],
   "dependencies": {
     "@mozilla/readability": "0.6.0",
     "linkedom": "0.16.11",
     "turndown": "7.2.4"
   },
-  "peerDependencies": {"@earendil-works/pi-coding-agent": "*"},
+  "peerDependencies": {"@earendil-works/pi-coding-agent": "*", "typebox": "*"},
   "pi": {"extensions": ["./extensions"], "skills": ["./skills"], "prompts": ["./prompts"]},
   "engines": {"node": ">=22.19.0"},
   "publishConfig": {"access": "public"}

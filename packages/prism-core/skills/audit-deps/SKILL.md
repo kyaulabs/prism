@@ -102,7 +102,7 @@ INCOMPLETE, not CLEAN.
   lockfile synchronization rules.
 - `security-coding` skill — dependency and supply-chain hygiene.
 - `/security` prompt template — combines dependency audit with the project's
-  configured static security checks (Stage 3).
+  configured static security checks.
 
 ## Gotchas
 

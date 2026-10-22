@@ -4,6 +4,10 @@ const require = createRequire(import.meta.url);
 const policy = require('../../scripts/sensitive-path-policy.js');
 
 export interface SensitivePathOptions {projectDir:string; home:string; extraPaths?:string[]}
+export function resolveSensitivePath(value: string, options: SensitivePathOptions): string {
+    const api: typeof path = policy.pathApi(value, options);
+    return api.resolve(options.projectDir, value.replace(/^~(?=[\\/]|$)/, options.home));
+}
 export interface SensitiveMatch {className:string}
 export const sensitivePathMatch = policy.sensitivePathMatch as (file:string, options:SensitivePathOptions) => SensitiveMatch | null;
 export const loadAdditionalSensitivePaths = policy.loadAdditionalSensitivePaths as (value?:string) => string[];

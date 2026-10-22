@@ -27,6 +27,8 @@ for (const name of ['prism-core', 'prism-php-web']) {
         const extracted = path.join(directory, 'package');
         execFileSync('tar', ['-xzf', path.join(directory, packed.filename), '-C', directory]);
         if (name === 'prism-core') {
+            assert.equal(files.includes('APPEND_SYSTEM.md'), false);
+            assert.equal(fs.existsSync(path.join(packagePath, 'APPEND_SYSTEM.md')), false);
             assert.equal(manifest.peerDependencies['@earendil-works/pi-coding-agent'], '*');
             assert.equal(manifest.dependencies['@earendil-works/pi-coding-agent'], undefined);
             for (const file of ['extensions/safety/index.ts', 'extensions/web-access/index.ts', 'scripts/web-access/config.js']) assert.ok(files.includes(file));

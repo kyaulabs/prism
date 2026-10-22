@@ -11,16 +11,16 @@ conventions so new skills, prompts, extensions, and docs slot in without drift.
 
 ## File locations
 
-| Type | Core location | Adapter location | Filename |
+| Type | Core location | Module location | Filename |
 | --- | --- | --- | --- |
-| Skill | `packages/prism-core/skills/<name>/` | `packages/<adapter>/skills/<name>/` | `SKILL.md` |
-| Prompt template | `packages/prism-core/prompts/` | `packages/<adapter>/prompts/` | `<name>.md` |
+| Skill | `packages/prism-core/skills/<name>/` | `packages/<module>/skills/<name>/` | `SKILL.md` |
+| Prompt template | `packages/prism-core/prompts/` | `packages/<module>/prompts/` | `<name>.md` |
 | Extension | `packages/prism-core/extensions/<name>/` | only when an ADR permits one | `index.ts` |
-| Reference doc | `packages/prism-core/docs/` | `packages/<adapter>/docs/` | `<name>.md` |
+| Reference doc | `packages/prism-core/docs/` | `packages/<module>/docs/` | `<name>.md` |
 
 Core resources must remain language-agnostic. Anything tied to a language,
-framework, package manager, build output, server, or database belongs in an
-adapter.
+framework, package manager, build output, server, or database belongs in a
+stack module.
 
 ## Skill frontmatter
 
@@ -53,8 +53,9 @@ argument-hint: "<optional arguments>"
 
 - Prompt templates live under a package's `prompts/` directory and register as
   slash commands by filename.
-- Use `$ARGUMENTS` for all arguments, `$1`, `$2`, ... for positional arguments,
-  `$@` for shell-quoted arguments, and `${1:-default}` for a default.
+- Use `$ARGUMENTS` or `$@` for all arguments joined with spaces, `$1`, `$2`, ...
+  for positional arguments, and `${1:-default}` for a default. These are prompt
+  substitutions, not shell escaping.
 - Omit `argument-hint` only when the prompt accepts no arguments.
 - Prompt templates run in the single agent's context; there is no agent,
   subtask, mode, or permission frontmatter.
@@ -117,8 +118,9 @@ Before merging a new or changed harness resource:
   initial prompt; full bodies cost tokens when loaded.
 - Prompt templates are expanded when invoked.
 - Reference docs should be loaded at the step that needs them, not eagerly.
-- Global `~/.pi/agent/AGENTS.md` and `APPEND_SYSTEM.md` are always loaded.
-  Keep them minimal; everything else should be on-demand.
+- Core deploys only its concise `AGENTS.md` contract. Do not add a distributed
+  `APPEND_SYSTEM.md`, replacement system prompt, or automatic reminder hook.
+  Keep task guidance in native, progressively discovered skills.
 
 ## Cross-ref conventions
 
@@ -131,15 +133,16 @@ Before merging a new or changed harness resource:
 
 ## Rules
 
-- Every new skill or prompt must be added to the tables in
-  `packages/prism-core/AGENTS.md` and, once rewritten in Stage 5,
-  `CODING_HARNESS.md`.
+- Native Pi discovery advertises skill descriptions and registers prompt names.
+  Add resources under the package's manifest paths; do not maintain duplicate
+  skill tables in global context. Check discovery and diagnostics in Pi.
 - If a new skill introduces a project-wide convention, update `AGENTS.md`
   (the authoritative source).
 - If a new skill introduces a domain term, update `CONTEXT.md`.
 - Test new skills with `/skill:<name>` and prompt templates through their slash
   command before merging.
-- Run the pi-layout harness validator once it lands in Stage 3.
+- In the Prism repository, run `bash packages/prism-core/scripts/validate-harness.sh`,
+  relevant tests, and typechecking against the supported Pi SDK.
 
 ## Gotchas
 
@@ -151,8 +154,8 @@ causes a preventable mistake.
   applies.
 - *Skill restates rules from AGENTS.md* — reference the authoritative source
   instead of duplicating. Duplicated rules drift out of sync.
-- *New skill not added to AGENTS.md tables* — the skill exists but the agent
-  does not know when to load it.
+- *Skill outside manifest paths or missing a description* — Pi cannot discover
+  usable guidance. Verify the package's actual resource loading.
 - *Core skill contains stack commands* — move concrete framework, test,
   package-manager, and lint guidance to the active adapter.
 - *Assuming directory/name mismatch is portable* — pi permits it, but the

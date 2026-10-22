@@ -20,9 +20,17 @@ const DEFAULT_PATTERNS = Object.freeze([
 
 const MAX_CANONICALIZE_STEPS = 64;
 
-function normalizeRaw(raw, home) {
-    const expanded = raw.startsWith('~/') ? `${home}/${raw.slice(2)}` : raw;
-    return path.normalize(expanded).replace(/\/+$/, '');
+function windowsPath(value) {
+    return /^[a-z]:[\\/]|^\\\\/i.test(value);
+}
+
+function pathApi(value, options) {
+    return windowsPath(value) || windowsPath(options.home) || windowsPath(options.projectDir) ? path.win32 : path;
+}
+
+function normalizeRaw(raw, home, api = path) {
+    const expanded = /^~[\\/]/.test(raw) ? `${home}/${raw.slice(2)}` : raw;
+    return api.normalize(expanded).replace(/[\\/]+$/, '');
 }
 
 function isEnvBasename(name) {
@@ -62,24 +70,28 @@ function canonicalizePath(value) {
 }
 
 function matchNormalized(candidate, options, canonicalPatterns) {
-    const name = path.basename(candidate);
-    if (candidate.split(path.sep).some(isEnvBasename)) return {className: 'env'};
+    const api = pathApi(candidate, options);
+    const windows = api === path.win32;
+    const normalize = value => windows ? value.toLowerCase() : value;
+    candidate = normalize(candidate);
+    const name = api.basename(candidate);
+    if (candidate.split(api.sep).some(isEnvBasename)) return {className: 'env'};
     if (name === 'auth.json' || name === 'mcp-auth.json') {
         return {className: 'opencode-auth-store'};
     }
     for (const pattern of DEFAULT_PATTERNS) {
-        const normalized = normalizeRaw(pattern.raw, options.home);
-        const patternPath = canonicalPatterns ? canonicalizePath(normalized) : normalized;
+        const normalized = normalizeRaw(pattern.raw, options.home, api);
+        const patternPath = normalize(canonicalPatterns ? canonicalizePath(normalized) : normalized);
         if (candidate === patternPath ||
-            (pattern.dir && candidate.startsWith(`${patternPath}/`))) {
+            (pattern.dir && candidate.startsWith(`${patternPath}${api.sep}`))) {
             return {className: pattern.className};
         }
     }
     for (const raw of options.extraPaths ?? []) {
-        const normalized = normalizeRaw(raw, options.home);
-        const patternPath = canonicalPatterns ? canonicalizePath(normalized) : normalized;
-        const directory = raw.endsWith('/');
-        if (candidate === patternPath || (directory && candidate.startsWith(`${patternPath}/`))) {
+        const normalized = normalizeRaw(raw, options.home, api);
+        const patternPath = normalize(canonicalPatterns ? canonicalizePath(normalized) : normalized);
+        const directory = /[\\/]$/.test(raw);
+        if (candidate === patternPath || (directory && candidate.startsWith(`${patternPath}${api.sep}`))) {
             return {className: 'additional'};
         }
     }
@@ -87,9 +99,13 @@ function matchNormalized(candidate, options, canonicalPatterns) {
 }
 
 function sensitivePathMatch(absPath, options) {
-    const lexical = path.normalize(absPath);
+    const api = pathApi(absPath, options);
+    const lexical = api.normalize(absPath);
     const direct = matchNormalized(lexical, options, false);
     if (direct !== null) return direct;
+    // Synthetic Windows fixtures on POSIX have no Windows filesystem to resolve.
+    // Native Windows still performs the ordinary realpath/symlink inspection.
+    if (api === path.win32 && process.platform !== 'win32') return null;
     return matchNormalized(canonicalizePath(absPath), options, true);
 }
 
@@ -99,7 +115,7 @@ function loadAdditionalSensitivePaths(envValue) {
     for (const line of envValue.split('\n')) {
         const entry = line.trim();
         if (entry === '') continue;
-        if (!entry.startsWith('~/') && !entry.startsWith('/')) {
+        if (!/^~[\\/]/.test(entry) && !entry.startsWith('/') && !windowsPath(entry)) {
             throw new Error('sensitive-paths: manifest entry must be absolute or ~/-prefixed — fail closed (ADR-0047)');
         }
         if (/[\u0000-\u001f\u007f]/.test(entry)) {
@@ -115,6 +131,7 @@ module.exports = {
     canonicalizePath,
     loadAdditionalSensitivePaths,
     sensitivePathMatch,
+    pathApi,
 };
 
 // vim: ft=javascript sts=4 sw=4 ts=4 et :

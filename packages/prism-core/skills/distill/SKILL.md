@@ -54,7 +54,7 @@ Human voice comes from concrete detail, specific judgment, and varied rhythm. Ne
 
 ## Cross-refs
 
-- `AGENTS.md` Output style section provides the compact always-on rule.
+- Core `AGENTS.md`, under Communication, provides the compact always-on rule.
 - `docs-writer` owns project documentation and source documentation conventions.
 - `writing-skills` owns Prism skill structure, attribution, and token discipline.
 - `references/patterns.md` contains the adapted detailed audit catalog.

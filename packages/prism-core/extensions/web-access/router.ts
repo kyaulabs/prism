@@ -61,14 +61,20 @@ export async function searchWeb(
     deps: RouterDependencies = {},
 ): Promise<SearchBackendResult> {
     const params = validateSearchParams(input);
+    const checkCancelled = () => {
+        if (deps.signal?.aborted) throw new WebAccessError('WEB_ACCESS_CANCELLED', 'web request cancelled');
+    };
+    checkCancelled();
     const config = (deps.loadConfig ?? loadWebAccessConfig)();
     const failed: SearchBackend[] = [];
 
     if (config.browser === 'auto') {
         try {
             const results = await (deps.searchBrowser ?? defaultBrowser)(params, deps.signal);
+            checkCancelled();
             return {backend: 'browser', results};
         } catch (error) {
+            checkCancelled();
             if (terminalError(error)) throw error;
             failed.push('browser');
         }
@@ -81,8 +87,10 @@ export async function searchWeb(
                 params,
                 deps.signal,
             );
+            checkCancelled();
             return {backend: 'searxng', results};
         } catch (error) {
+            checkCancelled();
             if (terminalError(error)) throw error;
             failed.push('searxng');
         }
@@ -90,8 +98,10 @@ export async function searchWeb(
 
     try {
         const results = await (deps.searchDirect ?? defaultDirect)(params, deps.signal);
+        checkCancelled();
         return {backend: 'direct', results};
     } catch (error) {
+        checkCancelled();
         if (terminalError(error)) throw error;
         failed.push('direct');
     }

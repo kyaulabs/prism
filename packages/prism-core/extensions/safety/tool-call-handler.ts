@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {loadAdditionalSensitivePaths, sensitiveOperandCheck, sensitivePathMatch, sensitivePatternCheck} from './sensitive-paths.ts';
+import {loadAdditionalSensitivePaths, resolveSensitivePath, sensitiveOperandCheck, sensitivePathMatch, sensitivePatternCheck} from './sensitive-paths.ts';
+import {powershellOperands, sensitivePowerShellCheck} from './powershell.ts';
 
 export interface ToolCallDeps {cwd:string; home:string; extraPaths:string[]}
 export type ToolCallResult = {block:true; reason:string} | undefined;
@@ -15,14 +16,15 @@ export function resolveExtraPaths(value?:string, log: (message:string) => void =
     return paths;
 }
 
-function inspectCommit(command:string, deps:ToolCallDeps):ToolCallResult {
+function inspectCommit(command:string, deps:ToolCallDeps, powershell = false):ToolCallResult {
     let cwd = deps.cwd;
     for (const segment of command.split(/&&|[;\n]/)) {
-        const tokens = (segment.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [])
-            .map(token => token.replace(/^["']|["']$/g, ''));
-        if (tokens[0] === 'cd' && tokens[1]) cwd = path.resolve(cwd, tokens[1]);
+        const tokens = powershell ? powershellOperands(segment) :
+            (segment.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []).map(token => token.replace(/^["']|["']$/g, ''));
+        if (['cd', 'Set-Location', 'sl'].includes(tokens[0]) && tokens[1]) cwd = resolveSensitivePath(tokens[1], {projectDir: cwd, home: deps.home});
         const git = tokens[0] === 'command' ? 1 : 0;
-        if (path.basename(tokens[git] ?? '') !== 'git') continue;
+        const executable = (tokens[git] ?? '').split(/[\\/]/).at(-1)?.replace(/\.exe$/i, '') ?? '';
+        if ((powershell ? executable.toLowerCase() : executable) !== 'git') continue;
         let subcommand = git + 1;
         while (tokens[subcommand]?.startsWith('-')) {
             const takesValue = ['-C','-c','--git-dir','--work-tree','--namespace','--config-env','--super-prefix'].includes(tokens[subcommand]);
@@ -54,9 +56,14 @@ export function handleToolCall(tool:string, input:unknown, deps:ToolCallDeps):To
             if (sensitiveOperandCheck(args.command, options)) return blocked();
             return inspectCommit(args.command, deps);
         }
+        if (tool === 'powershell') {
+            if (typeof args.command !== 'string') return blocked();
+            if (sensitivePowerShellCheck(args.command, options)) return blocked();
+            return inspectCommit(args.command, deps, true);
+        }
         if (['read','edit','write','ls','grep','find'].includes(tool)) {
             if (args.path !== undefined && typeof args.path !== 'string') return blocked();
-            if (args.path && sensitivePathMatch(path.resolve(deps.cwd, args.path.replace(/^~/, deps.home).replace(/^@/, '')), options)) return blocked();
+            if (args.path && sensitivePathMatch(resolveSensitivePath(args.path.replace(/^@/, ''), options), options)) return blocked();
             if (['grep','find'].includes(tool) && sensitivePatternCheck(args.glob ?? args.pattern, args.path ?? deps.cwd, options)) return blocked();
         }
     } catch { return blocked(); }

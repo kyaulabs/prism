@@ -11,6 +11,9 @@ fi
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 PKG_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
 PI_DIR=${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}
+# Match Pi's relative/home-directory handling before comparing installed paths.
+PI_DIR=$(node -e 'const path = require("node:path"); const os = require("node:os"); const dir = process.argv[1]; console.log(path.resolve(dir.replace(/^~(?=\/|$)/, os.homedir())));' "$PI_DIR")
+export PI_CODING_AGENT_DIR="$PI_DIR"
 SOURCE=${PRISM_CORE_SOURCE:-$PKG_ROOT}
 
 case "$SOURCE" in
@@ -34,6 +37,6 @@ else
     node "$SCRIPT_DIR/reconcile-core-source.js" "$PI_DIR/settings.json" "$SOURCE"
 fi
 node "$SCRIPT_DIR/deploy-context.js" "$INSTALLED_ROOT" "$PI_DIR"
-printf '%s\n' 'Prism Core installed. Reload/restart Pi to load updated resources.'
+printf '%s\n' 'Prism Core context refreshed; owned legacy reminder removed if present. Reload/restart Pi to load updated resources.'
 
 # vim: ft=sh sts=4 sw=4 ts=4 et :

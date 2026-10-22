@@ -21,7 +21,6 @@ function fixture(t) {
     fs.symlinkSync(process.execPath, path.join(bin, 'node'));
     fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({name: '@kyaulabs/prism-core'}));
     fs.writeFileSync(path.join(source, 'AGENTS.md'), '# Core instructions\n');
-    fs.writeFileSync(path.join(source, 'APPEND_SYSTEM.md'), '# Core reminder\n');
     fs.writeFileSync(path.join(agent, 'AGENTS.md'), '# User instructions\n');
     fs.writeFileSync(path.join(bin, 'pi'), `#!${process.execPath}\nconst fs=require('node:fs'); const path=require('node:path'); fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'settings.json'),JSON.stringify({packages:[process.argv[3]],theme:'custom'}));\n`, {mode: 0o755});
     return {root, source, agent, run: (overrides = {}, script = installer) => spawnSync('bash', [script], {
@@ -39,6 +38,7 @@ test('installs a plain Pi Core package without reviewer or toolchain readiness',
     assert.ok(instructions.startsWith('# User instructions\n'));
     assert.match(instructions, /# Core instructions/);
     assert.equal(fs.existsSync(path.join(target.root, 'launchers')), false);
+    assert.equal(fs.existsSync(path.join(target.agent, 'APPEND_SYSTEM.md')), false);
     assert.equal(JSON.parse(fs.readFileSync(path.join(target.agent, 'settings.json'), 'utf8')).theme, 'custom');
 });
 
@@ -84,7 +84,7 @@ test('a failed context replacement preserves the existing file', (t) => {
     const target = fixture(t);
     const {deployContext} = require('../../packages/prism-core/scripts/deploy-context');
     t.mock.method(fs, 'renameSync', () => { throw new Error('simulated replacement failure'); });
-    assert.throws(() => deployContext(target.source, target.agent), /simulated replacement failure/);
+    assert.throws(() => deployContext(target.source, target.agent), /AGENTS\.md.*context I\/O.*No context changes completed/);
     assert.equal(fs.readFileSync(path.join(target.agent, 'AGENTS.md'), 'utf8'), '# User instructions\n');
     assert.deepEqual(fs.readdirSync(target.agent), ['AGENTS.md']);
 });
