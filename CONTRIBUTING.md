@@ -9,7 +9,9 @@ project tools. Review non-trivial work in the current session before completion.
 ```bash
 npm ci --ignore-scripts
 composer install --no-interaction --no-scripts
-node --test --test-concurrency=2 tests/Node/*.test.js tests/Node/*.test.ts
+npm run typecheck
+npm run test:host
+npm run test:node
 bash packages/prism-core/scripts/validate-harness.sh
 bash tests/Shell/run-all.sh
 php -d pcov.enabled=1 vendor/bin/pest --coverage

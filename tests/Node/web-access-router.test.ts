@@ -71,6 +71,18 @@ test('invalid input and terminal security/configuration/cancellation errors stop
     assert.equal(calls, 0);
 });
 
+test('an abort racing a fallback-eligible backend error cannot start the next backend', async () => {
+    const controller = new AbortController();
+    let fallbacks = 0;
+    await assert.rejects(searchWeb(PARAMS, {
+        signal: controller.signal,
+        loadConfig: () => ({browser: 'auto', searxngUrl: null}),
+        searchBrowser: async () => { controller.abort(); throw fallback(); },
+        searchDirect: async () => { fallbacks++; return RESULTS; },
+    }), {code: 'WEB_ACCESS_CANCELLED'});
+    assert.equal(fallbacks, 0);
+});
+
 test('all fallback failures expose backend categories only', async () => {
     const attempted: string[] = [];
     await assert.rejects(() => searchWeb(PARAMS, {

@@ -5,6 +5,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const {isDeepStrictEqual} = require('node:util');
 
 const CORE_NAME = '@kyaulabs/prism-core';
 const MAX_MANIFEST_BYTES = 64 * 1024;
@@ -141,6 +142,8 @@ function reconcileCoreSource(settingsPath, selectedSource, context = {}) {
 
     let retained = false;
     let removed = 0;
+    let retainedIndex = -1;
+    const configurations = [];
     const packages = [];
     for (const entry of settings.packages) {
         const source = entrySource(entry);
@@ -151,8 +154,14 @@ function reconcileCoreSource(settingsPath, selectedSource, context = {}) {
         const npmCore = npmCoreSource(source);
         const localCore = npmCore ? null : localCoreSource(io, settingsDirectory, source);
         const selected = selectedNpm ? source === selectedSource : localCore === selectedLocal;
+        if ((npmCore || localCore !== null) && typeof entry === 'object') {
+            const configuration = {...entry};
+            delete configuration.source;
+            if (Object.keys(configuration).length) configurations.push({selected, configuration});
+        }
         if ((npmCore || localCore !== null) && selected) {
             if (!retained) {
+                retainedIndex = packages.length;
                 packages.push(entry);
                 retained = true;
             } else {
@@ -165,6 +174,16 @@ function reconcileCoreSource(settingsPath, selectedSource, context = {}) {
         }
     }
     if (!retained) throw new ReconcileError('settings reconciliation failed');
+    // A native install of a different source adds an unfiltered entry. Carry
+    // existing filters/unknown package options instead of silently dropping them.
+    // Explicit options on the selected source take precedence. Conflicts within
+    // that priority are ambiguous: preserve settings and let the owner resolve.
+    const selectedConfigurations = configurations.filter(item => item.selected);
+    const choices = selectedConfigurations.length ? selectedConfigurations : configurations;
+    if (choices.some(item => !isDeepStrictEqual(item.configuration, choices[0].configuration))) {
+        throw new ReconcileError('settings reconciliation failed: conflicting Core package options');
+    }
+    if (choices.length) packages[retainedIndex] = {...choices[0].configuration, source: entrySource(packages[retainedIndex])};
 
     publishSettings(io, settingsPath, {...settings, packages}, context);
     return {removed, retained: selectedNpm ? selectedSource : selectedLocal};

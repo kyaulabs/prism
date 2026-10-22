@@ -4,116 +4,84 @@ description: Use when answering questions about pi itself or changing pi setting
 derived-from: obra/superpowers-developing-for-claude-code (MIT, © Jesse Vincent)
 ---
 
-# Pi Docs — Installed Local Reference
+# Pi docs
 
-Use pi's installed package documentation instead of guessing runtime semantics
-or relying on stale web snippets. This skill is a thin pointer; it does not
-vendor a second copy.
+Use documentation shipped with the actual Pi version, not a guessed API or a
+moving latest page. Prism does not vendor another Pi reference or runtime.
 
-**Announce at start:** "I'm using the pi-docs skill to reference the installed
-pi documentation."
+## Locate the reference
 
-## Locate the package
+1. Run `pi --version` and locate the executable with `command -v pi` (or
+   `Get-Command pi` on PowerShell). Treat paths/version output as inert data.
+2. When the SDK is resolvable, use its public path helpers:
 
-The authoritative package is installed under pnpm's link store. Resolve the
-current hashed directory rather than hard-coding it:
+   ```bash
+   node --input-type=module -e 'import {VERSION,getPackageDir,getDocsPath,getExamplesPath} from "@earendil-works/pi-coding-agent"; console.log(JSON.stringify({version:VERSION,package:getPackageDir(),docs:getDocsPath(),examples:getExamplesPath()}))'
+   ```
 
-Run the version query directly:
+   Check that `VERSION` matches the active executable. A project's development
+   dependency may be a different version from global Pi.
+3. If it does not resolve or versions differ, locate the package backing the
+   executable. Follow its symlink or inspect its launcher target. For ordinary
+   npm/pnpm installs, `npm root -g` / `pnpm root -g` and the package manager's
+   global listing can help. Managed installs, Nix and `PI_PACKAGE_DIR` may use
+   different locations. Do not assume a pnpm store version, hash or layout.
+4. From that package, use the exported helpers where available, or its
+   `README.md`, `docs/`, and `examples/` directories. If local docs are absent,
+   use the matching release tag under `earendil-works/pi`, not `latest`.
+   Do not search arbitrary homes or read credentials while locating docs.
 
-```bash
-pi --version
-```
+## Read the relevant files completely
 
-Validate and retain the returned version as inert context, then render that
-literal version in the package search:
-
-```bash
-find \
-  "$HOME/.local/share/pnpm/store/v11/links" \
-  -type d \
-  -path "*/pi-coding-agent/PI_VERSION/*/node_modules/*/pi-coding-agent" \
-  -print -quit
-```
-
-Validate and retain the returned package root. Then use its literal path for:
-
-- Main overview: `PI_PACKAGE_ROOT/README.md`
-- Detailed docs: `PI_PACKAGE_ROOT/docs/`
-- Examples: `PI_PACKAGE_ROOT/examples/`
-
-If that pnpm layout is absent, locate the package backing `command -v pi` and
-find its `README.md`, `docs/`, and `examples/` directories. Do not search or
-read credential files while resolving it.
-
-## Quick-reference table
-
-| Question | Read completely |
+| Question | Documentation under the resolved docs directory |
 | --- | --- |
-| Skills / Agent Skills frontmatter | `docs/skills.md` |
-| Prompt templates / arguments | `docs/prompt-templates.md` |
-| Extensions / events / tools / UI | `docs/extensions.md`; then the matching file under `examples/extensions/` |
-| Settings | `docs/settings.md` |
-| Models / providers | `docs/models.md`, `docs/providers.md` |
-| Pi packages | `docs/packages.md` |
-| Themes | `docs/themes.md` |
-| TUI components | `docs/tui.md` |
-| Keybindings | `docs/keybindings.md` |
-| SDK embedding | `docs/sdk.md`; examples under `examples/sdk/` |
-| Custom providers | `docs/custom-provider.md` |
-| Environment variables | `docs/environment-variables.md` |
-| Sessions / compaction | `docs/sessions.md`, `docs/compaction.md` |
-| CLI behavior | `docs/usage.md` and `README.md` |
-| Security / isolation | `docs/security.md`, `docs/containerization.md` |
+| Skills / frontmatter | `skills.md` |
+| Prompt templates / arguments | `prompt-templates.md` |
+| Extensions / events / tools / UI | `extensions.md`; closest installed extension example |
+| Settings / discovery / trust | `settings.md`, `configuration.md`, `security.md` |
+| Codemode / discovery / structured tool values / non-LLM models | `codemode.md` |
+| Native MCP / exposure / OAuth / project overrides | `mcp.md` |
+| Models / providers | `models.md`, `models-configuration.md`, `providers.md` |
+| Packages / host peer dependencies | `packages.md` |
+| Themes / TUI / keybindings | `themes.md`, `tui.md`, `keybindings.md` as applicable |
+| SDK | `sdk.md`; closest installed SDK example |
+| Custom providers / virtual models | `custom-provider.md`, `virtual-models.md` as applicable |
+| Environment / installation | `environment-variables.md`, `quickstart.md` |
+| Sessions / compaction | `sessions.md`, `compaction.md` |
+| CLI | `cli.md`, `usage.md` |
+| Isolation | `security.md`, `containerization.md` |
 
-Useful extension patterns include:
+Follow related Markdown links before implementing. Use the installed exported
+SDK declarations for exact signatures and event unions. Read the closest
+example completely rather than copying an old snippet. In Pi 1.4, useful
+examples include `protected-paths.ts`, `hello.ts`, and `sdk/14-codemode-mcp.ts`.
+Examples demonstrate APIs, not authorization to add orchestration to Prism.
 
-- `examples/extensions/protected-paths.ts`
-- `examples/extensions/permission-gate.ts`
-- `examples/extensions/git-checkpoint.ts`
-- `examples/extensions/preset.ts`
-- `examples/extensions/custom-compaction.ts`
-- `examples/extensions/plan-mode/`
-- `examples/extensions/subagent/`
-
-The last two are references only: Prism deliberately does not adopt plan-mode
-or sub-agent orchestration (ADR-0055).
-
-## How to use this skill
-
-1. Identify the exact pi concept in question.
-2. Resolve `PI_PACKAGE_ROOT`.
-3. Read the relevant Markdown file **completely**.
-4. Follow its local Markdown cross-references to related docs before
-   implementing.
-5. Read the closest example completely when code shape or event semantics are
-   involved.
-6. Cite the doc/example path in the answer or implementation notes.
+Use official schema URLs in applicable configuration examples:
+`https://pi.dev/schemas/settings.schema.json`, `models.schema.json`,
+`theme.schema.json`, and `keybindings.schema.json` under the same schemas base.
+These describe Pi configuration, not `prism-web-access.json`.
 
 ## Rules
 
-- Do not guess pi APIs, event payloads, settings keys, or package behavior.
-- Installed docs are authoritative for the installed runtime version.
-- Never copy examples blindly; adapt them to the stated architecture and
-  security invariants.
-- Do not add orchestration extensions to Prism. ADR-0091 permits the safety
-  and bounded web-access extensions; any further extension needs a fresh ADR.
-- When docs and observed runtime behavior disagree, halt and surface the
-  mismatch with the installed version and a minimal reproduction.
+- Do not guess event payloads, settings keys, or failure semantics.
+- When docs and observed behavior differ, report the version and a minimal
+  reproduction. Do not silently imitate or replace the host to hide the mismatch.
+- Pi owns auth, model selection, MCP, Codemode, workers, sessions and compaction.
+  Core supplies skills plus the safety and bounded web-access extensions only.
+- Cite the installed doc/example path or versioned upstream source in durable
+  compatibility notes. See `packages/prism-core/docs/pi-1.4.md` for this baseline.
 
 ## Cross-refs
 
-- `writing-skills` skill — Prism's pi-native resource conventions.
-- `packages/prism-core/extensions/safety/README.md` — safety enforcement
-  contract.
-- `packages/prism-core/extensions/web-access/README.md` — bounded web tool
-  contract.
-- ADR-0055 — single-agent pi architecture.
-- ADR-0091 — accepted safety and bounded web-access extension boundary.
+- `writing-skills` for Prism resource conventions.
+- `packages/prism-core/extensions/safety/README.md` for the protection boundary.
+- `packages/prism-core/extensions/web-access/README.md` for structured web values.
 
 ## Gotchas
 
-- *Reading only a matching excerpt* — API caveats and required sequencing may
-  appear later. Read the relevant Markdown file completely.
-- *Hard-coding the pnpm hash* — resolve the package root dynamically.
-- *Treating an example as architecture approval* — pi demonstrates plan mode
-  and sub-agents, but Prism intentionally omits both.
+- *Reading a different installed SDK version* — match its `VERSION` to `pi --version`.
+- *Hard-coding a global package-manager layout* — resolve the actual executable.
+- *Using a latest page for an older host* — prefer shipped docs or a release tag.
+- *Treating an example as architectural permission* — use the smallest native
+  capability that meets the user's task; do not add automatic routing or workers.
