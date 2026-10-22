@@ -1,4 +1,5 @@
 {
+  "$schema": "https://pi.dev/schemas/settings.schema.json",
   "compaction": { "enabled": true, "reserveTokens": 16384, "keepRecentTokens": 20000 },
   "retry": { "enabled": true, "maxRetries": 3 },
   "enableSkillCommands": true

@@ -1,15 +1,18 @@
 # Migrating to Prism 1.0
 
-This is a clean breaking release, not a compatibility layer. Preparing this
-branch does not publish packages, change your global installation or migrate
-consumer repositories automatically.
+Both 1.0.0 packages are published. The 1.0 refactor is a clean breaking release,
+not a compatibility layer; publication does not migrate consumer installations
+or repositories automatically. The subsequent [Pi 1.4 upgrade](../packages/prism-core/docs/pi-1.4.md)
+removes Prism's copied global reminder through an explicit ownership-based helper.
 
 ## Packages and context
 
 Install/update Core and selected modules through ordinary Pi package sources.
-Run the selected Core's `scripts/install-global.sh` to refresh marked context
-blocks without replacing surrounding user text. Reload/restart Pi for extension
-changes. Keep Pi model/authentication settings in Pi, not Prism setup.
+Run the selected Core's `scripts/install-global.sh` to refresh the marked Core
+block in `AGENTS.md` without replacing surrounding user text. Current helpers
+also remove only the marked legacy Prism reminder; see the Pi 1.4 guide for exact
+rules. Reload/restart Pi for extension changes. Keep Pi model/authentication
+settings in Pi, not Prism setup.
 
 ## Removed interfaces
 
@@ -47,7 +50,7 @@ successful scan proves absence of secrets.
 
 ## Catalogue retirement
 
-No package or workflow depends on `kyaulabs/prism-adapters`. Dedicated external
-automation must be retired before deleting that repository. Inventory credential
-names and integration ownership without reading values. Revoke only dedicated
-credentials; preserve shared organization apps, keys and infrastructure.
+No package or workflow depends on `kyaulabs/prism-adapters`. The hosted catalogue
+and its dedicated automation are retired; see [the retirement record](catalogue-retirement.md).
+Underlying credential revocation remains an owner-side check. Preserve shared
+organization apps, keys and infrastructure; do not read credential values.

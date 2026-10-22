@@ -31,7 +31,8 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --no-scripts
       - run: pipx install semgrep
       - run: node_modules/.bin/playwright install --with-deps chromium
-      - run: node --test --test-concurrency=2 tests/Node/*.test.js tests/Node/*.test.ts
+      - run: npm run typecheck
+      - run: npm run test:node # Includes the real Pi 1.4 host/Codemode/MCP fixtures
       - run: bash packages/prism-core/scripts/validate-harness.sh
       - run: bash tests/Shell/run-all.sh
       - run: vendor/bin/php-cs-fixer fix --dry-run --diff
@@ -75,4 +76,4 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts
-      - run: node --test tests/Node/package-resources.test.js
+      - run: node --test tests/Node/package-resources.test.js tests/Node/pi-host-lifecycle.test.ts

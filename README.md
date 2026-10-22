@@ -16,15 +16,19 @@ bash packages/prism-core/scripts/install-global.sh
 pi install -l ./packages/prism-php-web
 ```
 
-The Core installer uses normal Pi installation and merges marked context blocks
-into the Pi agent directory, preserving user text. `PRISM_CORE_SOURCE` may select
+The Core installer uses normal Pi installation and merges the concise Core
+`AGENTS.md` block into the Pi agent directory, preserving user text. It also
+removes only the marked Prism-owned legacy `APPEND_SYSTEM.md` block. `PRISM_CORE_SOURCE` may select
 a local Core path or `npm:@kyaulabs/prism-core`; `PI_CODING_AGENT_DIR` selects the
 Pi configuration directory. Reload/restart Pi after changing extensions.
 
 Released packages can be installed with `pi install npm:@kyaulabs/prism-core`
 and `pi install -l npm:@kyaulabs/prism-php-web`. Run the installed Core's
 `scripts/install-global.sh` to deploy its always-on context. Pi owns model
-selection and authentication. Version 1.0 in this branch is not yet published.
+selection and authentication. Both Prism 1.0.0 packages are published. This
+upgrade targets **Pi 1.4.0** with Node **22.19.0+**; Prism package versions are
+independent of Pi. See the [upgrade/migration guide and adoption matrix](packages/prism-core/docs/pi-1.4.md).
+Native package updates do not migrate previously copied external context files.
 
 ## Use
 
@@ -52,5 +56,7 @@ files are heritage/test infrastructure, not a deployable application.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [CONTEXT.md](CONTEXT.md),
 [the approved refactor](docs/specs/lean-prism.md) and
-[migration guidance](docs/migration-1.0.md). Historical ADRs, research and plans
+[1.0 migration guidance](docs/migration-1.0.md). Run `npm run typecheck`,
+`npm run test:host` and `npm run test:node` for the Core/host baseline.
+Historical ADRs, research and plans
 record past designs; they are not current workflow requirements.
