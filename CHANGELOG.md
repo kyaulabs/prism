@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
+## [1.1.0](https://github.com/kyaulabs/prism/releases/tag/v1.1.0) — 2026-10-21
+
+- Test against exactly Pi 1.4.0, preserving the Node 22.19.0+ baseline and
+  Pi/TypeBox host peer contracts. Prism does not bundle a host runtime.
+- Remove Core's packaged `APPEND_SYSTEM.md`. The explicit context helper removes
+  only its exact owned block, preserves outside bytes, rejects unsafe/malformed
+  files, checks concurrent edits, and reports partial progress without rollback
+  claims. Core's concise `AGENTS.md` is unchanged.
+- Preserve package filters and unknown options across local/npm source switches,
+  including refreshes in relative/custom Pi configuration directories.
+- Return schema-conforming, bounded web data to native Codemode alongside direct
+  readable output; preserve pagination across display limits and prevent
+  cancellation from falling through to another backend.
+- Add PowerShell-specific credential-path handling and synthetic Windows tests.
+  Real Pi dispatch tests cover direct/nested protection, cancellation, parallel
+  calls, packed resources, native MCP, reload/resume and tree navigation.
+- Add CI SDK typechecking, official settings schemas, install-neutral docs
+  discovery, current skill guidance and the [compatibility/adoption matrix](packages/prism-core/docs/pi-1.4.md).
+- Both packages use 1.1.0 for the existing repository release workflow. PHP/web
+  behavior is unchanged. npm registry publication remains manual; updating a
+  package alone does not migrate previously copied external context.
+
 ## [1.0.0](https://github.com/kyaulabs/prism/releases/tag/v1.0.0) — 2026-09-09
 
 - Replace workflow executables, reviewer receipts and catalogue/provisioning

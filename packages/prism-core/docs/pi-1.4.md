@@ -8,8 +8,9 @@ TypeBox host peers remain `"*"`, as [Pi packages][packages] requires; neither is
 bundled. Earlier hosts are not this upgrade's verified baseline.
 
 Prism package versions are independent of Pi. The 1.0.0 packages are published;
-this upgrade is prepared for Prism 1.1.0. Registry publication is manual. Until
-1.1.0 is published, use the verified checkout installation below instead of
+this upgrade is Prism 1.1.0. Both packages use 1.1.0 for the repository's current
+release workflow; PHP/web behavior is unchanged. Registry publication is manual.
+Until 1.1.0 is published, use the verified checkout installation below instead of
 expecting an npm update to contain these changes.
 
 Core remains global and language-agnostic. PHP/web remains an ordinary
