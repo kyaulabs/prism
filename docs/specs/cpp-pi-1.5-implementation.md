@@ -13,10 +13,10 @@ Started clean on `develop`, HEAD `d1103733a36e066e583eef6ebe7101f387406379`, tre
 429f98206b2fc596295f8635de8380e7c8533d10..HEAD` was empty: pinned main and this
 checkout have the same source tree. No unrelated work was present or discarded.
 
-Work is now uncommitted on `feat/kyau-0d5187-pi-1.5-cpp`, at the same HEAD.
-The branch was created after editing began; the initial generic branch name was
-corrected after reading `/home/kyau/projects/AGENTS.md`. Root/Core instructions
-and the handoff's local-only scope govern; no delivery default was exercised.
+The initial checkpoint was uncommitted on `feat/kyau-0d5187-pi-1.5-cpp` at that
+HEAD. The branch was created after editing began; the initial generic name was
+corrected after reading `/home/kyau/projects/AGENTS.md`. That checkpoint followed
+the handoff's local-only scope. Later authorized delivery is recorded below.
 README primary headers/layout were retained. The external handoff remains outside
 this checkout. The coordinated next minor candidate is **Prism 1.2.0**, independent
 of **Pi 1.5.0**; all three package manifests agree.
@@ -113,7 +113,10 @@ The archive tests extract and verify relative links and resource allowlists; nat
 Pi then loads extracted packages. CLI/host fixtures use synthetic private directories,
 no real credentials, live web service, remote MCP or paid model calls.
 
-## Review and limits
+## Review and limits at the initial local checkpoint
+
+The following audit/CI omissions describe the initial checkpoint, not the final
+candidate. The release execution record below supersedes them.
 
 Same-session review covered the task diff, packed boundaries, tool commands,
 configuration coverage and claims. It is not independent review. Concrete fixture
@@ -167,9 +170,11 @@ contains **55 native command records**. Host/runtime code did not change after t
 
 ## Required release completion plan
 
-Status: **release blocked**. The user requires the outstanding work to be wrapped
-up by release. Audit remediation may be a separate verified change, but not a
-post-release task. These unchecked items are work to execute, not completed evidence.
+Status: **implementation verified and integrated; public release blocked**.
+REL-01 through REL-04 are complete. Website source corrections are delivered, but
+the live deployment still serves stale copy; the website owner must deploy the
+reviewed build before announcement. Registry publication remains manual. Open
+items below are not waived or represented as completed.
 
 - [x] **REL-01 — Remediate the complete dependency audit.** Refresh structured
   `npm audit --json`, `pnpm audit --json` and `composer audit --locked --format=json`
@@ -188,7 +193,7 @@ post-release task. These unchecked items are work to execute, not completed evid
   add version-string tests just to mirror manifest edits. Acceptance: fresh full
   lockfile audits have no outstanding findings; unavailable audits or unresolved
   advisories leave this item open, not waived as development-only risk.
-- [ ] **REL-02 — Verify the resulting dependency and source state.** After REL-01,
+- [x] **REL-02 — Verify the resulting dependency and source state.** After REL-01,
   perform reproducible lifecycle-disabled installs, `npm run typecheck`,
   `npm run test:host` and the full `npm run test:node` with the native/Conan lane
   enabled. Repeat the targeted Node 22.19.0 host smoke and Node 24 baseline.
@@ -198,14 +203,14 @@ post-release task. These unchecked items are work to execute, not completed evid
   repository's PHP/browser/coverage CI checks rather than treating the earlier
   unchanged-PHP local omission as final release verification. Record exact commands,
   versions and failures; fix task-related regressions before closing the gate.
-- [ ] **REL-03 — Validate the declared CI and platform claims.** Execute the new
+- [x] **REL-03 — Validate the declared CI and platform claims.** Execute the new
   Linux Clang 18/Conan acceptance lane and the existing Linux/macOS package lanes,
   with expected resources present and no required-test skips. Hosted execution
   waits for separately authorized delivery; it is not permission to provision
   runners or change protections. Windows/macOS native C++, GCC and TSan must remain
   explicitly unverified unless their actual lanes are run. A Linux-scoped release
   does not need those optional support claims; advertising them does require evidence.
-- [ ] **REL-04 — Review and repack the final coordinated release.** Review the
+- [x] **REL-04 — Review and repack the final coordinated release.** Review the
   actual final diff in-session, resolve concrete findings and rerun affected checks.
   Confirm the selected release version across all three manifests, changelog and
   install examples. Re-run extracted archive/link/resource/coexistence tests and
@@ -256,13 +261,46 @@ skipped**, including all seven Conan/native cases; Node 22.19.0 host suite **16
 passed**; typecheck, shell suites, harness validation and PHP CS Fixer pass.
 `composer install --no-scripts` succeeds; Pest with owned loopback browser fixture
 and PCOV reports **84 passed, 127 assertions, 100% coverage**. Logs use the
-`/tmp/prism-release-*` prefix. Hosted CI remains to be verified after PR creation.
+`/tmp/prism-release-*` prefix. Both npm and pnpm frozen lifecycle-disabled
+installs, typecheck and host tests pass; pnpm was verified in an isolated worktree.
+Node 22.19.0's 16-test host run was repeated after final npm installation.
 
 REL-05 source/owner discovery: the clean sibling checkout
 `/home/kyau/projects/kyaulabs/prism-web`, repository `kyaulabs/prism-web`, owns
 `app.js` and `index.html`. Its instructions require native Vitest/Playwright/ESLint
-checks and signed Git-flow delivery. Stale copy is confirmed there; no served
-minified asset or infrastructure was edited directly.
+checks and signed Git-flow delivery. Source corrections use native builds, never
+hand-edited minified assets. PR #2 passed 107 unit/DOM tests, 14 desktop/mobile
+browser tests and coverage of 99.94% statements, 98.81% branches, 99.7% functions,
+100% lines before merging. Follow-up PR #3 corrects the separate Core install-card
+claim missed in that pass; its post-creation full check and hosted CI pass.
+Both website PRs are approved and merged (final develop commit 36c97dae).
+Existing website dependency alerts are outside this copy-only change and are not
+covered by Prism's clean root lockfile audits.
+
+Hosted Prism run [41581719974](https://github.com/kyaulabs/prism/actions/runs/41581719974)
+passes all four jobs at 71cb501a: full tests, Linux Clang 18/Conan acceptance and
+Linux/macOS packed-resource loading. The first run exposed an ignored synthetic
+`vendor/version.hpp` that local untracked data had masked. Moving that fixture to
+tracked `third-party/version.hpp` fixed clean checkouts; an exported staged-only
+fixture passes F05. No ignore-rule bypass was used. PR #549's six Test Plan items
+were repeated at its final head before approval and merge into develop (869b2d69).
+The subsequent develop CI also passes.
+
+Final local head verification: 256 Node 24 tests passed with zero skips, seven
+required native/Conan cases, 16 Node 22 host tests, 84 PHP/browser tests with 127
+assertions and 100% coverage. Shell/harness/extracted archives/release mocks pass;
+all three fresh ecosystem audits exit zero. Logs use `/tmp/prism-pr549-final-*`.
+Same-session review covered native tool boundaries, dependency changes, packed
+resources, release triggers and claims. It is not an independent reviewer.
+
+**External release hold:** public HTTPS inspection of `https://prism.kyaulabs.com/`
+on 2026-11-03 still shows the old Core engine/install claims. The owner of
+`kyaulabs/prism-web` must deploy its reviewed source through the existing site
+process, then verify both HTML and the generated package-dialog JavaScript.
+This task does not change hosting, credentials or infrastructure. Do not merge
+the release PR or trigger the public release workflow until that action is done.
+After the GitHub release, the user must manually publish all three 1.2.0 packages;
+registry version/archive/discovery verification remains open until then.
 
 ## Task status and next action
 
@@ -282,9 +320,9 @@ resource/installer/release tests, workflow source and documentation shown by
 `git diff --stat` plus `git ls-files --others --exclude-standard`. No generated
 build output was added to source or any npm archive.
 
-Next: complete REL-02 through REL-06. REL-01 is verified as recorded below.
-The original local implementation milestones above do not close these new release
-completion gates. No minified website asset or infrastructure was changed. Host
+Next: close REL-05's live website deployment hold, deliver the prepared GitHub
+release, then complete REL-06's manual registry publication/discovery checks.
+REL-01 through REL-04 are verified above. No infrastructure was changed. Host
 replacement remains a separate manager-preserving operator action; see Core's
 Pi 1.5 guide. A later NGEN pilot requires its own authority and existing CPU
 build/test foundation, not more package fixture code.

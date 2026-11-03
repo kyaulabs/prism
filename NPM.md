@@ -10,10 +10,12 @@ project tools are installed with Composer/npm when selected during setup. C++
 ships only skills/prompts/references; native compiler/build tools remain project-owned.
 The local 1.2.0 candidate is separate from the Pi 1.5.0 host and is not published.
 It is **release-blocked** until the [required release completion plan](docs/specs/cpp-pi-1.5-implementation.md#required-release-completion-plan)
-is closed. That plan requires full dependency-audit remediation, final regression
-and CI evidence, archive/release validation, documentation coordination and
-separately authorized delivery. Development-only audit findings are not deferred
-past release.
+is closed. Audit remediation, reproducible installs, final regression/coverage,
+archives and hosted Clang 18/Linux/macOS checks are complete. Git delivery is
+authorized and implementation PR #549 is merged. The live website still needs
+its owner to deploy the reviewed source before announcement; all three npm
+publications remain manual. Do not merge the release PR while that website hold
+is open. Development-only audit findings were remediated, not waived.
 
 Before an authorized publication, run the project tests and inspect `npm pack
 --dry-run` for each selected package. Update versions for the actual compatibility

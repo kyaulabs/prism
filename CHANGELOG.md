@@ -19,6 +19,8 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning ad
   prerequisites, format/tidy, missing/stale metadata, empty tests, affected header
   consumers/configurations, ASan/UBSan and locked Conan/Catch2 native integration.
   Negative-fixture success validates detection, not defect-free product code.
+  Hosted Linux Clang 18/Conan acceptance and Linux/macOS package loading pass;
+  the synthetic dependency header is tracked for reproducible clean checkouts.
 - Include all three coordinated 1.2.0 manifests in local release validation, with
   four tags plus one release in the mocked fixture. No publication performed.
 - Align shared review/test/ADR guidance with native project configuration and
