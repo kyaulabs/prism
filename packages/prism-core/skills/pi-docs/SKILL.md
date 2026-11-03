@@ -53,7 +53,7 @@ moving latest page. Prism does not vendor another Pi reference or runtime.
 
 Follow related Markdown links before implementing. Use the installed exported
 SDK declarations for exact signatures and event unions. Read the closest
-example completely rather than copying an old snippet. In Pi 1.4, useful
+example completely rather than copying an old snippet. In Pi 1.5, useful
 examples include `protected-paths.ts`, `hello.ts`, and `sdk/14-codemode-mcp.ts`.
 Examples demonstrate APIs, not authorization to add orchestration to Prism.
 
@@ -70,7 +70,7 @@ These describe Pi configuration, not `prism-web-access.json`.
 - Pi owns auth, model selection, MCP, Codemode, workers, sessions and compaction.
   Core supplies skills plus the safety and bounded web-access extensions only.
 - Cite the installed doc/example path or versioned upstream source in durable
-  compatibility notes. See `packages/prism-core/docs/pi-1.4.md` for this baseline.
+  compatibility notes. See `packages/prism-core/docs/pi-1.5.md` for this baseline.
 
 ## Cross-refs
 

@@ -121,6 +121,13 @@ test('fetch bounds both outputs and advances pagination by consumed source chara
     }
 });
 
+test('malformed generated output is rejected strictly, never coerced to success', async () => {
+    const {fetch} = tools({fetchContent: async () => ({finalUrl: 'https://example.com/',
+        status: '200' as unknown as number, contentType: 'text/plain', content: 'fixture', offset: 0, truncated: false})});
+    await assert.rejects(fetch.execute('invalid', {url: 'https://example.com/'}, signal, undefined),
+        {code: 'WEB_ACCESS_INVALID_RESULT', message: 'invalid web result'});
+});
+
 test('tool failures stay sanitized thrown errors, never successful structured error objects', async () => {
     const {search, fetch} = tools({
         searchWeb: async () => { throw new WebAccessError('WEB_ACCESS_SEARCH_FAILED', 'web search failed: browser, direct'); },

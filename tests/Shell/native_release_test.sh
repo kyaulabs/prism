@@ -18,8 +18,8 @@ git -c core.hooksPath=/dev/null -c commit.gpgsign=false -c user.name=Fixture -c 
 export MERGE_SHA
 MERGE_SHA=$(git rev-parse HEAD)
 git update-ref refs/remotes/origin/main "$MERGE_SHA"
-mkdir -p packages/{prism-core,prism-php-web} bin state
-for name in prism-core prism-php-web; do
+mkdir -p packages/{prism-core,prism-php-web,prism-cpp} bin state
+for name in prism-core prism-php-web prism-cpp; do
   printf '{"name":"@kyaulabs/%s","version":"1.0.1"}\n' "$name" > "packages/$name/package.json"
 done
 printf '# Changelog\n\n## [1.0.1](url)\n\nRelease notes.\n\n## [1.0.0](url)\n\nOld notes.\n' > CHANGELOG.md
@@ -56,12 +56,12 @@ SH
 chmod +x bin/gh
 export PATH="$fixture/bin:$PATH"
 bash publish.sh
-[[ $(wc -l < mutations) == 4 ]]
+[[ $(wc -l < mutations) == 5 ]]
 bash publish.sh
-[[ $(wc -l < mutations) == 4 ]]
+[[ $(wc -l < mutations) == 5 ]]
 if CONFLICT=yes bash publish.sh; then echo 'Wrong-target tag accepted' >&2; exit 1; fi
 if DENIED=yes bash publish.sh; then echo 'HTTP 403 treated as absence' >&2; exit 1; fi
-[[ $(wc -l < mutations) == 4 ]]
+[[ $(wc -l < mutations) == 5 ]]
 for bad in 'release/01.0.1' 'release/1.0.1-01' 'release/$(touch injected)'; do
   if HEAD_REF="$bad" bash validate.sh; then echo 'Invalid version accepted' >&2; exit 1; fi
 done
@@ -70,4 +70,13 @@ if MERGE_SHA=0000000000000000000000000000000000000000 bash validate.sh; then ech
 EVENT_NAME=workflow_dispatch VERSION_INPUT=1.0.1 bash validate.sh
 printf '{"name":"@kyaulabs/prism-core","version":"0.0.0"}\n' > packages/prism-core/package.json
 if bash validate.sh; then echo 'Mismatched package accepted' >&2; exit 1; fi
-echo 'PASS native release: merged/recovery inputs, notes, three tags, idempotency, conflicts, API failure, injection and package mismatch'
+printf '{"name":"@kyaulabs/prism-core","version":"1.0.1"}\n' > packages/prism-core/package.json
+for manifest in \
+  '{"name":"@kyaulabs/prism-cpp","version":"0.0.0"}' \
+  '{"name":"@kyaulabs/wrong","version":"1.0.1"}' \
+  '{"name":"@kyaulabs/prism-cpp","version":"1.0.1","private":true}'; do
+  printf '%s\n' "$manifest" > packages/prism-cpp/package.json
+  if bash validate.sh; then echo 'Invalid CPP package accepted' >&2; exit 1; fi
+  [[ $(wc -l < mutations) == 5 ]]
+done
+echo 'PASS native release: merged/recovery inputs, notes, four tags, idempotency, conflicts, API failure, injection and Core/CPP package mismatch'

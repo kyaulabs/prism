@@ -4,14 +4,14 @@ description: "Use for a read-only structural review of a diff using Fowler's 12 
 ---
 
 Perform a **standards review**. Apply Fowler's 12 code smells as a structural
-review baseline against the diff. This complements the `code-review` tooling,
-`spec-review`, and SAST axes.
+review baseline against the diff. This complements same-session `code-review`,
+`spec-review`, tooling and security checks without prescribing a fixed review protocol.
 
 ## De-duplication contract (FIRST — read before scanning)
 
 - Do NOT re-report code-style drift, formatting issues, or lint-level findings
   — those are the tooling and `/check` territory.
-- Do NOT perform SAST scanning — that is the security axis's territory.
+- Do NOT perform SAST scanning — use applicable security checks for that.
 - Do NOT check requirement coverage — that is `spec-review` territory.
 - Focus ONLY on structural design smells.
 
@@ -50,7 +50,7 @@ For each smell, assess whether it appears in the diff:
 
 ## Workflow
 
-1. Read the diff provided by the coordinator.
+1. Read the requested diff and relevant surrounding code.
 2. Scan each changed file for the 12 smells above.
 3. Report every structural smell as **Advisory**. Fowler smells identify
    maintainability pressure; they do not by themselves demonstrate a concrete
@@ -72,5 +72,5 @@ For each smell, assess whether it appears in the diff:
 
 - *Using line count as the finding* — size is only a signal. Name the mixed
   responsibilities or structural cost.
-- *Re-reporting lint* — keep this axis structural so the four-axis review does
-  not amplify duplicate findings.
+- *Re-reporting lint* — keep this review structural rather than duplicating
+  tooling, requirements or security findings.

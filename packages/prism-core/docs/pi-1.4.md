@@ -1,5 +1,9 @@
 # Pi 1.4 compatibility and migration
 
+Historical execution record, superseded by the [Pi 1.5 guide](pi-1.5.md).
+Version/availability statements below describe the earlier migration, not current
+registry state. The handoff observed Core/PHP 1.1.0 published before this work.
+
 Prism's tested host baseline is **Pi 1.4.0**, upstream tag commit
 `4a080252f06caf63a525d7873c5d94d3c23887e0` (October 21, 2026). Node remains
 **22.19.0+**, matching Pi's engine requirement. Root development dependencies

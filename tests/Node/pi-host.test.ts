@@ -8,8 +8,8 @@ import {hostFixture, resultText} from './pi-host-fixture.ts';
 import {createWebAccessTools} from '../../packages/prism-core/extensions/web-access/index.ts';
 import {WebAccessError} from '../../packages/prism-core/extensions/web-access/errors.ts';
 
-test('Pi 1.4 validates web inputs and Codemode receives schema-conforming data, not UI details', async t => {
-    assert.equal(VERSION, '1.4.0');
+test('Pi 1.5 validates web inputs and Codemode receives schema-conforming data, not UI details', async t => {
+    assert.equal(VERSION, '1.5.0');
     let searches = 0;
     let fetches = 0;
     const target = await hostFixture(t, {

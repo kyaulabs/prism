@@ -10,16 +10,17 @@ report only.
 
 ## Gather the baseline
 
-Load the active adapter's TDD skill and run its test/coverage baseline command.
-Capture and review the full output. If no stack adapter is active, ask the user
-which adapter applies rather than guessing a command.
+Use applicable module TDD guidance when available, otherwise inspect the project's
+native test configuration and documented commands. Run its relevant test/coverage
+baseline and review the full output. Ask only if inspection leaves a material
+choice unresolved; no module installation is required.
 
 If coverage tooling is unavailable, continue the qualitative audit and mark
 coverage evidence SKIPPED with the exact reason.
 
 ## What to audit
 
-For each test file in the active adapter's test roots:
+For each test file in the relevant project test roots:
 
 1. **Missing behaviors** — Are the happy path, boundary conditions, invalid
    input, and error paths covered? List what is missing.
@@ -69,7 +70,7 @@ Reason: <one line>
 - Test behavior through public interfaces, not implementation details.
 - Coverage percentage is evidence, not the verdict. High coverage can still be
   misleading.
-- Do not invent stack-specific conventions; load the active adapter.
+- Do not invent stack conventions; use project policy and applicable module guidance.
 - If the baseline command fails, include the failure and continue any audit
   that remains possible from source.
 
@@ -84,6 +85,6 @@ Reason: <one line>
 
 - *Equating coverage with confidence* — inspect assertions and behaviors; a
   high percentage can be padding.
-- *Guessing the test command* — ask which adapter applies when none is active.
+- *Guessing the test command* — inspect native project configuration before asking.
 - *Auditing private structure instead of public risk* — every finding should
   name the observable behavior that could regress.

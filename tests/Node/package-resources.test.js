@@ -8,7 +8,16 @@ const path = require('node:path');
 const test = require('node:test');
 const root = path.resolve(__dirname, '../..');
 
-for (const name of ['prism-core', 'prism-php-web']) {
+const resources = {
+    'prism-core': ['skills/setup/SKILL.md'],
+    'prism-php-web': ['skills/setup-php-web/SKILL.md', 'scripts/coverage-gate.php'],
+    'prism-cpp': [
+        ...['cpp-stack', 'setup-cpp', 'cpp-build', 'tdd-cpp', 'cpp-review'].map(name => `skills/${name}/SKILL.md`),
+        ...['lifetime', 'strong-types', 'errors', 'concurrency', 'performance', 'build-tooling'].map(name => `skills/cpp-stack/references/${name}.md`),
+        'prompts/check-cpp.md', 'docs/verification.md',
+    ],
+};
+for (const [name, required] of Object.entries(resources)) {
     test(`${name} packs ordinary Pi resources without engines or catalogue metadata`, t => {
         const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-package-'));
         t.after(() => fs.rmSync(directory, {recursive:true, force:true}));
@@ -21,9 +30,9 @@ for (const name of ['prism-core', 'prism-php-web']) {
         assert.equal(manifest.prism, undefined);
         assert.ok(manifest.pi.skills.length);
         assert.ok(manifest.pi.prompts.length);
-        assert.ok(!files.some(file => /prism-tool|prism-review|toolchain|catalogue|safe-dirs/.test(file)));
+        assert.ok(!files.some(file => /prism-tool|prism-review|catalogue|safe-dirs/.test(file)));
         assert.ok(files.includes('NOTICE'));
-        assert.ok(files.includes(name === 'prism-core' ? 'skills/setup/SKILL.md' : 'skills/setup-php-web/SKILL.md'));
+        for (const file of required) assert.ok(files.includes(file), `${name}: missing ${file}`);
         const extracted = path.join(directory, 'package');
         execFileSync('tar', ['-xzf', path.join(directory, packed.filename), '-C', directory]);
         if (name === 'prism-core') {
@@ -39,8 +48,21 @@ for (const name of ['prism-core', 'prism-php-web']) {
             assert.ok(fs.readFileSync(path.join(destination, 'AGENTS.md'), 'utf8').startsWith('User instructions\n'));
             assert.deepEqual(require(path.join(extracted, 'scripts/web-access/config')).inspectWebAccessConfig({piDir:destination}).config,
                 {browser:'auto', searxngUrl:null});
-        } else {
-            assert.ok(files.includes('scripts/coverage-gate.php'));
+        } else if (name === 'prism-cpp') {
+            assert.equal(manifest.name, '@kyaulabs/prism-cpp');
+            assert.equal(manifest.license, 'AGPL-3.0-only');
+            assert.equal(manifest.publishConfig.access, 'public');
+            assert.ok(manifest.keywords.includes('pi-package'));
+            for (const key of ['dependencies', 'peerDependencies', 'scripts']) assert.equal(manifest[key], undefined);
+            assert.deepEqual(Object.keys(manifest.pi).sort(), ['prompts', 'skills']);
+            assert.equal(files.filter(file => file.endsWith('/SKILL.md')).length, 5);
+            assert.ok(!files.some(file => /^(tests|build|node_modules)\//.test(file)));
+            for (const file of files.filter(file => file.endsWith('.md'))) {
+                const text = fs.readFileSync(path.join(extracted, file), 'utf8');
+                for (const link of text.matchAll(/\]\(([^)#]+)(?:#[^)]*)?\)/g)) {
+                    if (!link[1].includes('://')) assert.ok(fs.existsSync(path.resolve(extracted, path.dirname(file), link[1])), `${file}: ${link[1]}`);
+                }
+            }
         }
     });
 }

@@ -1,0 +1,9 @@
+KYAULabs Prism C++
+Copyright (C) 2026 kyau <git@kyaulabs.com>
+
+Licensed under AGPL-3.0-only. The license is available at the repository root:
+https://github.com/kyaulabs/prism/blob/main/LICENSE
+
+The C++ guidance is original Prism material. Linked tool documentation remains
+with its respective authors; links are references, not redistributed source.
+Core skills are referenced by name and are distributed with their own notices.

@@ -43,5 +43,7 @@ their values. Do not treat a successful tool call as authorization.
 
 Reload/restart Pi after extension changes. Tests use synthetic fixtures and
 exercise rejection before system operations, ordinary command freedom and
-recovery through real Pi 1.4 direct/Codemode dispatch. Native Windows shell
+recovery through real Pi 1.5 direct/Codemode dispatch. See the
+[current compatibility guide](../../docs/pi-1.5.md) for normalized-input and
+resource-warning limits. Native Windows shell
 execution is not covered by the POSIX fixtures.

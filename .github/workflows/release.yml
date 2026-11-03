@@ -60,7 +60,7 @@ jobs:
           fi
           [[ "$(git rev-parse HEAD)" == "$MERGE_SHA" ]]
           git merge-base --is-ancestor "$MERGE_SHA" origin/main
-          for package in prism-core prism-php-web; do
+          for package in prism-core prism-php-web prism-cpp; do
             jq -e --arg version "$version" --arg name "@kyaulabs/$package" \
               '.version == $version and .name == $name and .private != true' "packages/$package/package.json" >/dev/null
           done
@@ -83,7 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           # Native API calls preserve existing refs and fail on non-404 errors.
-          for tag in "v$VERSION" "prism-core@$VERSION" "prism-php-web@$VERSION"; do
+          for tag in "v$VERSION" "prism-core@$VERSION" "prism-php-web@$VERSION" "prism-cpp@$VERSION"; do
             if probe=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>&1); then
               :
             elif [[ "$probe" == *"(HTTP 404)"* ]]; then

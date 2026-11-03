@@ -4,7 +4,9 @@
 
 Prism is a collection of Pi engineering skills with a small secret-protection
 runtime. Core is global and language-agnostic. Optional project-local modules
-supply stack conventions and tooling guidance; this repository ships PHP/web.
+supply stack conventions and tooling guidance; this repository ships PHP/web
+and C++ skills. The C++ package uses native tools; it is not a C++ language module
+or engine implementation. Native platform claims require separate fixture evidence.
 
 A **skill** is callable engineering guidance. A **prompt** is a short entry point.
 An **extension** handles tool events or provides bounded web tools. A **module**
