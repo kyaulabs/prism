@@ -14,10 +14,12 @@ import {registerWebAccessTools, type WebAccessExtensionDependencies} from '../..
 
 export async function hostFixture(t: TestContext, deps: WebAccessExtensionDependencies = {}, options: {
     extensions?: ExtensionFactory[];
-    packages?: string[];
+    packages?: (string | {source: string; skills?: string[]; prompts?: string[]})[];
     tools?: string[];
     excludeTools?: string[];
     manager?: SessionManager;
+    npmCommand?: string[];
+    allowWarnings?: boolean;
 } = {}) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-pi-host-'));
     const agentDir = path.join(root, 'agent');
@@ -44,7 +46,7 @@ export async function hostFixture(t: TestContext, deps: WebAccessExtensionDepend
     const calls: ToolCallEvent[] = [];
     const results: ToolResultEvent[] = [];
     const settings = SettingsManager.inMemory({
-        defaultProjectTrust: 'never', packages: options.packages ?? [], defaultTools: ['+codemode', '+tool_search'],
+        defaultProjectTrust: 'never', packages: options.packages ?? [], npmCommand: options.npmCommand, defaultTools: ['+codemode', '+tool_search'],
         compaction: {enabled: false}, retry: {enabled: false}, cacheWarming: 'off',
     });
     const loader = new DefaultResourceLoader({cwd, agentDir, settingsManager: settings, noContextFiles: true, noThemes: true,
@@ -59,6 +61,7 @@ export async function hostFixture(t: TestContext, deps: WebAccessExtensionDepend
     });
     await loader.reload();
     assert.deepEqual(loader.getExtensions().errors, []);
+    if (!options.allowWarnings) assert.deepEqual(loader.getExtensions().warnings ?? [], []);
     const {session} = await createAgentSession({cwd, agentDir, modelRuntime: runtime, model,
         settingsManager: settings, resourceLoader: loader, sessionManager: options.manager ?? SessionManager.inMemory(cwd),
         tools: options.tools, excludeTools: options.excludeTools});
@@ -71,7 +74,7 @@ export async function hostFixture(t: TestContext, deps: WebAccessExtensionDepend
         fs.rmSync(root, {recursive: true, force: true});
     });
     let serial = 0;
-    const run = async (name: string, args: JsonObject) => {
+    const run = async (name: string, args: JsonObject, prompt = 'Run the synthetic compatibility fixture.') => {
         const id = `fixture-${++serial}`;
         let issued = false;
         session.agent.streamFunction = currentModel => {
@@ -88,12 +91,12 @@ export async function hostFixture(t: TestContext, deps: WebAccessExtensionDepend
             queueMicrotask(() => { stream.push({type: 'done', reason: tool ? 'toolUse' : 'stop', message}); });
             return stream;
         };
-        await session.prompt('Run the synthetic compatibility fixture.');
+        await session.prompt(prompt);
         const result = session.messages.find(message => message.role === 'toolResult' && message.toolCallId === id);
         assert.ok(result && result.role === 'toolResult', `Missing ${name} result`);
         return result;
     };
-    return {root, agentDir, cwd, session, loader, calls, results, extensionErrors, run,
+    return {root, agentDir, cwd, session, loader, settings, calls, results, extensionErrors, run,
         script: (code: string) => run('codemode', {code})};
 }
 

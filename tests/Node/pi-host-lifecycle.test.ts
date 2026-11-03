@@ -29,7 +29,7 @@ test('native MCP discovery and selected tools coexist with Prism through reload,
     assert.ok(!target.session.getActiveToolNames().includes('fetch_content'));
     await target.session.reload();
     assert.ok(target.session.getActiveToolNames().includes('web_search'));
-    // Native 1.4 reload re-registers default-active extension tools. Durable
+    // Native 1.5 reload re-registers default-active extension tools. Durable
     // CLI exclusions are tested separately; Prism must not override this host.
     assert.ok(target.session.getActiveToolNames().includes('fetch_content'));
     const afterReload = await target.script('return (await tools.mcp__fixture__echo({value:"reloaded"})).structuredContent.value;');
@@ -65,7 +65,7 @@ test('native wildcard tool selection is not overwritten by Core registration or 
     assert.deepEqual(new Set(target.session.getActiveToolNames()), new Set(['web_search', 'codemode']));
 });
 
-test('packed Core resources load in the real Pi 1.4 host without an appended system prompt', {timeout: 20000}, async t => {
+test('packed Core resources load in the real Pi 1.5 host without an appended system prompt', {timeout: 20000}, async t => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-packed-host-'));
     t.after(() => fs.rmSync(directory, {recursive: true, force: true}));
     const report = JSON.parse(execFileSync('npm', ['pack', path.join(root, 'packages/prism-core'), '--json', '--ignore-scripts', '--pack-destination', directory], {encoding: 'utf8'}));
@@ -81,6 +81,9 @@ test('packed Core resources load in the real Pi 1.4 host without an appended sys
     assert.ok(target.loader.getSkills().skills.some(skill => skill.name === 'setup'));
     assert.ok(target.loader.getPrompts().prompts.some(prompt => prompt.name === 'setup'));
     assert.deepEqual(target.loader.getAppendSystemPrompt(), []);
+    assert.ok(target.session.getAllTools().some(tool => tool.name === 'web_search'));
+    assert.ok(target.session.getAllTools().some(tool => tool.name === 'fetch_content'));
+    assert.deepEqual(target.loader.getExtensions().warnings ?? [], []);
     const declaration = await target.script('return await describeTool("fetch_content");');
     assert.equal(declaration.isError, false, resultText(declaration));
     assert.match(resultText(declaration), /nextOffset/);

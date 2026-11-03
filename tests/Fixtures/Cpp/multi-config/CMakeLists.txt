@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.25)
+project(config_variants LANGUAGES CXX)
+include(CTest)
+add_executable(config_value src/config_value.cpp)
+set_target_properties(config_value PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+target_compile_definitions(config_value PRIVATE $<$<CONFIG:Release>:RELEASE_VARIANT=1>)
+add_test(NAME config_value COMMAND config_value)

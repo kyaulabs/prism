@@ -9,7 +9,11 @@ Diagnose $ARGUMENTS, or give a short local health report when no scope is suppli
 Do not install, mutate configuration, authenticate or make live review/web requests.
 
 1. Inspect Pi resource availability with `pi list` and the current session's
-   discovered skills/tools. Source paths need not exist in a consumer project.
+   discovered skills/tools/prompts and relevant startup package/loader warnings.
+   Pi 1.5 may warn and skip a failed package: configured sources or an empty
+   extension-errors list alone do not prove its resources loaded. Report missing
+   expected resources as unavailable for the affected operation, without installing
+   them. Source paths need not exist in a consumer project.
 2. Check only relevant executable availability and actual capabilities. Version
    output is diagnostic metadata, not a universal compatibility gate. Missing
    tools unrelated to the requested operation are not failures for that operation.

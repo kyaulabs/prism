@@ -8,7 +8,10 @@ SearXNG, then direct DuckDuckGo. Direct fetch retains public-network, DNS-pinnin
 and redirect restrictions. Pi's native MCP support is not itself a public-web
 search backend.
 
-## Structured values (Pi 1.4)
+## Structured values (Pi 1.5)
+
+The [current compatibility guide](../../docs/pi-1.5.md) records real-host input
+coercion and strict generated-output validation. TypeBox remains supported.
 
 Both tools retain direct exposure and readable untrusted-evidence output.
 TypeBox parameter/output schemas use the host's `typebox` peer. Successful

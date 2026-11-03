@@ -7,13 +7,15 @@ workflow launchers, approval chains or a separate reviewer service.
 - **prism-core**: global engineering skills, secret-protection extension, bounded
   web search/fetch and setup guidance.
 - **prism-php-web**: optional project-local PHP/Aurora, frontend and testing skills.
-- Future modules are ordinary Pi packages, not entries in a Prism catalogue.
+- **prism-cpp**: optional project-local C++20 skills and native verification guidance.
+- Modules are ordinary Pi packages, not entries in a Prism catalogue.
 
 ## Install from this checkout
 
 ```bash
 bash packages/prism-core/scripts/install-global.sh
 pi install -l ./packages/prism-php-web
+pi install -l ./packages/prism-cpp
 ```
 
 The Core installer uses normal Pi installation and merges the concise Core
@@ -25,9 +27,11 @@ Pi configuration directory. Reload/restart Pi after changing extensions.
 Released packages can be installed with `pi install npm:@kyaulabs/prism-core`
 and `pi install -l npm:@kyaulabs/prism-php-web`. Run the installed Core's
 `scripts/install-global.sh` to deploy its always-on context. Pi owns model
-selection and authentication. Both Prism 1.0.0 packages are published. This
-upgrade targets **Pi 1.4.0** with Node **22.19.0+**; Prism package versions are
-independent of Pi. See the [upgrade/migration guide and adoption matrix](packages/prism-core/docs/pi-1.4.md).
+selection and authentication. Core/PHP 1.1.0 are the handoff's published baseline;
+this checkout prepares coordinated **Prism 1.2.0**, including C++, without publishing.
+The tested host is **Pi 1.5.0**; its Node engine floor remains **22.19.0+**.
+Prism versions are independent of Pi. See the [compatibility and migration guide](packages/prism-core/docs/pi-1.5.md)
+and [local implementation evidence](docs/specs/cpp-pi-1.5-implementation.md).
 Native package updates do not migrate previously copied external context files.
 
 ## Use
@@ -58,5 +62,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [CONTEXT.md](CONTEXT.md),
 [the approved refactor](docs/specs/lean-prism.md) and
 [1.0 migration guidance](docs/migration-1.0.md). Run `npm run typecheck`,
 `npm run test:host` and `npm run test:node` for the Core/host baseline.
+Use `npm run test:cpp` for standalone native fixtures; see their documented
+prerequisites and opt-in Conan lane in `tests/Fixtures/Cpp/README.md`.
 Historical ADRs, research and plans
 record past designs; they are not current workflow requirements.

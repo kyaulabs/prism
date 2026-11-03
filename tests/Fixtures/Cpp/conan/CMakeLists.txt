@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.25)
+project(conan_dependency LANGUAGES CXX)
+include(CTest)
+find_package(Catch2 3.8.1 EXACT CONFIG REQUIRED)
+add_executable(dependency_test tests/dependency_test.cpp)
+set_target_properties(dependency_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+target_link_libraries(dependency_test PRIVATE Catch2::Catch2WithMain)
+add_test(NAME dependency_contract COMMAND dependency_test)

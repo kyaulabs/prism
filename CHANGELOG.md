@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
+## [1.2.0] — Unreleased
+
+- Remediate the npm/pnpm tooling audit findings with updated Markdown tooling,
+  fixed transitive packages and scoped minimatch/KaTeX/RE2JS overrides; all three
+  locked ecosystem audits are clean without changing Pi/TypeBox pins.
+- Pin the development host to Pi 1.5.0 and verify direct, Codemode and plain-JSON
+  MCP coercion/default/error boundaries without weakening strict web output checks.
+- Assert actual packed resources and startup warnings, including a failed package
+  boundary, native symlink-directory handling and preserved settings/filters.
+- Add the project-local `@kyaulabs/prism-cpp` skills/prompts-only package: C++20
+  policy, native setup/build/TDD/review, focused semantic references and `/check-cpp`.
+- Add standalone Linux Clang fixtures for meaningful public behavior, generated
+  prerequisites, format/tidy, missing/stale metadata, empty tests, affected header
+  consumers/configurations, ASan/UBSan and locked Conan/Catch2 native integration.
+  Negative-fixture success validates detection, not defect-free product code.
+  Hosted Linux Clang 18/Conan acceptance and Linux/macOS package loading pass;
+  the synthetic dependency header is tracked for reproducible clean checkouts.
+- Include all three coordinated 1.2.0 manifests in local release validation, with
+  four tags plus one release in the mocked fixture. No publication performed.
+- Align shared review/test/ADR guidance with native project configuration and
+  same-session review. Windows/macOS native C++, optional GCC/TSan and the later
+  NGEN pilot remain unverified. See the local implementation report for evidence.
+
 ## [1.1.0](https://github.com/kyaulabs/prism/releases/tag/v1.1.0) — 2026-10-21
 
 - Test against exactly Pi 1.4.0, preserving the Node 22.19.0+ baseline and
