@@ -34,13 +34,19 @@ else if(args[0]==='install') {
 `);
     const settingsFile = path.join(agent, 'settings.json');
     const user = {$schema: 'https://pi.dev/schemas/settings.schema.json', theme: 'custom', futureUserSetting: {preserve: true},
-        defaultTools: ['read'], npmCommand: [process.execPath, npm], packages: []};
+        defaultTools: ['read'], defaultProjectTrust: 'never', trustedProjects: {}, npmCommand: [process.execPath, npm], packages: []};
     fs.writeFileSync(settingsFile, JSON.stringify(user));
     const env = {...process.env, HOME: directory, PI_CODING_AGENT_DIR: agent, PRISM_CORE_SOURCE: source, PATH: `${bin}:${process.env.PATH}`};
     const run = (script = installer, overrides = {}) => {
         const result = spawnSync('bash', [script], {cwd: directory, env: {...env, ...overrides}, encoding: 'utf8', timeout: 15000});
         assert.equal(result.status, 0, result.stderr + result.stdout);
     };
+    const alias = path.join(directory, 'agent-alias');
+    fs.symlinkSync(agent, alias, 'dir');
+    const native = spawnSync(process.execPath, [cli, 'install', source], {cwd: directory,
+        env: {...env, PI_CODING_AGENT_DIR: alias}, encoding: 'utf8'});
+    assert.equal(native.status, 0, native.stderr + native.stdout);
+    assert.ok(JSON.parse(fs.readFileSync(settingsFile, 'utf8')).packages.includes(path.relative(agent, source)));
     run();
     assert.equal(fs.existsSync(path.join(agent, 'APPEND_SYSTEM.md')), false);
     let settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));

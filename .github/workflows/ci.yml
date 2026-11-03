@@ -32,7 +32,7 @@ jobs:
       - run: pipx install semgrep
       - run: node_modules/.bin/playwright install --with-deps chromium
       - run: npm run typecheck
-      - run: npm run test:node # Includes the real Pi 1.4 host/Codemode/MCP fixtures
+      - run: npm run test:node # Includes the real Pi 1.5 host/Codemode/MCP fixtures
       - run: bash packages/prism-core/scripts/validate-harness.sh
       - run: bash tests/Shell/run-all.sh
       - run: vendor/bin/php-cs-fixer fix --dry-run --diff
@@ -63,6 +63,43 @@ jobs:
       - run: composer audit
       - run: npm audit --omit=dev
 
+  cpp-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Native fixture tools (Clang 18 lane; local evidence uses Clang 23)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 clang-format-18 clang-tidy-18 cmake ninja-build python3-venv
+          python3 -m venv "$RUNNER_TEMP/conan-venv"
+          "$RUNNER_TEMP/conan-venv/bin/pip" install 'conan==2.34.0'
+          mkdir -p "$RUNNER_TEMP/cpp-bin"
+          for tool in clang clang++ clang-format clang-tidy; do
+            ln -s "/usr/bin/$tool-18" "$RUNNER_TEMP/cpp-bin/$tool"
+          done
+          echo "$RUNNER_TEMP/cpp-bin" >> "$GITHUB_PATH"
+      - name: Required native acceptance (no silent prerequisite skips)
+        env:
+          PRISM_CPP_REQUIRED: '1'
+          PRISM_CPP_CONAN: '1'
+          PRISM_CPP_PROFILE: linux-clang-18
+        run: |
+          export PRISM_CONAN="$RUNNER_TEMP/conan-venv/bin/conan"
+          export CONAN_HOME="$RUNNER_TEMP/conan-home"
+          clang++ --version
+          clang-format --version
+          clang-tidy --version
+          cmake --version
+          ninja --version
+          "$PRISM_CONAN" --version
+          npm run test:cpp
+
   packages:
     strategy:
       matrix:
@@ -76,4 +113,4 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts
-      - run: node --test tests/Node/package-resources.test.js tests/Node/pi-host-lifecycle.test.ts
+      - run: node --test tests/Node/package-resources.test.js tests/Node/pi-host-lifecycle.test.ts tests/Node/cpp-host-resources.test.ts

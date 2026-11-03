@@ -12,10 +12,11 @@ Prism-owned legacy `APPEND_SYSTEM.md` block. Existing user text and settings are
 preserved. Native Pi package updates alone do not run that context migration.
 Reload/restart Pi after updating extensions.
 
-The tested host baseline is **Pi 1.4.0**, with Node **22.19.0+**. Pi supplies
+The tested host baseline is **Pi 1.5.0**; the Node engine floor remains **22.19.0+**. Pi supplies
 its SDK and TypeBox as `"*"` host peers; Core does not bundle a Pi runtime.
 Prism versions are separate from Pi versions. See [migration commands and the
-compatibility/adoption matrix](docs/pi-1.4.md).
+compatibility/adoption matrix](docs/pi-1.5.md). Executed environments and limits
+are recorded there; the engine range is not proof of minimum-version testing.
 
 `/setup` selects actual applicable template files and optional modules. `/doctor`
 is scoped diagnostics. Development defaults to TDD, proportional planning,

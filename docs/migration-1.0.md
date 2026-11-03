@@ -2,7 +2,7 @@
 
 Both 1.0.0 packages are published. The 1.0 refactor is a clean breaking release,
 not a compatibility layer; publication does not migrate consumer installations
-or repositories automatically. The subsequent [Pi 1.4 upgrade](../packages/prism-core/docs/pi-1.4.md)
+or repositories automatically. The current [Pi 1.5 upgrade](../packages/prism-core/docs/pi-1.5.md)
 removes Prism's copied global reminder through an explicit ownership-based helper.
 
 ## Packages and context
@@ -10,7 +10,7 @@ removes Prism's copied global reminder through an explicit ownership-based helpe
 Install/update Core and selected modules through ordinary Pi package sources.
 Run the selected Core's `scripts/install-global.sh` to refresh the marked Core
 block in `AGENTS.md` without replacing surrounding user text. Current helpers
-also remove only the marked legacy Prism reminder; see the Pi 1.4 guide for exact
+also remove only the marked legacy Prism reminder; see the Pi 1.5 guide for exact
 rules. Reload/restart Pi for extension changes. Keep Pi model/authentication
 settings in Pi, not Prism setup.
 

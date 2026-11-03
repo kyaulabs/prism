@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.25)
+project(prism_cpu LANGUAGES CXX)
+include(CTest)
+add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated.hpp"
+    COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_CURRENT_BINARY_DIR}/generated.hpp")
+add_library(checked_value src/checked_value.cpp "${CMAKE_CURRENT_BINARY_DIR}/generated.hpp")
+target_include_directories(checked_value PUBLIC include PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+set_target_properties(checked_value PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+target_compile_options(checked_value PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_executable(checked_value_test tests/checked_value_test.cpp)
+target_link_libraries(checked_value_test PRIVATE checked_value)
+set_target_properties(checked_value_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO)
+add_test(NAME checked_value COMMAND checked_value_test)

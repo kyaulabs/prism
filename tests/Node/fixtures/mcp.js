@@ -2,6 +2,7 @@
 
 // Harmless, local, dependency-free stdio MCP fixture. Stdout is protocol only.
 const readline = require('node:readline');
+let invocations = 0;
 readline.createInterface({input: process.stdin}).on('line', line => {
     const request = JSON.parse(line);
     if (request.id === undefined) return;
@@ -15,7 +16,16 @@ readline.createInterface({input: process.stdin}).on('line', line => {
         inputSchema: {type: 'object', properties: {value: {type: 'string'}}, required: ['value']},
         outputSchema: {type: 'object', properties: {value: {type: 'string'}}, required: ['value']},
         annotations: {readOnlyHint: true, openWorldHint: false},
+    }, {
+        name: 'inspect_arguments', description: 'Inspect normalized synthetic arguments and handler invocation count',
+        inputSchema: {type: 'object', properties: {
+            count: {type: 'integer', minimum: 1, maximum: 10}, tags: {type: 'array', items: {type: 'string'}},
+            optional: {type: 'string'},
+        }, required: ['count', 'tags'], additionalProperties: false},
     }]};
+    else if (request.method === 'tools/call' && request.params.name === 'inspect_arguments') {
+        result = {content: [{type: 'text', text: JSON.stringify({...request.params.arguments, invocations: ++invocations})}]};
+    }
     else if (request.method === 'tools/call') result = {
         content: [{type: 'text', text: request.params.arguments.value}],
         structuredContent: {value: request.params.arguments.value},

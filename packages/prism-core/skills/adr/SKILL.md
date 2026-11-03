@@ -1,12 +1,13 @@
 ---
 name: adr
-description: Use when writing, reviewing, or superseding an Architecture Decision Record. Covers the Nygard-format template, numbering, and status transitions. ADRs live in adr/.
+description: Use when writing, reviewing, or superseding an Architecture Decision Record. Covers the Nygard-format template, numbering, and status transitions. Use the project's ADR location, defaulting to adr/.
 ---
 
 ## ADR Format
 
-Records live in `adr/`. Filename: `adr/NNNN-kebab-case-title.md` (zero-padded
-sequence starting at `0001`). Copy `adr/0000-template.md` to start.
+Use the project's configured ADR directory and existing template; default to
+`adr/` only when none is selected. Filenames use `NNNN-kebab-case-title.md`
+(zero-padded sequence starting at `0001`). Resolve paths below against that directory.
 
 Each ADR has these sections:
 
@@ -44,7 +45,7 @@ Never edit the body of an Accepted ADR. Supersede it.
 
 1. Set status `Accepted`.
 2. Add a one-liner to `CONTEXT.md` under "Architectural Decisions":
-   `- adr/0001-<title>.md — <one-line summary>`
+   `- <project-adr-directory>/0001-<title>.md — <one-line summary>`
 
 ## Rules
 

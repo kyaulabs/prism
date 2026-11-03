@@ -13,8 +13,9 @@ Historical ADRs document old designs, not current workflow requirements.
 ## Packages
 
 - `packages/prism-core`: global, language-agnostic skills, prompts and extensions.
-- `packages/prism-php-web`: project-local PHP/web skills and tooling. Keep this
-  modular boundary so future stack modules can be ordinary Pi packages.
+- `packages/prism-php-web`: project-local PHP/web skills and tooling.
+- `packages/prism-cpp`: project-local C++ skills and native verification guidance.
+  Keep stack modules ordinary Pi packages and Core language-agnostic.
 - `.pi/settings.json` loads both packages from this checkout for dogfooding.
   Editing an extension on disk does not replace an already loaded instance;
   reload or restart Pi to use the changed runtime.
