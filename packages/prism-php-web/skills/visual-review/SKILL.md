@@ -71,7 +71,7 @@ requires explicit permission before access.
 
 ## Reference
 
-Read `packages/prism-php-web/docs/visual-review.md` for the configuration schema,
+Read the [visual-review reference](../../docs/visual-review.md) for the configuration schema,
 action vocabulary, deterministic evidence names, and recovery guidance.
 
 ## Cross-refs

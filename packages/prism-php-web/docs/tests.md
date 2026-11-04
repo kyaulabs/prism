@@ -12,9 +12,9 @@ If `tests/Pest.php` is absent, run:
 vendor/bin/pest --init
 ```
 
-The generated file is stock Pest scaffolding. Create
-`tests/Unit/Harness/ArchTest.php` separately with the filesystem-walker checks
-from [PHP/web coding conventions](conventions.md). Do not append Pest
+The generated file is stock Pest scaffolding. Use the project's actual checks
+and [PHP/web coding conventions](conventions.md). Add architecture tests only
+for a real project requirement, not as mandatory scaffolding. Do not append Pest
 architecture blocks to `tests/Pest.php`; they do not scan procedural source.
 
 Use PHPUnit's default test case unless the project already defines a shared

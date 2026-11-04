@@ -1,5 +1,9 @@
 # Pi 1.5 compatibility and migration
 
+This record covers the Prism 1.2.0/Pi 1.5.0 migration and its recorded evidence,
+not a new test run for later releases. For the later resource changes, also read
+[the Prism 1.2.1 migration guide](migration-1.2.1.md).
+
 The repository-local tested host is **Pi 1.5.0**, upstream commit
 `f9a26365568127461c47a07a37dcb42c140a3ac5`. The inspected Prism source baseline is
 `d1103733a36e066e583eef6ebe7101f387406379`, tree-identical to pinned main
@@ -69,7 +73,9 @@ was performed. For a separately authorized host change:
 `pi update --extensions` reconciles configured packages, not the host binary; an
 exact Prism source stays pinned. The supported Core context helper refreshes only
 owned context and must be explicitly run when authorized. Native package updates
-do not migrate copied AGENTS content. Use the local checkout while 1.2.0 is unpublished.
+do not migrate copied AGENTS content. Choose an available package version or
+checkout source using the [native installation instructions](../README.md);
+GitHub release availability does not establish npm publication.
 
 ## Reproduction
 
