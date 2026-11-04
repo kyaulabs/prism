@@ -8,10 +8,11 @@ Core runtime dependencies are limited to web extraction. Pi host APIs are peer
 dependencies; development test tooling lives in the root manifest. PHP/web
 project tools use native Composer/npm commands within task scope. C++
 ships only skills/prompts/references; native compiler/build tools remain project-owned.
-The coordinated local 2.0.0 candidate is separate from the Pi 1.5.0 host and is not
-a publication claim. It follows the 1.2.0 audit baseline with a breaking resource
-surface change: Core 18 skills/13 prompts, PHP/web 13/3 and C++ 4/1. See
-[2.0 migration](docs/migration-2.0.md). Preserve coordinated versions and host-peer
+The coordinated 1.2.1 release is separate from the Pi 1.5.0 host; GitHub release
+publication does not imply npm publication. It follows the 1.2.0 baseline with a
+breaking resource-surface change despite the owner-selected patch version:
+Core 18 skills/13 prompts, PHP/web 13/3 and C++ 4/1. See
+[1.2.1 migration](docs/migration-1.2.1.md). Preserve coordinated versions and host-peer
 boundaries. Registry publication remains manual; verify current release conditions
 rather than reusing historical release evidence.
 

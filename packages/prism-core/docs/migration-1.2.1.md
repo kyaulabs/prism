@@ -1,7 +1,7 @@
-# Prism 2.0 resource migration
+# Prism 1.2.1 resource migration
 
-Prism 2.0.0 is a breaking resource-surface change from 1.2.0, not a Pi version
-upgrade. The host baseline remains Pi 1.5.0. Core, PHP/web and C++ versions move
+Prism 1.2.1 includes breaking resource-surface changes from 1.2.0 despite the
+owner-selected patch version; it is not a Pi version upgrade. The host baseline remains Pi 1.5.0. Core, PHP/web and C++ versions move
 together; registry publication remains a manual owner action.
 
 | Package | Skills before → after | Prompts before → after |

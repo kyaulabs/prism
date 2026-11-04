@@ -1,6 +1,6 @@
 {
   "name": "@kyaulabs/prism-cpp",
-  "version": "2.0.0",
+  "version": "1.2.1",
   "description": "Project-local C++ engineering skills and native verification guidance for Pi.",
   "license": "AGPL-3.0-only",
   "keywords": ["pi-package"],

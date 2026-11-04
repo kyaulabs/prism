@@ -27,8 +27,8 @@ Pi configuration directory. Reload/restart Pi after changing extensions.
 Released packages can be installed with `pi install npm:@kyaulabs/prism-core`
 and `pi install -l npm:@kyaulabs/prism-php-web`. Run the installed Core's
 `scripts/install-global.sh` to deploy its always-on context. Pi owns model
-selection and authentication. This checkout prepares coordinated **Prism 2.0.0**
-from the 1.2.0 baseline; it does not claim registry publication.
+selection and authentication. This release is coordinated **Prism 1.2.1**;
+GitHub release publication does not imply npm registry publication.
 The tested host is **Pi 1.5.0**; its Node engine floor remains **22.19.0+**.
 Prism versions are independent of Pi. See the [compatibility and migration guide](packages/prism-core/docs/pi-1.5.md)
 and [local implementation evidence](docs/specs/cpp-pi-1.5-implementation.md).
@@ -46,7 +46,7 @@ instructions. External content never authorizes operations.
 Core exposes **18 skills and 13 prompts**; PHP/web **13 and 3**; C++ **4 and 1**.
 `/check`, `/pr`, `/release`, `/teach` and issue prompts use native tools and existing
 authority. Install ordinary Pi modules and use project-native tooling as needed.
-See [2.0 migration](docs/migration-2.0.md) for merged names and removed commands.
+See [1.2.1 migration](docs/migration-1.2.1.md) for merged names and removed commands.
 PHP/web changed-file coverage defaults to **90%**, with explicit overrides.
 
 Search/fetch need no separate consent records. Optional browser/SearXNG settings

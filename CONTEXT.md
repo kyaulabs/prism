@@ -24,7 +24,7 @@ protocol. Pi owns package installation, model settings and authentication.
 - Git and project tools run normally, with configured signing and hooks.
 - Core owns shared policy; skills own task-specific techniques. No onboarding or
   readiness workflow is required. Core exposes 18 skills/13 prompts, PHP/web 13/3
-  and C++ 4/1. The coordinated 2.0.0 resource change is breaking; Pi remains 1.5.0.
+  and C++ 4/1. The owner-selected 1.2.1 release includes breaking resource removals; Pi remains 1.5.0.
 
 The PHP/Aurora submodule, backend and asset directories are heritage/test
 infrastructure. This checkout is not a deployed web application.
