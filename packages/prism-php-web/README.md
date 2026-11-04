@@ -3,7 +3,7 @@
 An ordinary project-local Pi module for PHP 8.5+, Aurora, MariaDB, nginx, SCSS,
 vanilla JavaScript and Pest 5. Install with `pi install -l` using a package or
 local directory. Use native Composer/npm project commands as needed.
-The coordinated Prism 1.2.1 release exposes **13 skills and 3 prompts**.
+The coordinated Prism 1.2.2 release exposes **13 skills and 3 prompts**.
 
 The module supplies skills, prompts, a changed-file coverage helper and optional
 visual-review examples. It has no provisioning protocol, transaction engine or
