@@ -210,9 +210,10 @@ The `/security` prompt may flag patterns that are genuinely safe in context
   rules at that line).
 - Justification is auditable and committed alongside the code. "I think it's
   fine" is not a valid justification; explain *why* the pattern is safe.
-- Suppressions are re-reviewed when the named rule is updated — the
-  `/security` command logs extant suppressions in its report.
-- See the `/security` command for the full adjudication protocol.
+- When a named rule changes or a relevant suppressed finding is investigated,
+  inspect the affected existing suppressions and record the conclusion within
+  the authorized review. Report only inspection actually performed; `/security`
+  does not automatically enumerate or adjudicate existing suppressions.
 
 ## Cross-refs
 
@@ -221,5 +222,5 @@ The `/security` prompt may flag patterns that are genuinely safe in context
 - `/security` prompt — detects violations of the above.
 - `audit-deps` skill — scans Composer/npm for known CVEs.
 - `database` skill — schema and SQL style (this skill covers injection).
-- `packages/prism-php-web/docs/mocking.md` — boundary design for testable
+- [mocking guidance](../../docs/mocking.md) — boundary design for testable
   security code.

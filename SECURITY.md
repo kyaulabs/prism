@@ -2,12 +2,9 @@
 
 ## Supported versions
 
-Prism remains pre-1.0.
-
-| Version | Supported |
-| --- | --- |
-| `<1.0.0` | Yes |
-| `>=1.0.0` | No |
+Security fixes target the latest released Prism version. Backports to earlier
+versions require an explicit maintainer decision. Report the affected version
+or commit using the private process below.
 
 ## Report a vulnerability
 

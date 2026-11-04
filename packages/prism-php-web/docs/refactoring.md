@@ -48,15 +48,16 @@ not the implementation technique used today.
 
 ## Verification
 
-For each refactor step:
+Start from passing relevant tests. Make a meaningful structural change, then
+rerun the affected tests. If a test must change despite unchanged behavior,
+inspect it for implementation coupling before proceeding.
 
-1. start from a green focused test;
-2. make one structural change;
-3. rerun the focused test;
-4. run the full applicable suite;
-5. run the adapter quality gate and changed-file coverage;
-6. confirm no debug calls, dead compatibility paths, or generated-asset edits
-   remain.
+Run broader checks and coverage at completion, for concrete integration risk,
+or when required by project/PR gates. Use `/check-php` for applicable native
+checks and the existing [coverage helper](../scripts/coverage-gate.php), following
+[PHP/web test design](tests.md). The default remains 90% line coverage per changed
+PHP file in the coverage source set; explicit project/user overrides may set a
+different threshold.
 
-If the test must change despite unchanged behavior, inspect it for
-implementation coupling before proceeding.
+Reuse still-valid evidence for unchanged code and configuration. At completion,
+confirm no debug calls, dead compatibility paths or generated-asset edits remain.
