@@ -11,7 +11,8 @@ executable review/bootstrap infrastructure and its receipt-based finalization
 workflow. This exception is no longer in effect. The original decision and
 disclosure below are retained as history. The former version-two readiness
 prerequisites in [issue #536](https://github.com/kyaulabs/prism/issues/536) no
-longer apply.
+longer apply. Retirement cleanup is delivered through
+[PR #555](https://github.com/kyaulabs/prism/pull/555).
 
 ## Context
 
