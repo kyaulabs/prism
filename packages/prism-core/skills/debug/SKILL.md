@@ -16,8 +16,8 @@ within an authorized task do not need repeated approval. Never log secrets.
 
 Add a failing regression test at the highest practical public boundary. Fix the
 cause, not merely the symptom; run the test and relevant broader checks. Remove
-owned temporary instrumentation, preserving unrelated changes. Review non-trivial
-fixes in the current session and commit verified work normally.
+owned temporary instrumentation, preserving unrelated changes. Follow Core for
+review timing, evidence and authorized Git operations.
 
 If evidence contradicts the hypothesis, revise it rather than stacking patches.
 Ask for direction when progress stalls or consequences exceed the authorized

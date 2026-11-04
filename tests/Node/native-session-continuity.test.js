@@ -15,9 +15,8 @@ test('the packaged session-handoff command is removed', () => {
 const active = [
     'packages/prism-core/AGENTS.md', 'README.md', 'CODING_HARNESS.md',
     'packages/prism-core/docs/context-management.md',
-    'packages/prism-core/skills/executing-plans/SKILL.md',
-    'packages/prism-core/skills/from-issue/SKILL.md',
-    'packages/prism-core/skills/wayfinder/SKILL.md',
+    'packages/prism-core/skills/writing-plans/SKILL.md',
+    'packages/prism-core/skills/tracker-operator/SKILL.md',
 ];
 
 test('active workflows contain no session-handoff capability', () => {

@@ -1,7 +1,7 @@
 # Prism C++
 
-Project-local C++ engineering guidance for Pi: `cpp-stack`, `setup-cpp`,
-`cpp-build`, `tdd-cpp`, `cpp-review` and `/check-cpp [scope]`.
+Project-local C++ engineering guidance for Pi: `cpp-stack`, `cpp-build`,
+`tdd-cpp`, `cpp-review` and `/check-cpp [scope]`: **4 skills and 1 prompt**.
 
 This is an ordinary skills/prompts-only Pi package. It has no runtime dependency,
 extension, launcher or build engine. Core supplies optional shared workflow guidance;
@@ -9,7 +9,7 @@ the consumer owns standards, tools, architecture, budgets and delivery authority
 
 ## Install and discover
 
-This local 1.2.0 candidate is not a publication claim. Before registry publication:
+This coordinated local 2.0.0 candidate is not a publication claim. Before registry publication:
 
 ```sh
 pi install --local /absolute/path/to/prism/packages/prism-cpp

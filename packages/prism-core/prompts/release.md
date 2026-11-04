@@ -1,20 +1,21 @@
 ---
-description: Prepare or publish a release with native project tooling according to user and project instructions.
+description: Prepare an authorized project release without granting registry publication authority.
+argument-hint: "[version or scope]"
 ---
 
-Release scope: $ARGUMENTS
+Release scope: $ARGUMENTS.
 
-Inspect the project's actual version sources, changelog, release workflow and
-Git conventions. Determine the next version from compatibility and user intent.
-Update applicable package versions and useful release notes; no universal
-lockstep policy or release-branch naming requirement applies.
+Inspect actual version sources, changelog, package/peer coordination and native
+release conventions. Determine compatibility impact separately from the Pi host
+version. Prepare only authorized version changes, migration notes and artifacts;
+follow project signing and delivery roles. Reuse current verification and review
+under Core, adding relevant package/build checks.
 
-Run relevant tests, package/build checks and same-session review. State known
-limitations and migration steps. Follow configured Git signing. Commit verified
-changes normally. Push, tag, create a release PR or publish only within existing
-user/project authorization; do not repeat permission already given.
+A release PR follows `/pr`: supplied template, post-creation current-head Test Plan,
+recorded results and required CI/review before approval or merge. Inspect ambiguous
+Git/release outcomes before retrying.
 
-Use native Git, package managers, GitHub CLI and project workflows. Inspect
-ambiguous command outcomes before retrying publication. Never print registry
-credentials or upload private files. Report the actual release artifacts and
-URLs; preparing a release is not the same as publishing one.
+Distinguish local preparation, tags/GitHub release and registry publication. Existing
+release authority is not a new grant to publish packages; preserve explicit manual
+publication boundaries. Never expose credentials or change signing configuration.
+Report only artifacts and URLs actually created, with skipped checks and blockers.

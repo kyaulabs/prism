@@ -30,6 +30,9 @@ Never edit the body of an Accepted ADR. Supersede it.
 
 ## When to write
 
+Use a record when it is useful or required by the project, not for every
+disagreement. Typical durable decisions include:
+
 - A hard-to-reverse or expensive-to-change decision (data model, auth
   strategy, deployment topology, framework adoption).
 - A choice that forecloses other options.
@@ -50,7 +53,8 @@ Never edit the body of an Accepted ADR. Supersede it.
 ## Rules
 
 - One decision per ADR.
-- Sequence numbers never repeat or gap.
+- IDs never repeat. Allocate the next unused ID; gaps are valid and history
+  must not be renumbered.
 - Keep `adr/README.md` and `adr/0000-template.md` in sync with this skill if
   the format changes.
 - Do not delete ADRs; supersede them.

@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
+## [2.0.0] — Unreleased
+
+- **Breaking:** reduce the exposed resource surface from 57 skills/21 prompts to
+  35 skills/17 prompts: Core 18/13, PHP/web 13/3 and C++ 4/1.
+- Merge overlapping task guidance and rename `research-background` to `research`.
+  Remove setup/doctor workflows without replacement aliases. See
+  [migration guidance](docs/migration-2.0.md) for names and explicit filters.
+- Centralize authorization, mandatory TDD and its narrow experiment exception,
+  review cadence, current-head PR evidence, GPG signing and scoped branch cleanup
+  in distributed Core. Preserve repository-specific delivery roles locally.
+- Retain native context installation, source reconciliation, safety and bounded
+  web-access extensions; verify packed discovery and portable references.
+- Prepare coordinated package versions without registry publication.
+
 ## [1.2.0] — Unreleased
 
 - Remediate the npm/pnpm tooling audit findings with updated Markdown tooling,

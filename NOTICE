@@ -5,6 +5,15 @@ This project is licensed under the GNU Affero General Public License
 v3.0 (AGPL-3.0). A copy of the license is available in the LICENSE
 file at the root of this repository.
 
+Current resource locations (Prism 2.0): planning/execution material survives in
+packages/prism-core/skills/writing-plans/SKILL.md (Jesse Vincent and Matt Pocock);
+review triage in skills/code-review/SKILL.md; verification in AGENTS.md and
+prompts/check.md; branch completion in prompts/pr.md and prompts/release.md;
+spec synthesis in skills/brainstorming/SKILL.md; semantic duplication guidance in
+docs/design.md (obra/superpowers-lab, Jesse Vincent). Paths after the first are
+relative to packages/prism-core/. Existing source credits and license terms below
+apply to the retained adaptations. The .opencode paths below are historical.
+
 This project includes and adapts material from the following
 third-party open-source projects. The original copyright notices and
 license terms are preserved here as required by those licenses.
