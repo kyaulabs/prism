@@ -9,7 +9,7 @@ the consumer owns standards, tools, architecture, budgets and delivery authority
 
 ## Install and discover
 
-This coordinated local 2.0.0 candidate is not a publication claim. Before registry publication:
+The coordinated 1.2.1 GitHub release does not imply registry publication. To use this checkout:
 
 ```sh
 pi install --local /absolute/path/to/prism/packages/prism-cpp

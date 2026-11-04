@@ -1,5 +1,9 @@
 # Prism 2.0 simplification implementation
 
+Release note: the owner subsequently selected **1.2.1** instead of the provisional
+2.0.0 version. This completed implementation report retains its original version
+label as history; see [1.2.1 migration](../migration-1.2.1.md) for release guidance.
+
 ## Scope and starting point
 
 Implemented the owner-supplied simplification handoff on
@@ -13,7 +17,7 @@ language/tooling knowledge. Core exposes 18 skills/13 prompts, PHP/web 13/3 and
 C++ 4/1. The three manifests prepare coordinated 2.0.0 packages. No registry
 publication or new runtime machinery is part of this implementation.
 
-See [migration](../migration-2.0.md) for the resource-name map and consumer filters.
+See [migration](../migration-1.2.1.md) for the resource-name map and consumer filters.
 Installer, context ownership, source reconciliation and both extension
 implementations remain unchanged. Historical ADRs, completed plans and previous
 release sections remain history. Moved source credits survive in skill metadata,

@@ -12,7 +12,7 @@ behavior, inspect the relevant code, and choose useful skills on demand.
 
 Core is language-agnostic. PHP/web and C++ own stack guidance and native commands.
 Pi owns package/model management. Core exposes 18 skills/13 prompts, PHP/web 13/3
-and C++ 4/1; see [migration](docs/migration-2.0.md). No onboarding workflow is required.
+and C++ 4/1; see [migration](docs/migration-1.2.1.md). No onboarding workflow is required.
 Only expressly requested isolated disposable prototypes may use recorded experiment
 evidence instead of TDD; production promotion requires normal TDD.
 
