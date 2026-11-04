@@ -4,14 +4,14 @@ Date: 2026-09-08
 
 ## Status
 
-Accepted by explicit user approval for the review-system cutover.
+Deprecated. Retirement annotated 2026-11-03.
 
-Retirement is tracked in [issue #536](https://github.com/kyaulabs/prism/issues/536).
-Remove the exception after normal version-two review and `/pr` work end to end;
-retain this ADR as history.
-
-Narrowly extends ADR-0103's finalization requirements. Normal review authority,
-receipt validation, mandatory gates, and ADR-0112's attempt policy are unchanged.
+[Lean Prism 1.0](../docs/specs/lean-prism.md#verification-and-implementation-evidence) removed the
+executable review/bootstrap infrastructure and its receipt-based finalization
+workflow. This exception is no longer in effect. The original decision and
+disclosure below are retained as history. The former version-two readiness
+prerequisites in [issue #536](https://github.com/kyaulabs/prism/issues/536) no
+longer apply.
 
 ## Context
 

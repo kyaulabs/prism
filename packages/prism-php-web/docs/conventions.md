@@ -46,8 +46,11 @@ clear name, a smaller function, or a deeper module.
 ## Required source ceremony
 
 Every `.php`, `.js`, `.scss`, `.sh`, and `.ts` source file has one canonical
-RCS-style header and one final vim modeline. The pre-commit hook normalizes both;
-do not hand-edit their identity or date fields.
+RCS-style header and one final vim modeline when this module convention applies.
+The author or agent maintains them during authorized source edits, using real
+project identity and the actual edit date. Project instructions may override
+these defaults. The pre-commit hook scans and lints staged content; it does not
+rewrite or restage source.
 
 Read `rcs-header` before creating or modifying source. Markdown, JSON, YAML,
 generated assets, dependencies, and the Aurora submodule do not receive these
@@ -55,17 +58,16 @@ headers.
 
 ## Architecture tests
 
-`tests/Unit/Harness/ArchTest.php` uses filesystem walkers so procedural PHP is
-included. The suite excludes dependencies, generated assets, Aurora, and
-Semgrep fixtures, then enforces:
+Use the project's actual native checks; this module does not supply an
+architecture or header-placement test suite. Keep debug calls (`var_dump`,
+`print_r`, `dd`, `dump`) out of production source and retain strict-types and
+header conventions through source review and applicable project checks.
 
-- a vacuity guard that fails when no PHP source is found;
-- absence of `var_dump`, `print_r`, `dd`, and `dump` calls;
-- `declare(strict_types=1)` within the first ten lines of each PHP file.
-
-`tests/Unit/Harness/RcsHeaderConventionTest.php` checks source-header placement.
-Do not put Pest architecture declarations in `tests/Pest.php`; they do not cover
-the procedural source tree.
+Add an architecture test only for a real project requirement. If it scans source,
+include procedural PHP, exclude dependencies, generated assets, Aurora and
+Semgrep fixtures, and fail if the expected source set is empty. Do not put Pest
+architecture declarations in `tests/Pest.php`; they do not cover the procedural
+source tree.
 
 ## JavaScript
 

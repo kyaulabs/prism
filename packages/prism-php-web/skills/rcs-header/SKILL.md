@@ -5,11 +5,10 @@ description: Use when creating or modifying any source file. Provides the requir
 
 ## RCS-Style Header (REQUIRED on every source file)
 
-Every source file must carry an RCS-style header. The pre-commit hook
-(`.github/hooks/pre-commit`) is an idempotent normalizer: on every commit it
-strips and re-inserts a canonical header using the committer's identity and the
-commit date, plus the vim modeline (see ADR-0041). Authors never hand-edit the
-header — the hook manages it.
+Every source file must carry an RCS-style header when this module convention
+applies. The author or agent maintains the header and vim modeline during
+authorized source edits. The repository's pre-commit hook scans and lints staged
+content; it does not normalize or restage source.
 
 Applies to **source files only**: `.php`, `.js`, `.scss`, `.sh`, `.ts`. Markdown, JSON,
 YAML, and other non-source files do not carry RCS headers.
@@ -24,19 +23,18 @@ TS:   // $KYAULabs: filename.ts creator@host YYYY/MM/DD ±TZ Exp $
 
 Use the actual filename (not a path). The fields are:
 
-- `creator@host` — `git config user.email` username @ `hostname`, refreshed by the hook on every commit.
-- `YYYY/MM/DD ±TZ` — commit date and timezone offset, refreshed by the hook on every commit (last-commit marker, not creation date; provenance is in git history).
+- `creator@host` — real project identity, using the `git config user.email`
+  username and actual `hostname` unless the project specifies otherwise.
+- `YYYY/MM/DD ±TZ` — actual edit date and timezone offset, maintained by the
+  author or agent when editing the source, not an automatic commit-date marker.
 
-The header is a provenance marker managed by the pre-commit hook, analogous to a
-`Signed-off-by` trailer at the file level. Version and modification history are
-tracked by git; the in-file date reflects the last commit that touched the file.
-Do not hand-edit the header — the normalizer overwrites manual changes on the
-next commit (see ADR-0041).
+The header is an edit-time provenance marker. Git records version and
+modification history; the header does not prove the date of the last commit.
+Maintain applicable metadata without unrelated header churn or invented values.
 
 ### Placement
 
 - **PHP**: after `<?php` and optional `declare(strict_types=1);`, before code.
-  - Ordering is enforced by `tests/Unit/Harness/RcsHeaderConventionTest.php`.
 - **SCSS/JS/TS**: first line of the file.
 - **Bash**: after the shebang line (`#!/usr/bin/env bash`), before code.
 
@@ -77,12 +75,11 @@ The modeline is the very last line of the file, after all code.
 
 Document all `@param`, `@return`, and `@throws`. Align the descriptions.
 
-The "no explanatory comments" policy is owned by `AGENTS.md` (Commenting section) and
-`packages/prism-php-web/docs/conventions.md` (PHP Standards). Refer to those authoritative sources.
+The module's inline-comment convention lives in
+[PHP conventions](../../docs/conventions.md), under PHP and Aurora.
 
 ## Gotchas
 
-- *Header date changes on every commit* — the hook's normalizer refreshes the
-  `$KYAULabs:` date to the commit date. This is not a bug; the header is a
-  last-commit marker (ADR-0041), not a creation stamp. Creation provenance lives
-  in git history.
+- *Expecting automatic updates* — commits do not refresh header identity, date
+  or modelines. Maintain them during authorized source edits using real project
+  identity and actual dates; project instructions may override module defaults.

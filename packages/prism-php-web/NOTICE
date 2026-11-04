@@ -22,11 +22,10 @@ obra/superpowers
     receiving-code-review triage discipline and the
     finishing-a-development-branch checklist workflow.
   Used in:
-    - packages/prism-core/skills/executing-plans/SKILL.md (pipeline execution)
-    - packages/prism-core/skills/verification-before-completion/SKILL.md (verification gate)
-    - packages/prism-core/skills/writing-plans/SKILL.md (planning methodology)
-    - packages/prism-core/skills/receiving-code-review/SKILL.md (review triage)
-    - packages/prism-core/skills/finishing-a-development-branch/SKILL.md (branch completion)
+    - packages/prism-core/skills/writing-plans/SKILL.md (planning and execution)
+    - packages/prism-core/AGENTS.md and packages/prism-core/prompts/check.md (verification policy)
+    - packages/prism-core/skills/code-review/SKILL.md (review triage)
+    - packages/prism-core/prompts/pr.md and packages/prism-core/prompts/release.md (branch completion)
     - packages/prism-core/skills/tdd/SKILL.md (Red-Green-Refactor TDD discipline)
 
 obra/superpowers-lab
@@ -37,7 +36,7 @@ obra/superpowers-lab
     pattern — classical structural extraction (Phase 1) followed by
     LLM intent-clustering (Phase 2) with a deletion-test gate.
   Used in:
-    - packages/prism-core/skills/finding-duplicate-functions/SKILL.md (duplicate detection)
+    - packages/prism-core/docs/design.md (duplication and deletion guidance)
 
 obra/superpowers-developing-for-claude-code
   URL: https://github.com/obra/superpowers-developing-for-claude-code
@@ -62,7 +61,7 @@ mattpocock/skills
   Used in:
     - packages/prism-core/skills/brainstorming/SKILL.md (grilling pattern)
     - packages/prism-core/skills/prototype/SKILL.md (prototype pattern)
-    - packages/prism-core/skills/to-spec/SKILL.md (spec synthesis pattern)
+    - packages/prism-core/skills/brainstorming/SKILL.md (spec synthesis pattern)
 
 anthropics/skills
   URL: https://github.com/anthropics/skills

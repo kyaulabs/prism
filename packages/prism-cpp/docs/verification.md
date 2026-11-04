@@ -8,8 +8,11 @@ checks. No launcher, graph service or persistent receipt is required.
 
 Record source state/diff, working directory, compiler/stdlib/CRT, architecture,
 standard/extensions, generator, preset, build directory/type, important macros,
-sanitizer mode and dependency profiles/lock identity. Never reuse prior logs as
-current evidence. Prepare dependencies and generate real headers/sources first.
+sanitizer mode and dependency profiles/lock identity. Reuse prior evidence only
+when its recorded source/diff, generated inputs, dependencies, toolchain, flags
+and configuration still match the current task. Reject stale or mismatched logs
+and rerun affected checks; required fresh project/PR checks still apply. Prepare
+dependencies and generate real headers/sources first.
 Do not fabricate declarations or delete a user's build tree to silence diagnostics.
 
 Start from implementation, header, template, generated, build and dependency changes.
