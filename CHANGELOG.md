@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.\
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html) for versioning adherance.
 
+## [1.2.2](https://github.com/kyaulabs/prism/releases/tag/v1.2.2) — 2026-11-04
+
+- Correct the rolling security support policy and PHP edit-time header ownership;
+  remove claims about nonexistent style tests, hook rewriting and suppression
+  adjudication. Use actual project checks instead of mandatory test scaffolding.
+- Align PHP refactoring checks and C++ evidence reuse with affected code and
+  current configuration while preserving coverage requirements and PR gates.
+- Fix three installed PHP skill references, refresh attribution destinations and
+  distinguish historical Pi 1.5 compatibility evidence from resource migration.
+- Remove unused managed-release metadata and obsolete Setup label guidance.
+  Deprecate ADR-0113 after confirming the bootstrap exception was removed by
+  Lean Prism 1.0; close #536 through verified cleanup PR #555.
+- Preserve all 35 skills and 17 prompts, Core policy, native installation/context
+  helpers and runtime protections. Coordinate all three packages at 1.2.2;
+  GitHub release publication is automated and npm publication remains manual.
+
 ## [1.2.1](https://github.com/kyaulabs/prism/releases/tag/v1.2.1) — 2026-11-04
 
 - **Breaking:** reduce the exposed resource surface from 57 skills/21 prompts to

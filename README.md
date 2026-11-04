@@ -27,7 +27,7 @@ Pi configuration directory. Reload/restart Pi after changing extensions.
 Released packages can be installed with `pi install npm:@kyaulabs/prism-core`
 and `pi install -l npm:@kyaulabs/prism-php-web`. Run the installed Core's
 `scripts/install-global.sh` to deploy its always-on context. Pi owns model
-selection and authentication. This release is coordinated **Prism 1.2.1**;
+selection and authentication. This release is coordinated **Prism 1.2.2**;
 GitHub release publication does not imply npm registry publication.
 The tested host is **Pi 1.5.0**; its Node engine floor remains **22.19.0+**.
 Prism versions are independent of Pi. See the [compatibility and migration guide](packages/prism-core/docs/pi-1.5.md)
