@@ -14,8 +14,8 @@ Follow project instructions over module defaults.
 
 Inspect `composer.json`, `phpunit.xml` and `tests/Pest.php` before running tests.
 Use the project's existing commands and structure. If test tooling is absent,
-use the module setup skill or ordinary Composer setup within the requested scope;
-do not require global Prism readiness or an adapter protocol.
+use ordinary Composer commands within the requested scope or report the missing
+dependency; no module or onboarding workflow is required.
 
 For Pest projects, use `vendor/bin/pest --init` only if bootstrap is absent. Use
 PHPUnit's default test case unless the project defines a shared test case. Put
@@ -57,8 +57,8 @@ unless the project requests one.
 
 ## Completion
 
-Run relevant tests and lint via `/check-php`, verify actual results and commit
-logical changes with `conventional-commits`. RCS headers, modelines, naming and
+Run relevant tests and lint via `/check-php`, verify actual results and use
+`conventional-commits` for authorized commits under Core/project policy. RCS headers, modelines, naming and
 PHP documentation follow module/project conventions, not Core-wide enforcement.
 
 ## Gotchas

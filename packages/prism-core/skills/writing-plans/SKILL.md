@@ -1,34 +1,33 @@
 ---
 name: writing-plans
-description: Use to break a multi-step change into coherent, testable implementation slices. Produce a short executable checklist rather than a second specification.
-derived-from: obra/superpowers (MIT, © Jesse Vincent)
+description: Use to create or resume an authorized multi-step plan with coherent slices, dependencies and current verification evidence.
+derived-from: obra/superpowers (MIT, © Jesse Vincent); mattpocock/skills (MIT, © Matt Pocock)
 ---
 
-# Writing Plans
+# Plans and execution
 
-Make the next steps clear enough to execute without prescribing every line of code.
+Inspect the requested outcome, existing plan and current worktree. Reuse settled
+decisions, project commands and valid evidence; never assume an earlier edit or
+check succeeded. Resume at the first incomplete deliverable.
 
-1. Read the requested outcome and relevant implementation. Reuse settled decisions;
-   ask only about missing requirements that materially affect the approach.
-2. List coherent vertical slices in dependency order. For each, identify behavior,
-   likely files/interfaces, a failing-test seam, and verification commands found
-   in the project or applicable module.
-3. Include integration, migration and deletion work where required. State risks
-   and unresolved assumptions plainly. Do not create speculative abstractions.
-4. Use a conversation checklist for ordinary tasks or one durable plan for work
-   that benefits from resumption. Link an existing spec rather than duplicating it.
-5. If implementation is authorized, continue with `executing-plans`. A request
-   for a plan alone stops at the plan. No extra approval just to move between skills.
+Use a short local checklist by default. For substantial work, keep one useful
+plan linked to the specification rather than restating it. Each slice identifies
+observable behavior, likely interfaces/files, real dependencies, a practical
+public test seam and the native verification command. Include migration,
+integration and removal of replaced paths. Do not prewrite production code,
+invent a speculative backlog or require tracker items.
 
-## Rules
+During authorized implementation, execute coherent slices through `tdd` and
+check retained callers. Adjust routine file choices as evidence improves. Keep a
+concise record of completed work, actual results and the next incomplete step
+when resumption would otherwise be difficult. Use Pi's native session continuity;
+no transfer ceremony, receipt chain or new session is required.
 
-Use TDD for development. Do not prewrite complete production code in the plan,
-require exact future test names, or bind execution to receipts and commit hashes.
-Keep useful plans after completion. Track an originating issue when there is one;
-close it only when its requested outcome is actually delivered.
+Continue authorized work without per-step approval. Ask only when the goal,
+material scope, permissions or consequential trade-offs change, or progress
+stalls. Follow Core for verification, review timing and Git authority instead of
+creating another completion protocol here.
 
-## Gotchas
-
-- A plan is a working guide, not a frozen program. Adjust implementation details
-  as evidence improves; discuss changes to the user's goal or material trade-offs.
-- Oversized work needs smaller slices, not necessarily more documents or tickets.
+A request to plan stops at the plan. Creating tracker records is separate scope;
+use `tracker-operator` only when requested or already authorized. Keep useful
+plans and preserve unrelated work.

@@ -1,6 +1,10 @@
 ---
-description: Decompose requested work into useful local slices or tracker tickets.
+description: Decompose work locally into verifiable slices; use a tracker only when authorized.
+argument-hint: "<goal or plan>"
 ---
 
-Use `ticketing` for $ARGUMENTS, with `wayfinder` when significant unknowns remain.
-Default to local decomposition unless tracking is requested or project practice.
+Load `writing-plans` for $ARGUMENTS. Use coherent local slices with real
+dependencies and project verification commands. Reuse settled specifications and
+existing work; do not create a speculative backlog. Use `tracker-operator` only
+when tracker operations are requested or already authorized. A planning-only
+request does not authorize implementation or issue creation.

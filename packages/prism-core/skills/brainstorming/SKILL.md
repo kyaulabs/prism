@@ -1,34 +1,32 @@
 ---
 name: brainstorming
-description: Use to clarify a rough idea or compare meaningful design alternatives. Keep design proportional and proceed once the requested work is clear.
+description: Use to resolve consequential design choices and capture goals, behavior, acceptance criteria and useful test seams.
 derived-from: mattpocock/skills (MIT, © Matt Pocock)
 ---
 
 # Brainstorming
 
-Turn uncertainty into a design that can be tested and implemented.
+Turn uncertainty into a design that can be tested. Inspect relevant code and
+project evidence before asking the user about discoverable facts.
 
-1. Inspect relevant code and project context. Establish the goal, constraints,
-   existing behavior and observable acceptance criteria.
-2. Use `grilling` for unresolved human decisions. Recommend the simplest approach
-   that meets the goal; compare alternatives only where the trade-off matters.
-3. Sketch boundaries, data flow, failure cases and test seams. For large work,
-   identify coherent local slices rather than forcing a tracker workflow.
-4. Summarize the design at the needed level of detail. Ask about material choices
-   not already authorized, not for repeated approval of settled requirements.
-5. Use a short plan for ordinary work. Write a spec when substantial ambiguity
-   warrants durable detail, using `to-spec`. Record consequential architecture
-   with `adr` when useful; architecture review is available, not a mandatory gate.
-6. If implementation was requested, proceed through `tdd`, using `writing-plans`
-   for multi-step work. If the user requested exploration only, stop at the design.
+Establish the goal, constraints, existing behavior, affected users and observable
+acceptance criteria. Separate settled decisions from open choices. For each
+consequential choice, explain realistic alternatives and recommend the simplest
+one that meets the goal. Ask focused questions about human preferences, costs
+and trade-offs, not for repeated confirmation of an approved design.
 
-## Rules
+Sketch boundaries, data flow, failure cases and useful public test seams. Check
+that the acceptance criteria distinguish success from a plausible but wrong
+implementation. Identify assumptions that need evidence rather than treating a
+confident explanation as proof.
 
-No mandatory spec for a simple fix, classifier for a new project, or branch/seed
-transaction before design can proceed. Keep useful design documents. Follow
-project branch conventions when implementation starts, preserving unrelated work.
+Summarize at the useful level of detail: a brief plan for ordinary work; a durable
+specification when requested or when it would resolve substantial ambiguity.
+A specification records goals, constraints, behavior, exclusions, acceptance
+criteria and unresolved decisions without prescribing every implementation line.
+Reuse existing documents instead of duplicating them. Use `architect` for a
+significant boundary choice and `writing-plans` for multi-step implementation.
 
-## Gotchas
-
-- Design should reduce implementation uncertainty, not duplicate the code in prose.
-- Do not reopen settled questions or force a fresh approval at every handoff.
+Respect analysis-only and planning-only scope. A design discussion does not
+authorize implementation or tracker creation. When implementation is already
+authorized and requirements are clear, proceed without reopening settled choices.

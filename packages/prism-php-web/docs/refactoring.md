@@ -29,7 +29,8 @@ layer would introduce.
 
 Extract shared code only when the duplicated behavior has the same meaning and
 change pressure. Similar syntax with different policy should remain separate.
-Use `finding-duplicate-functions` when semantic duplication is unclear.
+Use `architect` and its bundled design reference when shared intent or expected
+evolution is unclear.
 
 Prefer deep modules: a small interface that hides validation, state, or
 integration complexity. Avoid pass-through wrappers and classes whose public

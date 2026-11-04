@@ -6,8 +6,9 @@ description: Use for PHP browser tests with Pest and Playwright through native p
 # Pest Browser Tests
 
 Use project-local Composer Pest and npm Playwright tooling. Install Chromium
-with `node_modules/.bin/playwright install chromium` when needed. Follow
-`setup-php-web` for missing project tools; there is no global readiness gate.
+with `node_modules/.bin/playwright install chromium` when needed and authorized.
+Inspect Composer/npm manifests and use actual project commands for missing Pest
+or Playwright dependencies within scope; report unavailable tools.
 
 Run `vendor/bin/pest` against a test-only application server. Reuse an existing
 project fixture when available. Start an owned process on an available loopback

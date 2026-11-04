@@ -1,19 +1,11 @@
 ---
-description: Run relevant project tests, lint and coverage checks and report actual results without receipts or global readiness gates.
+description: Verify the requested outcome with relevant project checks and actual evidence.
 argument-hint: "[scope]"
 ---
 
-# Check
-
-Verify $ARGUMENTS, or the current task's changes when no scope is supplied.
-
-1. Inspect changed paths and project/module test configuration.
-2. Load `verification-before-completion`. Run applicable checks, including the
-   module's check skill or prompt where useful. Use focused commands for scoped
-   work and broader suites for cross-cutting changes or explicit full-check requests.
-3. Report commands, results and limitations. Separate not-run and not-applicable
-   checks from PASS. Missing unrelated tools never block the requested check.
-
-Do not require a clean unrelated working tree, installed reviewer, criteria or
-check receipts. Do not change code unless repairs were requested or are within
-the active development task. Never print secrets while inspecting changes.
+Verify $ARGUMENTS, or the current task outcome. Inspect the final diff and
+relevant callers. Run missing project-required and affected-behavior checks;
+reuse valid results for unchanged code rather than automatically repeating every
+suite. Report commands and actual results, including failures, skipped or
+unavailable checks and unresolved risks. Plans and tool availability are not
+passing evidence. Do not edit implementation in a verification-only request.

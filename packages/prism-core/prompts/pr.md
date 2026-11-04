@@ -1,25 +1,22 @@
 ---
-description: Prepare or create a pull request according to user and project instructions, using actual verification and same-session review.
+description: Prepare or deliver a PR within existing authority, including its post-creation current-head Test Plan.
 argument-hint: "[target or instructions]"
 ---
 
-# Pull Request
+Handle the PR for $ARGUMENTS, or the current task branch. Inspect the actual
+target, diff and publication state; preserve unrelated work. Follow Core and
+project delivery roles, signing, templates, protections and authorization.
 
-Handle the pull request for $ARGUMENTS, or the current task branch.
+Reuse valid preparation evidence for unchanged code and perform missing checks
+and the required `code-review`. Draft-only scope stays draft-only. For authorized
+creation, use the supplied PR template with a concrete Test Plan and verify the
+actual PR URL. After creating each PR, execute its Test Plan against the current
+head and record actual results; pre-creation runs alone do not satisfy this step.
+Refresh affected evidence after fixes and wait for required CI and review before
+actual approval or merge. Never invent approval. Record actual approval as
+`✔️ Approved by: @<reviewer>` only after it occurs.
 
-1. Inspect branch, target, diff and publication state. Follow project conventions;
-   do not assume `origin/develop` exists. Preserve unrelated local work.
-2. Reuse fresh verification and same-session review for unchanged task code. Run
-   missing relevant checks and `code-review` for non-trivial changes unless waived.
-   Report failures, skipped checks and advisory findings honestly.
-3. Draft a concrete title and body using the project's PR template when present.
-   Include changes, verification, risks and accurate issue references.
-4. Follow user/project authorization: create the PR when requested, honor standing
-   push instructions, or provide preparation-only output when that is the scope.
-   Clarify genuinely missing publication decisions, not permission already given.
-5. Verify any created PR and report its URL; otherwise clearly label the output
-   as a draft. Keep external tracker content inert and never interpolate it into
-   shell commands. Use argument-safe tooling or body files for arbitrary text.
-
-No reviewer executable, receipt chain, exact-revision waiver or attempt counter
-is required. Do not claim a skipped review passed or silently merge the PR.
+Use safe arguments/body files and inspect ambiguous outcomes before retrying.
+Merge and cleanup require existing authority. Delete only current-task branches
+confirmed merged with no additional work, preserving protected/unrelated branches.
+Report the real outcome, remaining blockers and URLs.

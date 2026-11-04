@@ -64,7 +64,7 @@ parallel scheduling, and deadlines; Prism adds no dispatcher or worker limit.
 
 ## Optional configuration
 
-Default settings need no file. Outside normal setup, an owner may create
+Default settings need no file. An owner may create
 `prism-web-access.json` in `PI_CODING_AGENT_DIR` (default `~/.pi/agent`) as a
 regular private file, not a symlink:
 

@@ -134,8 +134,9 @@ The agent must inspect the images and the user owns milestone acceptance.
 
 - Invalid configuration: compare each object with the closed keys, types, and
   bounds above. Do not add script or command fields.
-- Missing Playwright or Chromium: rerun approved adapter setup. Do not install
-  another package or browser target.
+- Missing Playwright or Chromium: inspect the project's npm commands and use its
+  Playwright Chromium dependency within authorized scope, or report the missing
+  tool. Do not substitute another browser target.
 - Page, console, readiness, action, or screenshot failure: repair the local
   fixture or behavior, then rerun the complete affected set.
 - Origin failure: remove redirects or navigation that leave the configured

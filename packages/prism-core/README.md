@@ -18,10 +18,12 @@ Prism versions are separate from Pi versions. See [migration commands and the
 compatibility/adoption matrix](docs/pi-1.5.md). Executed environments and limits
 are recorded there; the engine range is not proof of minimum-version testing.
 
-`/setup` selects actual applicable template files and optional modules. `/doctor`
-is scoped diagnostics. Development defaults to TDD, proportional planning,
-verification, same-session review and ordinary Git commits. Project/user
-instructions override non-secret defaults, without repeated approvals.
+Core exposes **18 skills and 13 prompts** in the coordinated Prism 1.2.1 release.
+Development requires TDD except for expressly requested isolated disposable
+experiments. Core owns verification, once-per-PR/milestone review and Git authority;
+installing it grants no remote delivery permission. Authorized commits require
+GPG signing and detailed bodies. Use native project tools, not onboarding workflows.
+See [resource migration](docs/migration-1.2.1.md) for names and filter changes.
 
 See `AGENTS.md`, the callable `skills/` and `prompts/`, and the extension READMEs.
 Secret protection is not a sandbox and cannot prove arbitrary programs safe.

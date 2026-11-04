@@ -1,17 +1,11 @@
 ---
-description: Choose useful skills for a request and proceed without a mandatory routing handoff.
+description: Choose a useful approach and progress the actual request without a routing ceremony.
 argument-hint: "<request>"
 ---
 
-# Route a Request
-
-Help with $ARGUMENTS.
-
-Choose the smallest useful approach: answer a clear question directly, inspect
-relevant code for exploration, use `debug` for a bug, `brainstorming` for an unclear
-idea, or `tdd` for clear development work. Use `from-issue` when the request starts
-from a ticket. Decompose large tasks locally; issue maps remain optional.
-
-Ask only for consequential unresolved decisions. Continue the requested work
-rather than routing and stopping. Follow project instructions and report actual
-verification before completion.
+Help with $ARGUMENTS. Answer clear questions directly; inspect relevant code
+for exploration; use `debug` for bugs, `brainstorming` for unresolved choices,
+`tdd` for development and `tracker-operator` for issue-based work. Use
+`writing-plans` for multi-step work when helpful. Ask only about consequential
+ambiguity and continue the requested task; this shortcut adds no permissions or
+mandatory routing layer.

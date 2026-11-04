@@ -1,6 +1,6 @@
 {
   "name": "@kyaulabs/prism-php-web",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "PHP and web engineering skills for Pi",
   "license": "AGPL-3.0-only",
   "keywords": ["pi-package"],
