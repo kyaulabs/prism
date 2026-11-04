@@ -1,19 +1,31 @@
 ---
 name: architect
-description: Use to evaluate significant architecture choices against concrete requirements and existing system boundaries.
+description: Use to evaluate architecture choices or scoped structural findings against actual code, callers and constraints.
 ---
 
-# Architecture Review
+# Architecture
 
-Establish the system's goals, constraints and current design. Inspect the actual
-code before proposing abstractions. Compare a small set of viable approaches,
-including keeping the current design. Consider correctness, security, operating
-cost, failure handling, migration and reversibility.
+Read the affected code, public interfaces, callers, tests and project constraints.
+Describe the current design before proposing a replacement. Separate observations
+from assumptions and identify the actual consequence of each structural concern.
+An analysis request remains read-only.
 
-Recommend the smallest design that meets requirements. Distinguish evidence
-from assumptions and resolve consequential unknowns. Record an ADR when the
-choice warrants a durable decision; do not require a scoring rubric, universal
-GO/NO-GO gate or a new approval when implementation is already authorized.
+Compare realistic alternatives, including retaining the current design. Explain
+how each serves the requirements, where complexity lives, and what callers must
+know. Prefer a small interface that hides meaningful complexity over layers that
+only relay arguments. Similar-looking code is not necessarily shared intent;
+consider callers and expected independent evolution before extracting a helper.
 
-During implementation use TDD and task-relevant checks. Report concrete risks
-and deferred decisions without turning advisory cleanup into a blocking project.
+For relevant boundaries, examine trust, failure modes, state ownership, migration,
+rollback, compatibility and operating costs. Resolve unknowns with local evidence
+or a bounded experiment when expressly requested, not invented certainty. Show
+only diagrams that clarify a concrete question; portable Markdown is the default.
+
+Report recommendations with locations, triggers and effects. Distinguish required
+repairs from optional redesign. Avoid universal scoring gates, automatic ADR/RFC
+escalation, or splitting a module merely because its description contains “and”.
+
+Read [design guidance](../../docs/design.md), resolved from this skill directory,
+when deeper interface, duplication or design-record guidance is useful. Use `adr`
+for a useful durable decision or a project-required record. Design advice alone
+does not authorize edits or new approval requirements.

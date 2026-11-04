@@ -78,8 +78,8 @@ test('packed Core resources load in the real Pi 1.5 host without an appended sys
     fs.symlinkSync(path.join(root, 'node_modules'), path.join(extracted, 'node_modules'), 'dir');
     const target = await hostFixture(t, {}, {packages: [extracted]});
     assert.equal(target.loader.getExtensions().extensions.filter(extension => extension.path.startsWith(extracted)).length, 2);
-    assert.ok(target.loader.getSkills().skills.some(skill => skill.name === 'setup'));
-    assert.ok(target.loader.getPrompts().prompts.some(prompt => prompt.name === 'setup'));
+    assert.ok(target.loader.getSkills().skills.some(skill => skill.name === 'tdd'));
+    assert.ok(target.loader.getPrompts().prompts.some(prompt => prompt.name === 'check'));
     assert.deepEqual(target.loader.getAppendSystemPrompt(), []);
     assert.ok(target.session.getAllTools().some(tool => tool.name === 'web_search'));
     assert.ok(target.session.getAllTools().some(tool => tool.name === 'fetch_content'));

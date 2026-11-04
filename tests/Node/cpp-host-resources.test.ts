@@ -7,7 +7,7 @@ import test from 'node:test';
 import {hostFixture} from './pi-host-fixture.ts';
 
 const root = path.resolve(import.meta.dirname, '../..');
-const names = ['cpp-stack', 'setup-cpp', 'cpp-build', 'tdd-cpp', 'cpp-review'];
+const names = ['cpp-stack', 'cpp-build', 'tdd-cpp', 'cpp-review'];
 
 test('packed Core/CPP/PHP coexist, commands expand and native filters survive reload', async t => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-cpp-host-'));
@@ -47,7 +47,7 @@ test('packed Core/CPP/PHP coexist, commands expand and native filters survive re
         target.settings.setProjectPackages([{source: packages[1], skills: [], prompts: ['prompts/check-cpp.md']}]);
         await target.session.reload();
         assert.ok(!target.loader.getSkills().skills.some(s => names.includes(s.name)));
-        assert.ok(target.loader.getSkills().skills.some(s => s.name === 'setup'));
+        assert.ok(target.loader.getSkills().skills.some(s => s.name === 'tdd'));
         assert.ok(target.loader.getPrompts().prompts.some(p => p.name === 'check-cpp'));
         assert.deepEqual(target.settings.getGlobalSettings(), before);
     }

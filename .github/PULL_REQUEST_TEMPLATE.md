@@ -61,7 +61,7 @@
   If this PR was pre‑validated by an architect (e.g., via @architect),
   list each condition and how it was addressed.
   Example:
-  1. ✅ jq dependency: graceful degradation + /doctor check
+  1. jq dependency: graceful degradation verified by a focused test
   2. ✅ v1→v4 schema migration: idempotent migrate script
   Leave blank or delete this section if not applicable.
 -->
@@ -82,8 +82,8 @@
   a reviewer can run to verify your changes work as expected.
   Use bullet points with code blocks if needed.
   Example:
-  - [ ] `pi --list-models` — model catalogue lists your providers
-  - [ ] `bash packages/prism-core/scripts/new-branch.sh feat test-branch` — creates correct branch
-  - [ ] `bash packages/prism-core/scripts/validate-branch-name.sh feat/your-name-hash-desc` — exit 0
-  - [ ] `bash packages/prism-core/scripts/resolve-identity.sh` — prints your identity
+  Execute each item against the current head after creating this PR and record
+  actual results before approval. Refresh affected evidence after changes.
+  - [ ] `bash packages/prism-core/scripts/validate-harness.sh` — resource metadata
+  - [ ] Relevant native test command — describe the behavior and actual result
 -->

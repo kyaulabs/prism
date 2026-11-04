@@ -1,102 +1,43 @@
-# Design documents and RFCs
+# Architecture guidance
 
-The `systems-design` skill uses this guide for changes whose shape is still open.
-Use the `adr` skill once the decision is settled.
+`architect` owns scoped architecture evaluation. Use the depth needed by the
+question and actual project policy, not automatic document escalation.
 
-## ADR or RFC
+## Interfaces and boundaries
 
-Write an ADR when the project has made, or is ready to make, one architecture
-decision. ADRs are short, append-only records in `adr/`. Accepted ADR bodies are
-immutable; later decisions supersede them.
+Compare the current design with realistic alternatives. A deep module hides
+meaningful complexity behind a small interface; a pass-through layer merely
+moves it. Examine caller knowledge, state ownership, failures, trust boundaries,
+migration, reversibility and operating cost. Do not introduce an abstraction
+only to rename a dependency.
 
-Write an RFC when the design is still being evaluated and needs structured
-feedback. RFCs compare viable options and expose open questions. They are not
-architecture authority.
+A useful diagram answers one question. Choose context, container or component
+views as needed; name boundaries and label arrows with data/events. Mermaid or
+ASCII is sufficient. No diagram is required per finding.
 
-| Condition | Record |
-| --- | --- |
-| One settled, cross-cutting decision | ADR |
-| Several credible designs remain | RFC |
-| Reversal would be expensive and feedback is needed | RFC, followed by ADR |
-| Small local choice with no lasting architecture effect | Pull request or spec |
+## Shared intent and duplication
 
-## When an RFC is required
+Read candidate implementations and their callers, not just signatures or token
+similarity. Ask whether they solve the same problem and should evolve together.
+Shared intent may look different; similar syntax may encode independent policies.
+Consider expected changes, invariants and error behavior before extracting.
 
-Use an RFC when at least one condition applies:
+Prefer a shared implementation when it concentrates complexity and reduces caller
+knowledge. Avoid helpers that recreate both originals through mode flags or couple
+unrelated policies. There is no arbitrary line-count or structural-similarity gate.
+A small duplication may be cheaper than an abstraction; explain the actual cost.
 
-- the change crosses several subsystem boundaries and the interfaces are not
-  settled;
-- two or more credible approaches have materially different costs;
-- the rollout changes persistent data, public interfaces, trust boundaries, or
-  operational ownership;
-- a wrong choice would be expensive to reverse.
+This intent/caller guidance adapts obra/superpowers-lab (MIT, © Jesse Vincent).
+See the shipped NOTICE for attribution and terms.
 
-Do not use an RFC to delay a narrow decision that an ADR or approved spec can
-record directly.
+## Durable decisions and open proposals
 
-## RFC template
+Use `adr` for a useful settled decision or a project-required record. Use an RFC
+when open alternatives need durable feedback; a short plan or PR discussion is
+enough for local choices. Follow project approval requirements, not a universal
+all-boundary-owner sign-off rule.
 
-Store active RFCs under `docs/rfc/` or in a pull request draft.
-
-```markdown
-# RFC: <title>
-
-Start date: YYYY-MM-DD
-Author: <name>
-
-## Summary
-
-<One paragraph describing the proposal.>
-
-## Motivation
-
-<The problem, affected users or systems, and the cost of doing nothing.>
-
-## Detailed design
-
-<Interfaces, data flow, state, failure handling, security boundaries, and examples.>
-
-## Alternatives
-
-<Named alternatives and the concrete reason each was not selected.>
-
-## Risks and trade-offs
-
-<Failure modes, lost options, migration cost, and operational burden.>
-
-## Open questions
-
-<Decisions required before approval.>
-
-## Adoption plan
-
-<Rollout, compatibility, migration, observation, and rollback.>
-```
-
-## C4-lite diagrams
-
-Use Mermaid when GitHub rendering helps and ASCII when the diagram must survive
-plain-text tooling.
-
-Use only the needed zoom levels:
-
-- Context: people and external systems around Prism;
-- Container: deployable or separately owned runtime units;
-- Component: important modules inside one container.
-
-Name each boundary, label every arrow with the data or event it carries, and
-keep one diagram focused on one question. Do not mix deployment, request flow,
-and class structure in one figure.
-
-## Approval and lifecycle
-
-1. Draft the RFC from established project context and accepted ADRs.
-2. Identify open decisions and named alternatives.
-3. Obtain review from owners of every affected boundary.
-4. Record the selected decision in an ADR when the design settles.
-5. Update the implementation spec or plan with the approved interfaces.
-6. Delete or archive the RFC so it cannot compete with the accepted ADR.
-
-An RFC does not authorize implementation. The approved spec and plan own that
-transition. If implementation changes the architecture decision, stop and
-update the ADR before continuing.
+An RFC can record the problem, constraints, alternatives, interfaces, risks, open
+questions, migration and rollback. Keep useful discussion/history and make the
+accepted decision discoverable; no archive/delete ceremony is prescribed. A design
+record does not itself authorize implementation.

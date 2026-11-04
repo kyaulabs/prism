@@ -6,9 +6,9 @@ compatibility: "PHP 8.5+, Aurora framework, MariaDB, nginx"
 
 # PHP/Web Architect Addendum
 
-Load the core `architect` skill first and follow its full read-only evaluation
-protocol and `ADR-required:` output contract. Then load `php-web-stack` before
-reading the source files the proposed change would touch.
+Load `architect` for code-grounded evaluation and `php-web-stack` for the
+PHP/Aurora conventions. Keep evaluation read-only unless implementation is
+explicitly in scope; no special output protocol is required.
 
 ## Adapter boundary check
 
@@ -25,7 +25,7 @@ and is the boundary interface designed for it?
 ## Rules
 
 - This addendum does not replace the core `architect` skill.
-- Never edit, write, or stage files. This is a read-only review.
+- An analysis-only request authorizes no edits or staging.
 - Treat a proposed Aurora submodule change as cross-boundary work.
 
 ## Gotchas

@@ -44,9 +44,9 @@ For each test file in the relevant project test roots:
 
 Produce a prioritized list:
 
-- **Critical** — tests that give false confidence (always pass regardless of
-  correctness, or test the wrong thing).
-- **High** — missing tests for error/exception paths on core functionality.
+- **Critical** — gaps concealing plausible systemic compromise or catastrophic
+  failure; a vacuous assertion alone does not establish critical impact.
+- **High** — gaps with demonstrated significant behavioral or security risk.
 - **Medium** — missing boundary/edge-case coverage.
 - **Low** — style issues, duplicate tests, or minor gaps.
 

@@ -2,7 +2,8 @@
 
 Read `AGENTS.md` and the relevant package skills. Preserve unrelated work and
 consumer customization. Use behavior-focused TDD for development and native
-project tools. Review non-trivial work in the current session before completion.
+project tools. Review once per PR or completed milestone before delivery unless
+waived. Follow Core's narrow disposable-experiment exception and evidence policy.
 
 ## Checks
 
@@ -27,6 +28,6 @@ findings, lint applicable staged content and validate commit messages. They do
 not rewrite source, impose branch policy or require unrelated tools.
 
 Use Conventional Commits with `Implemented-by` and `Signed-off-by` attribution.
-Signing follows Git configuration. Git-flow is a default, not an immutable
+GPG signing is required; never weaken signing configuration. Git-flow is a default, not an immutable
 runtime gate. Push, PR, merge and release operations follow user/project scope.
 Never include credentials, scanner matches or private local state in commits.

@@ -6,16 +6,14 @@ adapter declarations, bootstrap protocol or managed release engine is required.
 
 Core runtime dependencies are limited to web extraction. Pi host APIs are peer
 dependencies; development test tooling lives in the root manifest. PHP/web
-project tools are installed with Composer/npm when selected during setup. C++
+project tools use native Composer/npm commands within task scope. C++
 ships only skills/prompts/references; native compiler/build tools remain project-owned.
-The local 1.2.0 candidate is separate from the Pi 1.5.0 host and is not published.
-It is **release-blocked** until the [required release completion plan](docs/specs/cpp-pi-1.5-implementation.md#required-release-completion-plan)
-is closed. Audit remediation, reproducible installs, final regression/coverage,
-archives and hosted Clang 18/Linux/macOS checks are complete. Git delivery is
-authorized and implementation PR #549 is merged. The live website still needs
-its owner to deploy the reviewed source before announcement; all three npm
-publications remain manual. Do not merge the release PR while that website hold
-is open. Development-only audit findings were remediated, not waived.
+The coordinated local 2.0.0 candidate is separate from the Pi 1.5.0 host and is not
+a publication claim. It follows the 1.2.0 audit baseline with a breaking resource
+surface change: Core 18 skills/13 prompts, PHP/web 13/3 and C++ 4/1. See
+[2.0 migration](docs/migration-2.0.md). Preserve coordinated versions and host-peer
+boundaries. Registry publication remains manual; verify current release conditions
+rather than reusing historical release evidence.
 
 Before an authorized publication, run the project tests and inspect `npm pack
 --dry-run` for each selected package. Update versions for the actual compatibility
